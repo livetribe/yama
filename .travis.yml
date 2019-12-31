@@ -1,0 +1,14 @@
+language: go
+sudo: false
+# Force-enable Go modules. Also force go to use the code in vendor/
+# These will both be unnecessary when Go 1.14 lands.
+env: GO111MODULE=on
+go:
+  - "1.12"
+  - "1.13"
+before_install:
+  - go install golang.org/x/lint/golint
+  - go install github.com/mattn/goveralls
+script:
+  - $GOPATH/bin/golint -set_exit_status ./...
+  - $GOPATH/bin/goveralls -service=travis-ci -race -v
