@@ -40,7 +40,7 @@ import (
 	"l7e.io/yama"
 )
 func main() {
-	watcher := yama.NewWatcher(yama.WatchingSignals(syscall.SIGTERM))
+	watcher := yama.NewWatcher(yama.WatchingSignals(syscall.SIGINT))
 	watcher.Wait()
 }
 `
