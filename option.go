@@ -46,7 +46,8 @@ func (w watchingSignals) Apply(o *Settings) {
 }
 
 // WithTimeout returns an Option that specifies the timeout used when calling
-// closers when a signal is captured or the Watcher instance is closed.
+// closers when a signal is captured or the Watcher instance is closed.  The
+// default timeout is ten seconds.
 func WithTimeout(timeout time.Duration) Option {
 	return withTimeout{timeout: timeout}
 }

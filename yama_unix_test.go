@@ -192,17 +192,19 @@ func TestYama(t *testing.T) {
 
 		err := watcher.Wait()
 		So(err, ShouldNotBeNil)
-		So(err, ShouldHaveSameTypeAs, &yama.TimedOut{})
+		So(err, ShouldHaveSameTypeAs, &yama.ErrTimedOut{})
 		So(err, ShouldImplement, (*error)(nil))
-		So(err.(*yama.TimedOut).Uncompleted, ShouldResemble, []io.Closer{neverClose})
+		So(err.(*yama.ErrTimedOut).Uncompleted, ShouldResemble, []io.Closer{neverClose})
 
 		neverClose.wg.Wait()
 		So(neverClose.Closed, ShouldEqual, 1)
 
-		// Second wait should not cause error since closers are not notified a
-		// second time.
+		// Second wait should return the same error.
 		err = watcher.Wait()
-		So(err, ShouldBeNil)
+		So(err, ShouldNotBeNil)
+		So(err, ShouldHaveSameTypeAs, &yama.ErrTimedOut{})
+		So(err, ShouldImplement, (*error)(nil))
+		So(err.(*yama.ErrTimedOut).Uncompleted, ShouldResemble, []io.Closer{neverClose})
 	})
 
 	Convey("Notify multiple closers with one closer that fails the timer", t, func() {
@@ -220,9 +222,9 @@ func TestYama(t *testing.T) {
 
 		err := watcher.Wait()
 		So(err, ShouldNotBeNil)
-		So(err, ShouldHaveSameTypeAs, &yama.TimedOut{})
+		So(err, ShouldHaveSameTypeAs, &yama.ErrTimedOut{})
 		So(err, ShouldImplement, (*error)(nil))
-		So(err.(*yama.TimedOut).Uncompleted, ShouldResemble, []io.Closer{neverClose})
+		So(err.(*yama.ErrTimedOut).Uncompleted, ShouldResemble, []io.Closer{neverClose})
 
 		// ensure all closers called
 		neverClose.wg.Wait()
