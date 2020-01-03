@@ -1,3 +1,5 @@
+// +build linux bsd darwin
+
 /*
  * Copyright (c) 2020 the original author or authors.
  *
