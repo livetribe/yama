@@ -136,9 +136,7 @@ func (w *Watcher) Wait() error {
 // Close the instance, notifying any registered closers. Can be called
 // multiple times, but closers will only be called once.
 func (w *Watcher) Close() error {
-	select {
-	case w.done <- struct{}{}:
-	}
+	w.done <- struct{}{}
 	w.notify()
 	return w.err
 }
