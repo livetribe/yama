@@ -17,10 +17,7 @@
 package yama_test
 
 import (
-	"os"
-	"syscall"
 	"testing"
-	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
 	"l7e.io/yama"
@@ -34,16 +31,8 @@ func TestHelpers(t *testing.T) {
 			called = true
 		})
 
-		watcher := yama.NewWatcher(
-			yama.WatchingSignals(syscall.SIGTERM),
-			yama.WithClosers(c))
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
-		}()
+		_ = c.Close()
 
-		err := watcher.Wait()
-		So(err, ShouldBeNil)
 		So(called, ShouldBeTrue)
 	})
 
@@ -54,16 +43,8 @@ func TestHelpers(t *testing.T) {
 			return nil
 		})
 
-		watcher := yama.NewWatcher(
-			yama.WatchingSignals(syscall.SIGTERM),
-			yama.WithClosers(c))
-		go func() {
-			time.Sleep(100 * time.Millisecond)
-			_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
-		}()
+		_ = c.Close()
 
-		err := watcher.Wait()
-		So(err, ShouldBeNil)
 		So(called, ShouldBeTrue)
 	})
 }
