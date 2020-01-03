@@ -138,7 +138,6 @@ func (w *Watcher) Wait() error {
 func (w *Watcher) Close() error {
 	select {
 	case w.done <- struct{}{}:
-	default:
 	}
 	w.notify()
 	return w.err
