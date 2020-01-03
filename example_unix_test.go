@@ -29,7 +29,7 @@ import (
 	"l7e.io/yama"
 )
 
-func Example_Wait() {
+func Example_wait() {
 
 	server := &http.Server{Addr: ":0", Handler: nil}
 
