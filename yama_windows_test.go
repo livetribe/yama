@@ -58,7 +58,7 @@ func main() {
 			t.Fatalf("Failed to create %v: %v", src, err)
 		}
 		defer f.Close()
-		f.Write([]byte(source))
+		_, _ = f.Write([]byte(source))
 
 		// compile it
 		exe := name + ".exe"
@@ -86,7 +86,7 @@ func main() {
 		}()
 		err = cmd.Wait()
 		if err != nil {
-			t.Fatalf("Program exited with error: %v\n%v", err, string(b.Bytes()))
+			t.Fatalf("Program exited with error: %v\n%v", err, b.String())
 		}
 	})
 }

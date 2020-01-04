@@ -98,9 +98,11 @@ func NewWatcher(options ...Option) (yama *Watcher) {
 	}
 
 	s := &Settings{TimeOut: DefaultTimeout}
+
 	for _, option := range options {
 		option.Apply(s)
 	}
+
 	w.timeout = s.TimeOut
 	w.closers = s.Closers
 
@@ -109,11 +111,13 @@ func NewWatcher(options ...Option) (yama *Watcher) {
 	// The wait group will be marked done when a signal is observed or the
 	// watcher receives done.
 	w.wg.Add(1)
+
 	go func() {
 		defer func() {
 			w.notify()
 			w.wg.Done()
 		}()
+
 		for {
 			select {
 			case <-w.signals:
@@ -130,6 +134,7 @@ func NewWatcher(options ...Option) (yama *Watcher) {
 // Wait until the configured signal occurs or the instance is closed.
 func (w *Watcher) Wait() error {
 	w.wg.Wait()
+
 	return w.err
 }
 
@@ -138,6 +143,7 @@ func (w *Watcher) Wait() error {
 func (w *Watcher) Close() error {
 	w.done <- struct{}{}
 	w.notify()
+
 	return w.err
 }
 
@@ -150,7 +156,6 @@ func (w *Watcher) notify() {
 // channel.  If not all closers return within the timeout, returns an error
 // with the tardy closers.
 func (w *Watcher) notifyClosers() {
-
 	count := len(w.closers)
 	if count == 0 {
 		return
@@ -160,12 +165,14 @@ func (w *Watcher) notifyClosers() {
 	completed := make(chan holder, count)
 
 	for i, closer := range w.closers {
-		holder := holder{key: i, closer: closer}
+		h := holder{key: i, closer: closer}
+
 		go func() {
-			_ = holder.closer.Close()
-			completed <- holder
+			_ = h.closer.Close()
+			completed <- h
 		}()
-		pending[i] = holder
+
+		pending[i] = h
 	}
 
 	// wait on channels for notifications
@@ -176,7 +183,9 @@ func (w *Watcher) notifyClosers() {
 			for _, h := range pending {
 				uncompleted = append(uncompleted, h.closer)
 			}
+
 			w.err = &ErrTimedOut{Uncompleted: uncompleted}
+
 			return
 		case closer := <-completed:
 			delete(pending, closer.key)

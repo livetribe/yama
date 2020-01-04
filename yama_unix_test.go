@@ -49,6 +49,7 @@ func (n *neverClose) Close() error {
 	n.Closed++
 	n.wg.Done()
 	time.Sleep(2 * time.Minute)
+
 	return nil
 }
 

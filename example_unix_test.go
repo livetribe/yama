@@ -30,10 +30,10 @@ import (
 )
 
 func Example_wait() {
-
 	server := &http.Server{Addr: ":0", Handler: nil}
 
 	var flushed sync.WaitGroup
+
 	flushed.Add(1)
 
 	watcher := yama.NewWatcher(
@@ -46,6 +46,7 @@ func Example_wait() {
 	// simulate a later signal
 	go func() {
 		time.Sleep(100 * time.Millisecond)
+
 		_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
 	}()
 
