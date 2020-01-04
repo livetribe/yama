@@ -6,7 +6,7 @@ Simple library to make it easier to manage the death of your application.
 [![Documentation](https://godoc.org/github.com/livetribe/yama?status.svg)](http://godoc.org/github.com/livetribe/yama) 
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg)](https://coveralls.io/github/livetribe/yama)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/wroge/wgs84.svg?style=social)](https://github.com/wroge/wgs84/tags)
+[![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/livetribe/yama.svg?style=social)](https://github.com/livetribe/yama/tags)
 
 ![Image of Yama](https://github.com/livetribe/yama/raw/master/img/yama.jpg)
 
