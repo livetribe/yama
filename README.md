@@ -1,5 +1,5 @@
 # yama
-Simple library to make it easier to manage the death of your application.
+A signal watcher that can be used to shutdown an application.
 
 [![Build Status](https://travis-ci.org/livetribe/yama.svg?branch=master)](https://travis-ci.org/livetribe/yama) 
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama) 
@@ -10,7 +10,7 @@ Simple library to make it easier to manage the death of your application.
 
 ![Image of Yama](https://github.com/livetribe/yama/raw/master/img/yama.jpg)
 
-Yama provides a signal watcher that can be used to shutdown an application.
+Yama provides a signal watcher that can be used to shutdown an application<sup>[1](#inspiration)</sup>.
 
 A signal watcher can be constructed to watch any number of signals and will
 call any number of registered `io.Closer` instances, when such signals occur; the
@@ -40,3 +40,5 @@ If this is done, subsequent signals will not trigger `Closer` notifications.
 There are a few helper methods, `FnAsCloser()` and `ErrValFnAsCloser()`, that can
 be used to wrap simple functions and functions that can return an error,
 respectively, into instances that implement `io.Closer`.
+___
+<a name="inspiration">1</a>: Inspired by [Death](https://github.com/vrecan/death).
