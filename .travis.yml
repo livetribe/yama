@@ -6,7 +6,6 @@ sudo: false
 language: go
 go_import_path: l7e.io/yama
 # Force-enable Go modules. Also force go to use the code in vendor/
-# These will both be unnecessary when Go 1.14 lands.
 env: GO111MODULE=on
 go:
   - 1.11.x
@@ -15,10 +14,16 @@ go:
   - 1.14.x
   - 1.15.x
 before_install:
-  - GO111MODULE=off go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
+  - |
+    if [ "$TRAVIS_OS_NAME" = 'linux' ] && [ "$TRAVIS_GO_VERSION" =~ ^1\.15 ]; then
+      go get -u github.com/golangci/golangci-lint/cmd/golangci-lint@1.30.0
+    fi
   - go install github.com/mattn/goveralls
 script:
-  - if [ "$TRAVIS_OS_NAME" = 'linux' ]; then $GOPATH/bin/golangci-lint run ; fi
+  - |
+    if [ "$TRAVIS_OS_NAME" = 'linux' ] && [ "$TRAVIS_GO_VERSION" =~ ^1\.15 ]; then
+      $GOPATH/bin/golangci-lint run
+    fi
   - $GOPATH/bin/goveralls -service=travis-ci -race -v
 after_success:
   - bash <(curl -s https://codecov.io/bash)
