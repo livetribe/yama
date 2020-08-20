@@ -16,13 +16,13 @@ go:
 before_install:
   - |
     if [ "$TRAVIS_OS_NAME" = 'linux' ] && [[ $TRAVIS_GO_VERSION =~ ^1\.15 ]]; then
-      go get -u github.com/golangci/golangci-lint/cmd/golangci-lint@1.30.0
+      go get -u github.com/golangci/golangci-lint/cmd/golangci-lint
     fi
   - go install github.com/mattn/goveralls
 script:
   - |
     if [ "$TRAVIS_OS_NAME" = 'linux' ] && [[ $TRAVIS_GO_VERSION =~ ^1\.15 ]]; then
-      $GOPATH/bin/golangci-lint run -v
+      $GOPATH/bin/golangci-lint run
     fi
   - $GOPATH/bin/goveralls -service=travis-ci -race -v
 after_success:
