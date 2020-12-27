@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "github.com/smartystreets/goconvey/convey"
+
 	"l7e.io/yama"
 )
 
@@ -77,78 +78,88 @@ func TestYama(t *testing.T) {
 
 	Convey("Validate watcher handles unhashable types", t, func() {
 		u := make(Unhashable)
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGTERM),
 			yama.WithClosers(u))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldBeNil)
 		So(uCalled, ShouldEqual, 1)
 	})
 
 	Convey("Validate watcher observes cleanly", t, func() {
-		watcher := yama.NewWatcher(yama.WatchingSignals(syscall.SIGTERM))
+		watcher, err := yama.NewWatcher(yama.WatchingSignals(syscall.SIGTERM))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldBeNil)
 	})
 
 	Convey("Validate watcher not affected by bad closers", t, func() {
 		bad := &BadCloser{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGTERM),
 			yama.WithClosers(bad))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGTERM)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldBeNil)
 		So(bad.Closed, ShouldEqual, 1)
 	})
 
 	Convey("Validate watcher observes other signals", t, func() {
 		closeMe := &CloseMe{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(closeMe))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGHUP)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldBeNil)
 		So(closeMe.Closed, ShouldEqual, 1)
 	})
 
 	Convey("Validate watcher notifies closers when closed", t, func() {
 		closeMe := &CloseMe{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(closeMe))
+		So(err, ShouldBeNil)
 
-		err := watcher.Close()
+		err = watcher.Close()
 		So(err, ShouldBeNil)
 		So(closeMe.Closed, ShouldEqual, 1)
 	})
 
 	Convey("Validate watcher when closed twice", t, func() {
 		closeMe := &CloseMe{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(closeMe))
+		So(err, ShouldBeNil)
 
-		err := watcher.Close()
+		err = watcher.Close()
 		So(err, ShouldBeNil)
 		So(closeMe.Closed, ShouldEqual, 1)
 
@@ -160,15 +171,17 @@ func TestYama(t *testing.T) {
 
 	Convey("Validate watcher when signaled several times", t, func() {
 		closeMe := &CloseMe{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(closeMe))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGHUP)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldBeNil)
 		So(closeMe.Closed, ShouldEqual, 1)
 
@@ -182,16 +195,18 @@ func TestYama(t *testing.T) {
 		neverClose := &neverClose{}
 		neverClose.wg.Add(1)
 
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WithTimeout(10*time.Millisecond),
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(neverClose))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGHUP)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, &yama.ErrTimedOut{})
 		So(err, ShouldImplement, (*error)(nil))
@@ -212,16 +227,18 @@ func TestYama(t *testing.T) {
 		neverClose := &neverClose{}
 		neverClose.wg.Add(1)
 		closeMe := &CloseMe{}
-		watcher := yama.NewWatcher(
+		watcher, err := yama.NewWatcher(
 			yama.WithTimeout(10*time.Millisecond),
 			yama.WatchingSignals(syscall.SIGHUP),
 			yama.WithClosers(neverClose, closeMe))
+		So(err, ShouldBeNil)
+
 		go func() {
 			time.Sleep(100 * time.Millisecond)
 			_ = syscall.Kill(os.Getpid(), syscall.SIGHUP)
 		}()
 
-		err := watcher.Wait()
+		err = watcher.Wait()
 		So(err, ShouldNotBeNil)
 		So(err, ShouldHaveSameTypeAs, &yama.ErrTimedOut{})
 		So(err, ShouldImplement, (*error)(nil))

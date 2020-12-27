@@ -49,6 +49,7 @@ respectively, into instances that implement io.Closer.
 package yama // import "l7e.io/yama"
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -91,7 +92,7 @@ type holder struct {
 }
 
 // NewWatcher creates Watcher with various options.
-func NewWatcher(options ...Option) (yama *Watcher) {
+func NewWatcher(options ...Option) (yama *Watcher, err error) {
 	w := &Watcher{
 		signals: make(chan os.Signal, 1),
 		done:    make(chan struct{}, 1),
@@ -101,6 +102,12 @@ func NewWatcher(options ...Option) (yama *Watcher) {
 
 	for _, option := range options {
 		option.Apply(s)
+	}
+
+	for i, closer := range s.Closers {
+		if closer == nil {
+			return nil, fmt.Errorf("closer #%d must not be null", i)
+		}
 	}
 
 	w.timeout = s.TimeOut
@@ -128,7 +135,7 @@ func NewWatcher(options ...Option) (yama *Watcher) {
 		}
 	}()
 
-	return w
+	return w, nil
 }
 
 // Wait until the configured signal occurs or the instance is closed.

@@ -36,12 +36,16 @@ func Example_wait() {
 
 	flushed.Add(1)
 
-	watcher := yama.NewWatcher(
+	watcher, err := yama.NewWatcher(
 		yama.WatchingSignals(syscall.SIGINT, syscall.SIGTERM),
 		yama.WithTimeout(2*time.Second),
 		yama.WithClosers(
 			server,
 			yama.FnAsCloser(func() { fmt.Println("Signal caught"); _ = os.Stdout.Sync(); flushed.Done() })))
+	if err != nil {
+		fmt.Printf("error creating watcher")
+		return
+	}
 
 	// simulate a later signal
 	go func() {

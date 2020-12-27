@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	. "github.com/smartystreets/goconvey/convey"
+
 	"l7e.io/yama"
 )
 
@@ -47,4 +48,15 @@ func TestHelpers(t *testing.T) {
 
 		So(called, ShouldBeTrue)
 	})
+}
+
+func TestNewWatcher(t *testing.T) {
+	Convey("Ensure that nil closers cannot be passed in", t, func() {
+		c := yama.FnAsCloser(func() {})
+
+		_, err := yama.NewWatcher(yama.WithClosers(c, nil))
+		So(err, ShouldBeError)
+		So(err.Error(), ShouldEqual, "closer #1 must not be null")
+	})
+
 }
