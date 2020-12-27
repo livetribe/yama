@@ -16,7 +16,7 @@ A signal watcher can be constructed to watch any number of signals and will
 call any number of registered `io.Closer` instances, when such signals occur; the
 results of calling `Close()` on the registered instances are ignored.
 
-	watcher := yama.NewWatcher(
+	watcher, err := yama.NewWatcher(
 		yama.WatchingSignals(syscall.SIGINT, syscall.SIGTERM),
 		yama.WithTimeout(2*time.Second),
 		yama.WithClosers(server))
