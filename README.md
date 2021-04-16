@@ -1,7 +1,7 @@
 # yama
 A signal watcher that can be used to shutdown an application.
 
-[![Build Status](https://travis-ci.org/livetribe/yama.svg?branch=master)](https://travis-ci.org/livetribe/yama) 
+[![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama) 
 [![Documentation](https://godoc.org/github.com/livetribe/yama?status.svg)](http://godoc.org/github.com/livetribe/yama) 
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg)](https://coveralls.io/github/livetribe/yama)
