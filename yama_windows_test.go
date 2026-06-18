@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-20 the original author or authors.
+ * Copyright (c) 2019-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ func TestDeath(t *testing.T) {
 package main
 import (
 	"syscall"
-	"l7e.io/yama"
+	"l7e.io/yama/v2"
 )
 func main() {
 	watcher, _ := yama.NewWatcher(yama.WatchingSignals(syscall.SIGINT))

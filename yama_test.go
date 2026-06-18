@@ -21,7 +21,7 @@ import (
 
 	. "github.com/smartystreets/goconvey/convey"
 
-	"l7e.io/yama"
+	"l7e.io/yama/v2"
 )
 
 func TestHelpers(t *testing.T) {

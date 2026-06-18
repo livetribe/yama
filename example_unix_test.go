@@ -1,4 +1,4 @@
-// +build linux bsd darwin
+//go:build linux || bsd || darwin
 
 /*
  * Copyright (c) 2020 the original author or authors.
@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"time"
 
-	"l7e.io/yama"
+	"l7e.io/yama/v2"
 )
 
 func Example_wait() {

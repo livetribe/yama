@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019-20 the original author or authors.
+ * Copyright (c) 2019-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ results of calling Close() on the registered instances are ignored.
 An application can wait fir the completion of the Closer notifications by
 calling the blocking method, Wait().
 
-    watcher.Wait()
+	watcher.Wait()
 
 Here, the caller will be blocked until one of the signals occur and all the
 Closer notifications have either completed or two seconds have elapsed since
@@ -38,7 +38,7 @@ yama.WithTimeout().  Subsequent signals will not trigger Closer notifications.
 
 The application can programmatically trigger Closer notifications by calling
 
-    watcher.Close()
+	watcher.Close()
 
 If this is done, subsequent signals will not trigger Closer notifications.
 
@@ -46,7 +46,7 @@ There are a few helper methods, FnAsCloser() and ErrValFnAsCloser(), that can
 be used to wrap simple functions and functions that can return an error,
 respectively, into instances that implement io.Closer.
 */
-package yama // import "l7e.io/yama"
+package yama
 
 import (
 	"fmt"
