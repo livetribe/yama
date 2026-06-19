@@ -1,12 +1,10 @@
 linters-settings:
   depguard:
-    list-type: blacklist
-    packages:
-      # logging is allowed only by logutils.Log, logrus
-      # is allowed to use only in logutils package
-      - github.com/sirupsen/logrus
-    packages-with-error-message:
-      - github.com/sirupsen/logrus: "logging is allowed only by logutils.Log"
+    rules:
+      main:
+        deny:
+          - pkg: github.com/sirupsen/logrus
+            desc: logging is allowed only by logutils.Log
   dupl:
     threshold: 100
   exhaustive:
@@ -15,7 +13,10 @@ linters-settings:
     lines: 100
     statements: 50
   gci:
-    local-prefixes: github.com/golangci/golangci-lint
+    sections:
+      - standard
+      - default
+      - prefix(l7e.io/yama/v2)
   goconst:
     min-len: 2
     min-occurrences: 2
@@ -35,16 +36,17 @@ linters-settings:
   gocyclo:
     min-complexity: 15
   goimports:
-    local-prefixes: github.com/golangci/golangci-lint
-  golint:
-    min-confidence: 0
-  gomnd:
-    settings:
-      mnd:
-        # don't include the "operation" and "assign"
-        checks: argument,case,condition,return
+    local-prefixes: l7e.io/yama/v2
+  mnd:
+    # don't include the "operation" and "assign"
+    checks:
+      - argument
+      - case
+      - condition
+      - return
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
     settings:
       printf:
         funcs:
@@ -70,7 +72,6 @@ linters:
   disable-all: true
   enable:
     - bodyclose
-    - deadcode
     - depguard
     - dogsled
     - dupl
@@ -83,29 +84,25 @@ linters:
     - gocyclo
     - gofmt
     - goimports
-    - golint
-    - gomnd
     - goprintffuncname
     - gosec
     - gosimple
     - govet
     - ineffassign
-    - interfacer
     - lll
     - misspell
+    - mnd
     - nakedret
     - noctx
     - nolintlint
     - rowserrcheck
-    - scopelint
+    - exportloopref
     - staticcheck
-    - structcheck
     - stylecheck
     - typecheck
     - unconvert
     - unparam
     - unused
-    - varcheck
     - whitespace
 
   # don't enable:
@@ -127,7 +124,7 @@ issues:
     - path: _test\.go
       linters:
         - funlen
-        - gomnd
+        - mnd
         - whitespace
 
     # https://github.com/go-critic/go-critic/issues/926

@@ -30,7 +30,7 @@ import (
 )
 
 func Example_wait() {
-	server := &http.Server{Addr: ":0", Handler: nil}
+	server := &http.Server{Addr: ":0", Handler: nil, ReadHeaderTimeout: time.Second}
 
 	var flushed sync.WaitGroup
 
