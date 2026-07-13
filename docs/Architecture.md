@@ -306,7 +306,74 @@ Each stop invocation passes through:
 
 `Stop` returns no error. The traversal runs to completion in dependency order; the framework waits for each participant rather than returning early, so a hung participant stalls everything after it until SIGKILL.
 
-## 18. Concurrency Model
+## 18. Boundary Nodes
+
+Yama supports two boundary registration points that sit outside the construction
+DAG: a **begin** boundary and an **end** boundary. Boundary nodes are peers of the
+graph nodes. A boundary node participates in the lifecycle through whichever of
+`Starter`, `Quiescer`, and `Stopper` it implements, exactly as a graph node does.
+Registering a node in a boundary does not change what it does; it controls only its
+execution order relative to the graph.
+
+The lifecycle runs three passes: the Start pass in dependency order, and the
+Quiesce and Stop passes in reverse dependency order. In each pass, boundary nodes
+bracket the graph — a begin node runs before every graph node in that pass, an end
+node runs after every graph node in that pass. A boundary node joins a pass only
+when it implements that pass's interface:
+
+```text
+Start pass     begin Starters   → graph Starters  → end Starters
+Quiesce pass   begin Quiescers  → graph Quiescers → end Quiescers
+Stop pass      begin Stoppers   → graph Stoppers  → end Stoppers
+```
+
+A boundary registration expresses one thing: this node runs before every graph
+node, or after every graph node. It exists so that "run first" or "run last" can be
+stated directly instead of by wiring dependency edges against every graph root and
+revising them whenever the set of roots changes.
+
+Each boundary is a flat, unordered set. Nodes in the same set have no ordering
+relationship and may execute concurrently; Yama makes no ordering guarantee among
+them. A boundary node has no dependency relationship to any graph node. Anything
+that needs an ordering relative to specific nodes has a real dependency
+relationship and belongs in the construction graph, not in a boundary set.
+
+Boundary execution is best-effort. A boundary node that returns an error or panics
+does not prevent the pass from proceeding — a failed begin node still lets the
+graph run, and a failed end node does not change the outcome. This matches the
+shutdown model, in which shutdown returns nothing and always runs to completion.
+Like graph nodes, boundary nodes are wrapped, so a boundary failure or overrun is
+observable through interceptors.
+
+In each pass, boundary nodes run under the same caller context as the graph nodes
+and share its deadline. Yama gives a boundary node no budget of its own and does
+not preempt it; a slow begin node consumes budget that the rest of the pass would
+otherwise have. This is a documented consequence, not a mitigated one.
+
+Because boundary nodes are part of the passes rather than a separate step, they
+bracket those passes wherever they run. This includes the internal startup-failure
+cleanup, which reuses the Quiesce and Stop passes over successfully started
+participants; there is no separate boundary execution path.
+
+Boundary nodes are supplied as runtime objects when the lifecycle value is
+constructed, using the `WithBeginNode` and `WithEndNode` options alongside
+interceptors. They are not derived from the Wire graph, are not lifecycle graph
+participants, and never appear in generated startup, quiesce, or teardown levels.
+
+Two cases illustrate the boundaries without defining them:
+
+* An in-process readiness flip is a begin node. As a `Quiescer`, its `Quiesce`
+  runs before every graph node quiesces, so the readiness probe flips to failing
+  before the graph drains and the routing layer stops sending new work. (See
+  Appendix A for how this relates to the `preStop` hook, which is the primary
+  mechanism and is out of Yama's scope.)
+* A metrics flush that must run after everything else is an end node — a `Stopper`
+  whose `Stop` runs after every graph node stops. This holds only if it owns its
+  transport. If its exporter depends on a Wire-constructed connection or pool, the
+  flush has a genuine dependency on a graph node and belongs in the construction
+  graph as an ordinary teardown participant, not in the end boundary.
+
+## 19. Concurrency Model
 
 Concurrency opportunities are computed during generation.
 
@@ -318,7 +385,7 @@ Generated code may use standard Go synchronization primitives such as goroutines
 
 Startup uses fail-fast coordination within a level. The quiesce and teardown passes coordinate ordered work that waits for each participant to return, so ordering is never violated to reclaim liveness.
 
-## 19. Timeout Handling
+## 20. Timeout Handling
 
 Yama generates no deadline and owns no timeout policy. The only deadline is the one carried by the caller's context passed to `Start` and `Stop`. That single context is threaded through the whole traversal — for shutdown, the quiesce pass and teardown pass share it. Generated code never lengthens the caller's deadline.
 
@@ -328,7 +395,9 @@ There is no timeout error and no framework-owned remediation. Because one contex
 
 A component that needs a per-node timeout wraps its own `Start`, `Quiesce`, or `Stop` — this is ordinary Go, not a Yama mechanism. Nodes handle the deadline with ordinary Go idioms; work that must complete regardless can detach with `context.WithoutCancel` or a fresh context.
 
-## 20. Observability Architecture
+This fixes the boundary of Yama's responsibility. Yama guarantees phase ordering and deadline propagation: it runs each phase in the correct dependency order and threads the caller's context, with its deadline, through every node without lengthening it. Honoring that context is the node's responsibility. Yama does not preempt an uncooperative node; a node that ignores its deadline is stalled only by the orchestrator's SIGKILL. This holds for graph nodes and boundary nodes alike.
+
+## 21. Observability Architecture
 
 Yama is observability-tool agnostic. It does not expose logger, tracer, meter, health, or readiness APIs.
 
@@ -336,7 +405,7 @@ Observability is implemented through interceptors and lifecycle metadata propaga
 
 Interceptors can measure duration, log failures, emit metrics, start traces, record deadline overruns, and record component diagnostics. The universal wrapper is where a deadline overrun is detected and logged with per-node attribution. The lifecycle manager itself only determines lifecycle outcomes.
 
-## 21. Failure Scenarios
+## 22. Failure Scenarios
 
 Startup participant failure:
 
@@ -383,7 +452,7 @@ Caller context cancellation:
 * during startup, treat resulting failures as startup failure and return `ErrStartFailed`,
 * during shutdown, the passes still run to completion in order and return nothing.
 
-## 22. Performance Considerations
+## 23. Performance Considerations
 
 Yama moves expensive lifecycle work to generation time:
 
@@ -407,7 +476,7 @@ Runtime overhead consists primarily of:
 
 Generated code may be larger for large dependency graphs. This is an accepted trade-off for readability, determinism, and ordinary Go debugging.
 
-## 23. Testing Strategy
+## 24. Testing Strategy
 
 Testing covers the generator, generated code shape, and runtime behavior of generated lifecycle implementations.
 
@@ -421,7 +490,7 @@ Error tests should verify that callers receive only `ErrStartFailed`, that `Stop
 
 Drift tests should regenerate `wire_gen.go` and the lifecycle file and diff them against the committed copies, so a change in Google Wire's generated output shape fails visibly at the drift boundary rather than at runtime.
 
-## 24. Rejected Alternatives
+## 25. Rejected Alternatives
 
 Runtime lifecycle plans are rejected because generated executable Go code is the authoritative lifecycle representation.
 
@@ -443,7 +512,7 @@ Additional lifecycle phases and lifecycle phase customization are rejected becau
 
 Generic workflow engines, plugin systems, retry frameworks, backoff frameworks, and lifecycle plan interpreters are rejected because Yama is a focused compile-time lifecycle orchestration system.
 
-## 25. Future Work
+## 26. Future Work
 
 Future work may add observability integrations or lifecycle visualization tooling if those additions preserve the accepted architecture.
 
@@ -457,7 +526,7 @@ Yama runs graceful shutdown when the process receives SIGTERM; it does not encod
 
 **The shutdown budget must fit inside `terminationGracePeriodSeconds`.** After SIGTERM, Kubernetes sends SIGKILL once the grace period elapses. The deadline on the context the caller passes to `Stop`, plus any `preStop` delay, should fit within `terminationGracePeriodSeconds`, because SIGKILL — not the observational deadline — is what ultimately bounds shutdown.
 
-**The readiness cutoff is an ordinary node, not framework machinery.** A component that flips the readiness probe to failing does so in its own `Quiesce()`. If that component is an isolated DAG root (no dependencies, no dependents), it quiesces in the first concurrent wave of the quiesce pass. No special orchestrator step and no framework machinery are required; it is just a `Quiescer` like any other.
+**An in-process readiness flip is a begin boundary node, not a graph node.** The primary mechanism for the readiness-to-routing gap is the `preStop` hook above, which fires before SIGTERM and is out of Yama's scope; the total shutdown budget, including any `preStop` delay, must fit within `terminationGracePeriodSeconds`. If an application additionally wants to flip readiness from inside the process, that flip should run before the graph quiesces, which makes it a begin boundary node (see Boundary Nodes): a `Quiescer` registered in the begin boundary, rather than a `Quiescer` wired into the construction graph. Modeling it as a graph node would require wiring dependency edges only to force it to the front of the quiesce pass; the begin boundary expresses that position directly.
 
 ## Appendix B. Long-Lived Work
 

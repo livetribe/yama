@@ -18,6 +18,7 @@ are intended to preserve design rationale for future maintainers and reviewers.
 | [ADR-006](ADR-006-lifecycle-error-handling.md) | Lifecycle Error Model | Accepted |
 | [ADR-007](ADR-007-public-api.md) | Minimal Public API | Accepted |
 | [ADR-008](ADR-008-parse-generated-wire-output.md) | Derive Lifecycle Ordering by Parsing Wire's Generated Injector | Accepted |
+| [ADR-009](ADR-009-boundary-lifecycle-nodes.md) | Boundary Lifecycle Nodes | Accepted |
 
 ## Conventions
 

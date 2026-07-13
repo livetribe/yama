@@ -223,7 +223,6 @@ Examples of component-specific Quiesce behavior may include:
 * Stop accepting requests, then wait for outstanding requests to finish.
 * Stop consuming messages, then wait for in-flight handlers to complete.
 * Stop dequeuing work, then finish the work already in progress.
-* Flip a readiness probe to failing, then wait for the routing layer to notice.
 
 `Quiescer.Quiesce` returns no error. Quiescing produces nothing actionable for a
 caller, and there is no recovery from shutdown.

@@ -66,12 +66,16 @@ The generated injector constructs the application and its `Lifecycle` together a
 returns them, mirroring Google Wire's `(T, func(), error)` convention:
 
 ```go
-app, lifecycle, err := NewLifecycle(interceptors)
+app, lifecycle, err := NewLifecycle(interceptors, WithBeginNode(n1), WithEndNode(n2))
 ```
 
 `NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
 comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
-are node-authored wrappers. Interceptors are the only construction-time input.
+are node-authored wrappers. The only construction-time inputs are interceptors and
+boundary nodes registered through the `WithBeginNode` and `WithEndNode` options
+(ADR-009). A boundary node implements the same `Starter`, `Quiescer`, and `Stopper`
+interfaces as any lifecycle participant; the option only controls whether it runs
+before or after the graph.
 
 On construction failure it returns `nil, nil, err` — there is no partial
 `Lifecycle`, inheriting Google Wire's failure semantics (Google Wire unwinds
@@ -164,13 +168,17 @@ func RunInBackground(...)  // launch a blocking Start (e.g. ListenAndServe) in a
 func EnsureExactlyOnce(...) // wrap "stop accepting new work" so it fires once and
                             // overlapping calls observe the same completion
 func RunUntilSignal(*Lifecycle, ...) error // Start, wait for a signal, then Stop
+func WithBeginNode(...)  // register a node that runs before the graph in each pass
+func WithEndNode(...)    // register a node that runs after the graph in each pass
 ```
 
 `RunInBackground` keeps a `Start` that would otherwise block from stalling
 forward-topological startup. `EnsureExactlyOnce` is the codegen-wired path for the
 "stop accepting new work" step so repeated or overlapping shutdowns are safe.
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. Their exact signatures are defined by the framework.
+signal, and calls `Stop()`. `WithBeginNode` and `WithEndNode` are the construction
+options that register boundary nodes (ADR-009). Their exact signatures are defined
+by the framework.
 
 ## Generated Artifacts
 
