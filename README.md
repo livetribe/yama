@@ -4,7 +4,7 @@ A signal watcher that can be used to shutdown an application.
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama) 
 [![Documentation](https://godoc.org/github.com/livetribe/yama?status.svg)](http://godoc.org/github.com/livetribe/yama) 
-[![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg)](https://coveralls.io/github/livetribe/yama)
+[![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=v2)](https://coveralls.io/github/livetribe/yama?branch=v2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/livetribe/yama.svg?style=social)](https://github.com/livetribe/yama/tags)
 
