@@ -27,13 +27,11 @@ Several possible approaches exist:
 
 The project already assumes applications use Google Wire for dependency injection.
 
-Google Wire constructs a compile-time dependency graph from source-level provider declarations and generates initialization code from that graph.
+Google Wire constructs a compile-time dependency graph from source-level provider declarations and generates initialization code (`wire_gen.go`) from that graph.
 
-Yama does not consume generated Google Wire output as a graph artifact.
+Yama runs Google Wire's generator and derives lifecycle ordering from the generated injector. Google Wire has already resolved provider binding, interface bindings, and cycle detection when it emits the injector, and the statement order of the generated injector body is a valid topological order of the dependency graph.
 
-Instead, Yama adapts Google Wire's generation-time analysis and provider graph construction machinery so lifecycle generation and dependency construction use the same source-level dependency information.
-
-ADR-009 records the implementation strategy and trade-offs for that generator approach.
+ADR-008 records the implementation strategy and trade-offs for that generator approach.
 
 Introducing a second graph definition mechanism would require application developers to maintain dependency information in multiple locations.
 
@@ -43,7 +41,7 @@ This would recreate the duplication the project is intended to eliminate.
 
 Google Wire provider declarations shall be the sole authoritative source inputs for dependency graph information.
 
-The lifecycle framework shall derive lifecycle orchestration directly from the generation-time Google Wire provider graph.
+The lifecycle framework shall derive lifecycle orchestration from the Google Wire injector generated from those declarations.
 
 The framework shall not introduce:
 
@@ -53,17 +51,15 @@ The framework shall not introduce:
 * Runtime dependency graph construction.
 * Alternate dependency graph providers.
 
-Lifecycle orchestration shall be generated from the same source-level provider graph semantics used for dependency construction.
+Lifecycle orchestration shall be generated from the Google Wire injector produced for dependency construction, so both derive from one set of provider declarations.
 
 ## Clarification
 
 References to Google Wire as the authoritative dependency graph mean that Google Wire provider declarations are the authoritative source inputs for dependency information.
 
-They do not mean that Yama consumes a graph artifact emitted by the Google Wire command.
+Yama does not introduce a second dependency declaration mechanism. It obtains dependency ordering by running Google Wire's generator over those declarations and analyzing the generated injector.
 
-Yama builds a Google Wire-compatible generation-time provider graph from the same source declarations Google Wire analyzes.
-
-That generation-time provider graph is internal to Yama's generator and is not a runtime graph or public graph API.
+The dependency ordering Yama uses is the topological order already expressed by the generated injector body. It is not a runtime graph or a public graph API. ADR-008 records how the generated injector is analyzed.
 
 ## Rationale
 
@@ -127,7 +123,7 @@ This constraint removes significant complexity from the design.
 
 * Requires applications to use Google Wire.
 * Limits adoption by applications using other dependency injection approaches.
-* Couples lifecycle generation to Google Wire's code generation internals.
+* Depends on the shape of Google Wire's generated injector output, guarded by a CI drift check rather than by Google Wire's internal APIs.
 * Makes future support for alternate graph sources more difficult.
 
 ### Accepted Trade-Off
@@ -205,7 +201,7 @@ The lifecycle framework may assume:
 
 * A complete dependency graph exists.
 * Dependency relationships are known at generation time.
-* Dependency cycles are validated through Google Wire-compatible generation-time analysis.
+* Dependency cycles are validated by Google Wire's generator during `wire gen`.
 * Dependency types are known at generation time.
 
 As a result, the lifecycle framework does not need to implement:
@@ -215,7 +211,7 @@ As a result, the lifecycle framework does not need to implement:
 * Runtime graph validation.
 * Graph mutation.
 
-Its responsibility is to participate in generation-time analysis after Google Wire source inputs have been loaded and resolved into a provider graph.
+Its responsibility is to run Google Wire's generator and analyze the resulting generated injector.
 
 ## Non-Goals
 

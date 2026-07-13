@@ -1,4 +1,4 @@
-# ADR-008: Minimal Public API
+# ADR-007: Minimal Public API
 
 ## Status
 
@@ -35,29 +35,55 @@ The framework shall expose a deliberately small public API.
 
 The public API consists of:
 
-* Lifecycle interfaces.
+* The `Lifecycle` type and its `NewLifecycle` constructor.
 * Lifecycle capability interfaces.
 * Lifecycle interceptor interfaces.
-* Lifecycle-level errors.
+* The lifecycle-level error.
+* A small set of lifecycle helpers.
 
-All graph analysis, orchestration implementation, generated lifecycle structures, generated configuration structures, and generated helper types remain implementation details.
+All graph analysis, orchestration implementation, generated lifecycle structures, and generated helper types remain implementation details.
 
-## Public Lifecycle Interface
+## Public Lifecycle Type
 
-Applications interact with lifecycle orchestration through:
+Applications interact with lifecycle orchestration through a concrete type,
+`Lifecycle`:
 
 ```go
-type Lifecycle interface {
-    Start(context.Context) error
-    Stop(context.Context) error
-}
+type Lifecycle struct { /* generated implementation */ }
+
+func (*Lifecycle) Start(context.Context) error
+func (*Lifecycle) Stop(context.Context)
 ```
+
+`Start` returns an error; `Stop` returns nothing. `Quiesce` is not exposed —
+`Stop` runs the quiesce pass internally as its first action.
+
+`Lifecycle` is named without a `-Container` suffix. The type is the application's
+lifecycle, not a dependency-injection container, and the name pairs with the
+`NewLifecycle` constructor.
+
+The generated injector constructs the application and its `Lifecycle` together and
+returns them, mirroring Google Wire's `(T, func(), error)` convention:
+
+```go
+app, lifecycle, err := NewLifecycle(interceptors)
+```
+
+`NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
+comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
+are node-authored wrappers. Interceptors are the only construction-time input.
+
+On construction failure it returns `nil, nil, err` — there is no partial
+`Lifecycle`, inheriting Google Wire's failure semantics (Google Wire unwinds
+partial construction through its own cleanup before returning). The generated code
+captures and discards Google Wire's raw cleanup function so that teardown runs
+only through `Lifecycle.Stop`, never twice.
 
 This is the primary lifecycle abstraction exposed by the framework.
 
-Applications should not depend on generated implementation types.
+Applications should not depend on other generated implementation types.
 
-Generated lifecycle implementations remain private.
+Generated lifecycle implementation details remain private.
 
 ## Public Lifecycle Capability Interfaces
 
@@ -68,18 +94,22 @@ type Starter interface {
     Start(context.Context) error
 }
 
-type Drainer interface {
-    Drain(context.Context) error
+type Quiescer interface {
+    Quiesce(context.Context)
 }
 
 type Stopper interface {
-    Stop(context.Context) error
+    Stop(context.Context)
 }
 ```
 
 These interfaces define lifecycle participation.
 
 They are part of the public API.
+
+Their signatures follow the error semantics of the phase each represents. `Start`
+can fail and returns an error. `Quiesce` and `Stop` are shutdown operations with
+nothing actionable to return and so return no error.
 
 ## Public Interceptor Interfaces
 
@@ -94,33 +124,53 @@ type StartInterceptor interface {
 ```
 
 ```go
-type DrainInterceptor interface {
-    Drain(ctx context.Context, next Drainer) error
+type QuiesceInterceptor interface {
+    Quiesce(ctx context.Context, next Quiescer)
 }
 ```
 
 ```go
 type StopInterceptor interface {
-    Stop(ctx context.Context, next Stopper) error
+    Stop(ctx context.Context, next Stopper)
 }
 ```
 
-The exact signatures are defined by the framework.
+The interceptor interfaces are intentionally not uniform. Each matches the error
+semantics of the phase it wraps: `StartInterceptor` propagates an `error`, while
+`QuiesceInterceptor` and `StopInterceptor` do not.
 
 Operation-specific interceptor interfaces are part of the public API.
 
 ## Public Errors
 
-The framework exposes lifecycle-level errors:
+The framework exposes a single lifecycle-level error:
 
 ```go
 var ErrStartFailed error
-var ErrStopFailed error
 ```
 
-These represent lifecycle outcomes.
+`Start` is the only lifecycle operation that returns an error. `Stop` returns
+nothing, so there is no `ErrStopFailed`.
 
 The framework does not expose component-level failure information through the public error model.
+
+## Public Helpers
+
+The framework provides a small set of helpers for common lifecycle patterns:
+
+```go
+func RunInBackground(...)  // launch a blocking Start (e.g. ListenAndServe) in a
+                           // goroutine and route its error to a callback/channel
+func EnsureExactlyOnce(...) // wrap "stop accepting new work" so it fires once and
+                            // overlapping calls observe the same completion
+func RunUntilSignal(*Lifecycle, ...) error // Start, wait for a signal, then Stop
+```
+
+`RunInBackground` keeps a `Start` that would otherwise block from stalling
+forward-topological startup. `EnsureExactlyOnce` is the codegen-wired path for the
+"stop accepting new work" step so repeated or overlapping shutdowns are safe.
+`RunUntilSignal` is the typical `main` entry point: it starts, waits for the
+signal, and calls `Stop()`. Their exact signatures are defined by the framework.
 
 ## Generated Artifacts
 
@@ -137,24 +187,6 @@ type yamaLvl002 struct {}
 Generated types may change as generator implementation evolves.
 
 Applications should not depend on generated implementation details.
-
-## Generated Configuration Types
-
-Generated lifecycle configuration structures are application-specific generated artifacts.
-
-Examples:
-
-```go
-type LCMConfig struct {
-    ...
-}
-```
-
-These structures are generated from a specific dependency graph.
-
-They are not part of the lifecycle library's stable public API.
-
-The lifecycle library consumes them, but they are application-specific generated artifacts rather than part of the lifecycle library's public API.
 
 ## Intentionally Omitted APIs
 

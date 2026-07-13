@@ -160,7 +160,7 @@ Yama is not a workflow engine.
 The framework supports exactly:
 
 * Start
-* Drain
+* Quiesce
 * Stop
 
 No additional phases shall be introduced.
@@ -191,20 +191,23 @@ type Starter interface {
     Start(context.Context) error
 }
 
-type Drainer interface {
-    Drain(context.Context) error
+type Quiescer interface {
+    Quiesce(context.Context)
 }
 
 type Stopper interface {
-    Stop(context.Context) error
+    Stop(context.Context)
 }
 ```
+
+`Start` returns an error; `Quiesce` and `Stop` do not. The signature of each
+interface matches the error semantics of the phase it represents.
 
 Components may implement:
 
 * None
 * Starter
-* Drainer
+* Quiescer
 * Stopper
 * Any combination
 
@@ -232,21 +235,22 @@ Startup failure shall:
 
 ---
 
-## 6.3 Drain Behavior
+## 6.3 Quiesce Behavior
 
-Drain is a pre-shutdown notification phase.
+Quiesce is the first pass of shutdown. A component that quiesces stops accepting
+new work and then blocks until its in-flight work completes, subject to context.
 
-Drain shall:
+Quiesce shall:
 
-* Execute concurrently.
-* Ignore dependency ordering.
-* Execute before Stop.
+* Execute in reverse dependency order (dependents before dependencies), the same
+  direction as Stop.
+* Execute independent branches concurrently.
+* Complete before teardown begins.
 
-Drain failures shall not prevent Stop execution.
+`Quiescer.Quiesce` returns no error.
 
-Applications shall not invoke Drain directly.
-
-Drain is managed internally by the lifecycle manager.
+Applications shall not invoke Quiesce directly. It is not exposed on `Lifecycle`.
+`Stop` runs the quiesce pass internally as its unconditional first action.
 
 ---
 
@@ -258,9 +262,10 @@ A dependent shall stop before the dependency it relies upon.
 
 Independent branches shall stop concurrently.
 
-Shutdown shall be best effort.
-
-Failures shall not prevent remaining shutdown work.
+Shutdown shall run to completion in dependency order. The caller's context
+deadline is observational: when it fires the framework logs per-node overrun but
+does not return early, so a hung participant stalls everything after it until
+SIGKILL. Preserving ordering is chosen over liveness.
 
 ---
 
@@ -273,9 +278,7 @@ Start
   ↓
 Failure
   ↓
-Drain
-  ↓
-Stop
+Stop (quiesce pass, then teardown)
 ```
 
 The same shutdown sequence used during normal operation shall be used during startup failure cleanup.
@@ -284,28 +287,20 @@ The same shutdown sequence used during normal operation shall be used during sta
 
 ## 6.6 Lifecycle Configuration
 
-The framework shall support strongly-typed lifecycle configuration.
+The framework shall generate no lifecycle configuration.
 
-Lifecycle configuration currently supports operation-specific timeouts:
+There is no generated configuration structure and no start or shutdown deadline
+field. The only deadline is the one carried by the context the caller passes to
+`Start` and `Stop`. The framework threads that context through the traversal and
+never lengthens its deadline. The deadline is observational: exceeding it is
+logged, not enforced, and the traversal continues to completion.
 
-* Start timeout.
-* Drain timeout.
-* Stop timeout.
+A component that wants a per-node timeout wraps its own `Start`, `Quiesce`, or
+`Stop`. This is ordinary Go, not a framework mechanism. Slow-operation and overrun
+diagnostics are interceptor concerns.
 
-Configuration shall be generated as application-specific generated structures.
-
-The framework consumes configuration but does not provide:
-
-* Configuration loading.
-* Configuration parsing.
-* Configuration discovery.
-* Configuration validation frameworks.
-* Configuration precedence systems.
-* Runtime configuration reload.
-
-Applications remain responsible for constructing and supplying lifecycle configuration.
-
-Generated lifecycle configuration structures are implementation artifacts and are not part of the lifecycle library's stable public API.
+The framework provides no configuration loading, parsing, discovery, validation,
+precedence, or reload.
 
 ---
 
@@ -318,11 +313,13 @@ Interceptors shall be:
 * Runtime objects.
 * Operation-specific.
 * Strongly typed.
+* Not uniform: each interceptor's signature matches the error semantics of the
+  phase it wraps (Start propagates an error; Quiesce and Stop do not).
 
 Separate interceptor chains shall exist for:
 
 * Start
-* Drain
+* Quiesce
 * Stop
 
 Interceptors may:
@@ -336,7 +333,8 @@ Interceptors may:
 Interceptors may be attached:
 
 * Globally.
-* Per lifecycle participant.
+* Per lifecycle participant, through generated, strongly-typed per-participant
+  fields (not string keys or a registration API).
 
 ---
 
@@ -351,7 +349,7 @@ Metadata shall support:
 * Telemetry.
 * Tracing.
 
-Metadata shall include the lifecycle participant identity being started, drained, or stopped.
+Metadata shall include the lifecycle participant identity being started, quiesced, or stopped.
 
 The exact metadata representation is an implementation detail.
 
@@ -359,7 +357,9 @@ The exact metadata representation is an implementation detail.
 
 ## 6.9 Error Handling
 
-The framework shall expose lifecycle-level errors only.
+The framework shall expose a single lifecycle-level error, `ErrStartFailed`.
+`Start` is the only lifecycle operation that returns an error; `Stop` returns
+nothing.
 
 The framework shall not expose:
 
@@ -423,7 +423,7 @@ The framework supports exactly three lifecycle phases:
 
 ```text
 Start
-Drain
+Quiesce
 Stop
 ```
 
@@ -434,7 +434,8 @@ Start
 Stop
 ```
 
-Drain remains an internal lifecycle phase.
+Quiesce is not exposed on `Lifecycle`; there is no `Lifecycle.Quiesce`. `Stop`
+runs the quiesce pass internally as its first action.
 
 Lifecycle phases are fixed.
 
@@ -466,22 +467,22 @@ The lifecycle manager shall not absorb these concerns directly.
 
 The framework exposes lifecycle-level outcomes.
 
-Public lifecycle errors include:
+The public lifecycle error surface is a single error:
 
 ```text
 ErrStartFailed
-ErrStopFailed
 ```
 
-Timeouts are treated as ordinary lifecycle failures.
+`Start` is the only lifecycle operation that returns an error. `Stop` returns
+nothing — there is no recovery from shutdown, so there is nothing to return. There
+is no `ErrStopFailed`.
 
-The framework does not expose timeout-specific public errors.
+There are no timeout-specific errors. A start that exceeds its context deadline
+surfaces as `ErrStartFailed`; the caller's shutdown context deadline is
+observational and is logged rather than returned.
 
-Drain is an internal lifecycle phase.
-
-The framework does not expose ErrDrainFailed.
-
-Failures occurring during Drain contribute to shutdown failure semantics and may result in ErrStopFailed.
+Quiesce is the first pass of `Stop` and returns no error at all. There is no
+`ErrQuiesceFailed` and no `ErrDrainFailed`.
 
 ---
 
@@ -489,7 +490,7 @@ Failures occurring during Drain contribute to shutdown failure semantics and may
 
 The framework shall:
 
-1. Analyze the Wire graph.
+1. Run `wire generate` and analyze the generated injector (`wire_gen.go`).
 2. Analyze lifecycle participation.
 3. Analyze concurrency opportunities.
 4. Generate lifecycle orchestration code.
@@ -506,7 +507,8 @@ Generated code is the authoritative lifecycle representation.
 
 # 12. DAG Analysis Requirements
 
-The framework shall analyze the Wire dependency graph to compute:
+The framework shall analyze the generated Wire injector, whose statement order is
+a valid topological order, to compute:
 
 * Startup ordering.
 * Shutdown ordering.
@@ -526,10 +528,10 @@ Lifecycle observability shall be implemented through interceptors.
 The framework shall support observation of:
 
 * Start execution.
-* Drain execution.
+* Quiesce execution.
 * Stop execution.
 * Failures.
-* Timeouts.
+* Deadline overruns.
 * Duration measurements.
 
 The framework shall remain observability-tool agnostic.
@@ -538,16 +540,19 @@ The framework shall remain observability-tool agnostic.
 
 # 14. Generated Artifacts
 
-Expected generated artifacts include:
+Generation runs one command and produces two files:
 
 ```text
-lifecycle_gen.go
+wire_gen.go      (produced by wire generate)
+lifecycle_gen.go (produced by yama, from wire_gen.go)
 ```
 
-and generated:
+The lifecycle file carries a provenance header
+(`// Code generated by yama from wire_gen.go. DO NOT EDIT.`), and a CI check
+regenerates and diffs both files to catch drift. The lifecycle file contains
+generated:
 
 * Lifecycle implementations.
-* Lifecycle configuration structures.
 * Lifecycle orchestration code.
 * Concurrency helper structures.
 * Lifecycle chain construction code.
@@ -571,7 +576,7 @@ The project is considered successful when:
 7. Generated code remains readable.
 8. Generated code remains debuggable.
 9. Interceptors provide lifecycle extensibility.
-10. Lifecycle configuration remains strongly typed.
+10. The public API stays minimal: capability interfaces, interceptor interfaces, the `Lifecycle` type, and `ErrStartFailed`.
 
 ---
 
@@ -601,11 +606,13 @@ The following questions remain architectural rather than product-level concerns:
 
 * Generated package layout.
 * Generated naming conventions.
-* Interceptor interface signatures.
 * Context metadata representation.
 * Chain construction implementation.
 
 These questions shall be resolved during architecture design.
+
+Interceptor interface signatures are resolved: each interceptor matches the error
+semantics of the phase it wraps (see the interceptor model).
 
 ---
 
@@ -613,10 +620,7 @@ These questions shall be resolved during architecture design.
 
 Potential future enhancements include:
 
-* Additional lifecycle configuration options.
-* Lifecycle configuration tooling.
 * Additional observability integrations.
-* Optional configuration binding helpers.
 * Lifecycle visualization tooling.
 
 Future enhancements must preserve:

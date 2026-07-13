@@ -12,13 +12,12 @@ are intended to preserve design rationale for future maintainers and reviewers.
 | --- | --- | --- |
 | [ADR-001](ADR-001-compile-time-lifecycle-orchestration.md) | Compile-Time Lifecycle Orchestration | Accepted |
 | [ADR-002](ADR-002-wire-as-graph-source.md) | Google Wire as the Authoritative Dependency Graph | Accepted |
-| [ADR-003](ADR-003-start-drain-stop-lifecycle-model.md) | Three-Phase Lifecycle Model | Accepted |
+| [ADR-003](ADR-003-start-quiesce-stop-lifecycle-model.md) | Three-Phase Lifecycle Model | Accepted |
 | [ADR-004](ADR-004-generated-execution-plans.md) | Lifecycle Orchestration as Generated Code | Accepted |
-| [ADR-005](ADR-005-generated-typed-configuration.md) | Generated Lifecycle Configuration | Accepted |
-| [ADR-006](ADR-006-lifecycle-interceptors.md) | Lifecycle Interceptors | Accepted |
-| [ADR-007](ADR-007-lifecycle-error-handling.md) | Lifecycle Error Model | Accepted |
-| [ADR-008](ADR-008-public-api.md) | Minimal Public API | Accepted |
-| [ADR-009](ADR-009-wire-generation-internals.md) | Adapt Wire Generation Internals | Accepted |
+| [ADR-005](ADR-005-lifecycle-interceptors.md) | Lifecycle Interceptors | Accepted |
+| [ADR-006](ADR-006-lifecycle-error-handling.md) | Lifecycle Error Model | Accepted |
+| [ADR-007](ADR-007-public-api.md) | Minimal Public API | Accepted |
+| [ADR-008](ADR-008-parse-generated-wire-output.md) | Derive Lifecycle Ordering by Parsing Wire's Generated Injector | Accepted |
 
 ## Conventions
 

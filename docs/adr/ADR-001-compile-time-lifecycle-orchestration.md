@@ -34,9 +34,8 @@ The generator shall consume dependency graph information and emit lifecycle orch
 Generated code shall contain:
 
 * Startup orchestration.
-* Drain orchestration.
+* Quiesce orchestration.
 * Shutdown orchestration.
-* Lifecycle configuration structures.
 * Lifecycle implementation code.
 
 The generated code shall be ordinary Go code that can be read, debugged, stepped through, and reviewed by application developers.
@@ -202,4 +201,4 @@ This decision does not imply:
 * Framework-managed backoff.
 * Generic workflow orchestration.
 
-The generated lifecycle implementation exists solely to orchestrate Start, Drain, and Stop operations derived from a dependency graph.
+The generated lifecycle implementation exists solely to orchestrate Start, Quiesce, and Stop operations derived from a dependency graph.

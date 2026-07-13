@@ -1,4 +1,4 @@
-# ADR-006: Lifecycle Interceptors
+# ADR-005: Lifecycle Interceptors
 
 ## Status
 
@@ -59,27 +59,32 @@ The framework does not provide a generic interceptor interface.
 
 Instead, the framework provides distinct interceptor contracts for each lifecycle operation.
 
-Conceptually:
+An interceptor's signature matches the error semantics of the phase it wraps.
+`Start` can fail, so its interceptor propagates an `error`. `Quiesce` and `Stop`
+return nothing actionable, so their interceptors do not propagate an error. The
+interceptor interfaces are therefore intentionally not uniform.
 
 ```go id="4v76xe"
 type StartInterceptor interface {
-    Start(context.Context, Starter) error
+    Start(ctx context.Context, next Starter) error
 }
 ```
 
 ```go id="7nxt0o"
-type DrainInterceptor interface {
-    Drain(context.Context, Drainer) error
+type QuiesceInterceptor interface {
+    Quiesce(ctx context.Context, next Quiescer)
 }
 ```
 
 ```go id="e1el5z"
 type StopInterceptor interface {
-    Stop(context.Context, Stopper) error
+    Stop(ctx context.Context, next Stopper)
 }
 ```
 
-The exact interface signatures are an implementation detail.
+The framework rejects a single shared interceptor shape. A uniform contract would
+force `Quiesce` and `Stop` to carry an error return they have no use for, or force
+`Start` to discard the error it must report.
 
 The architectural requirement is that lifecycle operations remain strongly typed.
 
@@ -89,13 +94,13 @@ The lifecycle manager maintains independent interceptor chains for:
 
 ```text id="o5qh6z"
 Start
-Drain
+Quiesce
 Stop
 ```
 
 A Start interceptor participates only in Start processing.
 
-A Drain interceptor participates only in Drain processing.
+A Quiesce interceptor participates only in Quiesce processing.
 
 A Stop interceptor participates only in Stop processing.
 
@@ -117,7 +122,7 @@ may implement:
 
 ```text id="glvq9x"
 StartInterceptor
-DrainInterceptor
+QuiesceInterceptor
 StopInterceptor
 ```
 
@@ -166,6 +171,13 @@ Per component instance
 Global interceptors execute for all lifecycle participants.
 
 Per-component interceptors execute only for the associated lifecycle participant.
+
+Per-component attachment is strongly typed. Generated lifecycle construction
+accepts a generated interceptors input with one field per lifecycle participant,
+named for that participant. A caller scopes an interceptor to a component by
+placing it in that component's generated field. There are no component names,
+string keys, runtime lookup, or registration API. The concrete generated input is
+defined in the architecture document.
 
 This allows applications to apply:
 
@@ -293,6 +305,17 @@ The lifecycle manager does not rebuild interceptor chains during lifecycle execu
 Chain construction is a startup concern.
 
 Lifecycle execution uses the precomputed chains.
+
+## Universal Wrapping
+
+Because interceptors require every lifecycle participant to be invoked through a
+chain, the wrapper layer is universal. Every node is wrapped, whether or not any
+interceptor is attached to it. Wrapping is not opt-in.
+
+The observational deadline carried by the caller's context relies on this same
+universal wrapping. The wrapper is where per-node overrun is detected and logged
+when the deadline fires, so universal wrapping is what gives that mechanism
+per-node attribution.
 
 ## Observability
 

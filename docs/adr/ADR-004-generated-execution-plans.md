@@ -72,11 +72,13 @@ Conceptually:
 ```text
 Wire Source Inputs
     ↓
-Generation-Time Provider Graph
+wire gen
     ↓
-Lifecycle Analysis
+Generated wire_gen.go
     ↓
-Generated Go Code
+AST Analysis (Lifecycle Ordering)
+    ↓
+Generated Lifecycle Go Code
     ↓
 Execution
 ```
@@ -86,9 +88,11 @@ The framework shall not follow the model:
 ```text
 Wire Source Inputs
     ↓
-Generation-Time Provider Graph
+wire gen
     ↓
-Lifecycle Analysis
+Generated wire_gen.go
+    ↓
+AST Analysis (Lifecycle Ordering)
     ↓
 Generated Runtime Plan
     ↓
@@ -148,7 +152,7 @@ Analysis includes:
 * Dependency ordering.
 * Startup ordering.
 * Shutdown ordering.
-* Drain participation.
+* Quiesce participation.
 * Concurrency opportunities.
 * Lifecycle capability detection.
 

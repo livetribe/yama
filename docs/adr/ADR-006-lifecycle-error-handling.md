@@ -1,4 +1,4 @@
-# ADR-007: Lifecycle Error Model
+# ADR-006: Lifecycle Error Model
 
 ## Status
 
@@ -65,12 +65,15 @@ Detailed diagnostics belong in interceptors and observability systems.
 
 ## Public Error Surface
 
-The public lifecycle error surface consists of:
+The public lifecycle error surface consists of a single error:
 
 ```go
 var ErrStartFailed = errors.New("lifecycle start failed")
-var ErrStopFailed  = errors.New("lifecycle stop failed")
 ```
+
+`Start` is the only lifecycle operation that returns an error. `Stop` returns
+nothing. There is no `ErrStopFailed`, no `ErrQuiesceFailed`, and no timeout-specific
+error.
 
 No additional lifecycle errors are exposed.
 
@@ -98,72 +101,38 @@ Those details belong in observability systems.
 
 ## Shutdown Errors
 
-If shutdown encounters one or more failures:
+Shutdown returns nothing:
 
 ```go
-err := lifecycle.Stop(ctx)
+lifecycle.Stop(ctx)
 ```
 
-returns:
+There is no recovery from shutdown, so there is nothing to return. `Stop` runs the
+quiesce pass and then teardown, in dependency order, to completion. It does not
+report per-component success or failure to the caller.
 
-```go
-ErrStopFailed
-```
-Any failure occurring during Drain or Stop contributes to shutdown failure semantics.
+Component-level shutdown problems are observed through interceptors and
+observability, not through a return value.
 
-If one or more Drain or Stop operations fail, the lifecycle manager returns ErrStopFailed after shutdown processing completes.
+## Quiesce Errors
 
-The caller is informed that shutdown did not complete successfully.
+Quiesce is the first pass of `Stop`. Applications do not invoke it directly.
 
-The caller is not informed which components failed.
-
-The caller is not informed why those components failed.
-
-Detailed diagnostics belong in observability systems.
-
-## Drain Errors
-
-Drain is an internal lifecycle phase.
-
-Applications do not invoke Drain directly.
-
-Drain does not have a public error surface.
-
-Drain failures participate in overall shutdown processing.
-
-If drain failures contribute to an unsuccessful shutdown outcome:
-
-```go
-ErrStopFailed
-```
-
-may be returned.
-
-No public:
-
-```go
-ErrDrainFailed
-```
-
-exists.
+`Quiescer.Quiesce` returns no error at all. Quiesce has no public error surface
+and no framework-visible failure mode. There is no `ErrQuiesceFailed` and no
+`ErrDrainFailed`.
 
 ## Timeout Errors
 
-Timeouts are treated as ordinary lifecycle failures.
+There are no timeout errors.
 
-The lifecycle manager does not expose timeout-specific errors.
+The shutdown deadline is observational. When it fires, the framework logs that a
+participant exceeded its window and continues waiting for the operation to
+complete; it does not return a timeout error and does not abandon the traversal.
 
-Examples:
-
-```text
-Component startup timeout
-Component drain timeout
-Component shutdown timeout
-```
-
-all participate in normal lifecycle error processing.
-
-The lifecycle manager does not distinguish timeout failures from other lifecycle failures at the public API level.
+A start that exceeds its deadline is handled as an ordinary start failure and
+surfaces as `ErrStartFailed`. The lifecycle manager does not distinguish a start
+timeout from any other start failure at the public API level.
 
 ## Startup Failure Cleanup
 
@@ -174,16 +143,15 @@ Start
   ↓
 Failure
   ↓
-Drain
-  ↓
-Stop
+Stop (quiesce pass, then teardown)
   ↓
 ErrStartFailed
 ```
 
-The lifecycle manager performs best-effort cleanup.
+The lifecycle manager runs the same internal shutdown sequence `Stop` performs,
+scoped to the successfully started components.
 
-Cleanup failures do not alter the public error returned.
+Shutdown produces no error, so it does not alter the public error returned.
 
 The caller receives:
 
@@ -195,24 +163,19 @@ because the lifecycle operation that failed was startup.
 
 Detailed cleanup diagnostics belong in observability systems.
 
-## Best-Effort Shutdown
+## Shutdown Always Completes
 
-Shutdown is best effort.
+Shutdown runs the quiesce pass and the teardown pass in dependency order, to
+completion. Neither pass returns an error, and the traversal is never abandoned to
+reclaim liveness.
 
-If one component fails during Drain or Stop:
+Because the framework waits for each participant rather than returning early, a
+hung participant stalls everything after it in the traversal until the orchestrator
+sends SIGKILL. This is an accepted consequence of preserving reverse-topological
+ordering. External liveness is bounded by SIGKILL, not by a returned error.
 
-* Remaining Drain operations continue.
-* Remaining Stop operations continue.
-
-The lifecycle manager attempts to complete as much shutdown work as possible.
-
-After shutdown completes:
-
-```go
-ErrStopFailed
-```
-
-is returned if one or more shutdown failures occurred.
+After shutdown completes, nothing is returned. Component-level shutdown outcomes
+are available only through interceptors and observability.
 
 ## Diagnostics
 
@@ -241,7 +204,6 @@ The lifecycle manager determines:
 
 ```text
 Did startup succeed?
-Did shutdown succeed?
 ```
 
 Observability systems determine:
@@ -349,9 +311,10 @@ ErrStartTimeout
 ErrStopTimeout
 ```
 
-Rejected because timeouts are ordinary lifecycle failures.
-
-Timeout diagnostics belong in observability systems.
+Rejected because the framework does not return timeout errors at all. A start
+timeout is an ordinary start failure surfaced as `ErrStartFailed`, and the
+shutdown deadline is observational rather than an error. Timeout diagnostics
+belong in observability systems.
 
 ## Non-Goals
 
