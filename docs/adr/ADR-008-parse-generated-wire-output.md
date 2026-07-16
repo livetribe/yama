@@ -46,9 +46,9 @@ Each injector function is an independent graph. Multiple injector functions are 
 
 Google Wire's cleanup functions (`func()` returns) are treated as the primary graceful-shutdown teardown mechanism, not only as error-path cleanup.
 
-Legacy cleanup functions detected in the generated output are wrapped in synthetic `cleanupAdapter` types that implement `Stopper` and are inserted at the same DAG position as the value they clean up, for ordering only. The injected type graph is not modified. This yields a single teardown dispatch path: every teardown node is a `Stopper`, whether it is a hand-written `Stopper` or an adapter-wrapped cleanup function.
+A cleanup function is shorthand for a `Stopper`. Every cleanup function detected in the generated output is wrapped in a synthetic `cleanupAdapter` type that implements `Stopper` and is inserted at the same DAG position as the value it cleans up, for ordering only. The injected type graph is not modified. This yields a single teardown dispatch path: every teardown node is a `Stopper`, whether it is a hand-written `Stopper` or an adapter-wrapped cleanup function.
 
-For providers that opt into Yama, cleanup functions are disallowed, because an explicit `Stopper` supersedes them. This is enforced by a lint check on the generated output rather than by modifying Google Wire. Older code that has not opted in keeps its cleanup functions and continues to work through the adapter.
+A provider that both returns a cleanup function **and** produces a value that implements `Stopper` yields two `Stopper` nodes — the value itself and the cleanup adapter — sharing the same incoming and outgoing dependency edges. They occupy the same teardown level and run concurrently, with no ordering between them, because Yama has no principled basis to order a cleanup function against the value's own `Stop`. If those two teardowns interact, resolving that is the provider author's responsibility, consistent with Yama running every teardown node to completion without editorializing.
 
 ### Generation and drift
 
@@ -72,7 +72,7 @@ By the time `wire gen` emits an injector, Google Wire has performed binding reso
 
 ### Unmodified Existing Codebases
 
-Because Yama references Google Wire's public types and runs its generator, existing Google Wire codebases work without modification. Legacy cleanup functions continue to work through `cleanupAdapter`.
+Because Yama references Google Wire's public types and runs its generator, existing Google Wire codebases work without modification. Cleanup functions continue to work through `cleanupAdapter`.
 
 ### Single Dispatch Path
 

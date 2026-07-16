@@ -238,14 +238,13 @@ Context modification is a primary mechanism for propagating lifecycle metadata.
 
 ## Lifecycle Metadata
 
-The lifecycle manager shall populate lifecycle metadata into context before interceptor execution.
-
-Examples include:
+The lifecycle manager shall populate the component identity into context before interceptor execution.
 
 ```text id="sd9bdk"
 Component identity
-Operation identity
 ```
+
+The operation is not carried as context metadata: because Start, Quiesce, and Stop are separate interceptor methods, an interceptor already knows which operation it is handling from the method that was invoked.
 
 This metadata enables:
 

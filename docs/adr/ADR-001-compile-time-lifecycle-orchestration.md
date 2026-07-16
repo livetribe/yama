@@ -180,7 +180,6 @@ Detailed diagnostics are intentionally separated from lifecycle orchestration.
 Examples of diagnostic information include:
 
 * Component identity.
-* Operation identity.
 * Original component errors.
 * Timeout information.
 * Execution duration.

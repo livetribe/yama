@@ -64,18 +64,18 @@ The generation pipeline is:
 3. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
 4. Treat the final root-struct literal returned by the injector (for example `App`) as the manifest of top-level roots, not itself a node. Treat each injector function as an independent graph; never merge them.
 5. Derive dependency edges from the arguments each creation event consumes.
-6. Detect lifecycle capabilities for each node. Wrap legacy Google Wire cleanup functions in synthetic `cleanupAdapter` values implementing `Stopper`, positioned at the cleaned-up value's place for ordering only.
+6. Detect lifecycle capabilities for each node. A cleanup function is shorthand for a `Stopper`: wrap every Google Wire cleanup function in a synthetic `cleanupAdapter` value implementing `Stopper`, positioned at the cleaned-up value's place for ordering only. A value that both returns a cleanup function and implements `Stopper` becomes two `Stopper` nodes at the same DAG position.
 7. Compute lifecycle execution structure:
    * startup levels,
    * quiesce levels,
    * shutdown levels,
    * per-operation interceptor eligibility.
-8. Emit the lifecycle file, carrying a provenance header, and run a lint check that rejects cleanup functions on providers that opted into Yama.
+8. Emit the lifecycle file, carrying a provenance header.
 9. Format generated Go code with standard Go formatting.
 
 Generation runs one command and produces two files (`wire_gen.go` and the lifecycle file). A CI check regenerates both and diffs them to catch drift.
 
-Generation failures are build-time failures. Examples include Google Wire generation errors, unsupported injector shapes, disallowed cleanup functions on opted-in providers, generated naming conflicts that cannot be resolved within the Yama namespace, or invalid lifecycle analysis results.
+Generation failures are build-time failures. Examples include Google Wire generation errors, unsupported injector shapes, generated naming conflicts that cannot be resolved within the Yama namespace, or invalid lifecycle analysis results.
 
 ## 5. Google Wire Integration
 
@@ -122,10 +122,22 @@ The result of lifecycle analysis is not emitted as a public or runtime data stru
 
 ## 8. Generated Code Architecture
 
-Generated lifecycle code is organized around a private Yama-owned implementation type. Conceptually, the generated implementation contains:
+Lifecycle code is split between two homes (see ADR-010). Only the **graph-specific**
+parts are generated into the application's `lifecycle_gen.go`: the private level
+structs that name concrete participants, their Start/Quiesce/Stop ordering methods,
+the `YamaInterceptors` input, and the `NewLifecycle` constructor. The **generic
+execution plumbing** — interceptor chain construction, the per-node wrapper, the
+fail-fast level executor, the boundary runner, `cleanupAdapter`, and the built-in
+overrun interceptor — is identical in every application and lives in a Yama-owned
+**runtime-support package** that the generated code imports. Keeping ordering in the
+generated level structs is what satisfies ADR-004: execution order stays visible in
+the application's own source, while the mechanical plumbing is reused rather than
+re-emitted per file.
+
+Conceptually, the generated implementation contains:
 
 * references to lifecycle-capable component instances,
-* prebuilt start, quiesce, and stop interceptor chains,
+* prebuilt start, quiesce, and stop interceptor chains (built by the runtime-support package),
 * one generated started flag per lifecycle participant,
 * minimal terminal state for lifecycle completion.
 
@@ -134,13 +146,13 @@ The per-participant started flags are the runtime state used to scope quiesce an
 Generated code contains explicit methods for:
 
 * constructing the lifecycle implementation,
-* constructing operation-specific interceptor chains,
 * constructing private generated level values,
 * starting each generated level that implements `Starter`,
 * quiescing each generated level that implements `Quiescer`,
 * stopping each generated level that implements `Stopper`,
-* observing the caller's context deadline for per-node overrun logging,
 * performing startup-failure cleanup.
+
+Chain construction, per-node wrapping, and the built-in per-node overrun interceptor are provided by the runtime-support package and invoked from the generated construction and level methods.
 
 The generated implementation returns only public lifecycle errors. Component-level errors remain inside generated control flow and interceptor observation paths.
 
@@ -180,7 +192,7 @@ Chain construction happens once during lifecycle manager initialization. Lifecyc
 
 Interceptors may observe execution, modify context, suppress execution, invoke the next element conditionally, alter returned outcomes, and provide diagnostics. Optional participation, environment policy, logging, metrics, tracing, and telemetry are interceptor responsibilities rather than lifecycle manager responsibilities.
 
-Because interceptors require every participant to be invoked through a chain, the wrapper layer is universal: every node is wrapped whether or not an interceptor is attached to it. Wrapping is not opt-in. The observational overrun logging relies on this same universal wrapping — the wrapper is where a caller's context-deadline overrun is detected and logged — so universal wrapping is what gives that mechanism per-node attribution.
+Because interceptors require every participant to be invoked through a chain, the wrapper layer is universal: every node is wrapped whether or not an application interceptor is attached to it. Wrapping is not opt-in. The observational overrun logging relies on this same universal wrapping: a built-in, Yama-authored interceptor is attached to every node's chain, and it is what detects and logs a caller's context-deadline overrun — so universal wrapping is what gives that mechanism per-node attribution. This built-in interceptor is an internal implementation detail; applications neither write nor register it, and it adds no public API.
 
 ## 11. Error Handling Architecture
 
@@ -190,7 +202,7 @@ Yama exposes a single lifecycle-level error:
 
 Startup returns `ErrStartFailed` if startup cannot complete successfully. `Stop` returns nothing. There is no recovery from shutdown, so there is nothing to return, and there is no `ErrStopFailed`.
 
-Component errors are not returned to the lifecycle caller. Component identity, operation identity, duration, deadline-overrun detail, and original component errors belong in interceptors and observability integrations.
+Component errors are not returned to the lifecycle caller. Component identity, duration, deadline-overrun detail, and original component errors belong in interceptors and observability integrations.
 
 Startup-failure cleanup does not change the public startup error. If startup fails, generated code runs the same internal shutdown sequence — the quiesce pass, then teardown — for the successfully started components and then returns `ErrStartFailed`. Shutdown produces no error, so cleanup outcomes are observable through interceptors but never change the returned error.
 
@@ -214,7 +226,7 @@ On startup failure, generated code cancels the startup context to prevent additi
 
 Generated implementation artifacts use a Yama-owned namespace and remain private whenever possible.
 
-Private generated names use a consistent prefix such as `yama` followed by descriptive role names. Examples of generated implementation roles include lifecycle implementation, generated level structs such as `yamaLevel001`, component operation wrappers, operation policy structs, chain builders, and `cleanupAdapter` values that wrap legacy Google Wire cleanup functions as `Stopper`.
+Private generated names use a consistent prefix such as `yama` followed by descriptive role names. Examples of generated implementation roles include lifecycle implementation, generated level structs such as `yamaLevel001`, component operation wrappers, operation policy structs, chain builders, and `cleanupAdapter` values that wrap Google Wire cleanup functions as `Stopper`.
 
 The implementation plan defines the expected generated names and their responsibilities. Architecture only requires that those names remain in a Yama-owned namespace and that implementation details stay private whenever possible.
 
@@ -232,20 +244,20 @@ Application-facing generated constructor names may be exported only when the app
 
 ## 14. Generated Artifact Layout
 
-Generation produces two files in the target application package: Google Wire's `wire_gen.go` and Yama's `lifecycle_gen.go`. One `go:generate` directive and one command produce both. A CI check regenerates both and diffs them against the committed copies to catch drift between `wire_gen.go` and the lifecycle file.
+Generation produces two files in the target application package: Google Wire's `wire_gen.go` and Yama's `lifecycle_gen.go`. One `go:generate` directive and one command produce both. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire generate`, so generation is reproducible and needs no assumption about `wire` being on `PATH`. A CI check regenerates both and diffs them against the committed copies to catch drift between `wire_gen.go` and the lifecycle file.
 
 The lifecycle file contains:
 
 * a generated-file header recording provenance (`// Code generated by Yama. DO NOT EDIT.`),
 * the build constraint excluding it from the two injection builds,
 * package declaration,
-* imports required by generated lifecycle code,
+* imports required by generated lifecycle code, including the Yama runtime-support package,
 * private generated lifecycle implementation type,
-* private generated component operation wrappers,
-* private generated interceptor chain construction,
+* private generated level structs and their ordering methods,
 * generated lifecycle constructor integration,
-* generated startup, quiesce, and shutdown methods,
-* generated concurrency helper functions where needed.
+* generated startup, quiesce, and shutdown methods.
+
+The generic execution plumbing (chain construction, per-node wrapping, level execution, boundary running, `cleanupAdapter`, the built-in overrun interceptor) is not emitted here; it lives in the runtime-support package the lifecycle file imports (ADR-010).
 
 Generated artifacts are implementation details. Applications may inspect them for debugging and review, but they should not depend on private generated type names or helper method names.
 
@@ -260,7 +272,7 @@ Each generated level is a private generated value that implements `Starter` when
 3. the prebuilt start interceptor chain,
 4. the component's `Start` method.
 
-A `Start` is expected to return once the component's start side effects have begun; construction already produced an inert, valid value. A component whose start would otherwise block — for example `http.Server.ListenAndServe` or `grpc.Server.Serve` — uses the `RunInBackground` helper to launch the blocking call in a goroutine and return, routing its error to a callback or channel rather than to a detached goroutine.
+A `Start` is expected to return once the component's start side effects have begun; construction already produced an inert, valid value. A component whose start would otherwise block — for example `http.Server.ListenAndServe` or `grpc.Server.Serve` — is responsible for launching the blocking call in its own goroutine and returning, routing the error wherever it needs to go. This is ordinary Go; the framework provides no helper for it.
 
 If all participants in a level succeed, generated code marks those participants as successfully started and proceeds to the next level.
 
@@ -279,9 +291,9 @@ Generated quiesce code invokes `Quiesce` on generated levels that implement `Qui
 3. the prebuilt quiesce interceptor chain,
 4. the component's `Quiesce` method.
 
-`Quiesce` returns no error. It stops accepting new work and blocks until the component's in-flight work completes. The caller's context deadline is observational: when it fires, the wrapper logs that the participant exceeded its window but keeps waiting for `Quiesce` to return, so a slow participant stalls the participants that depend on it until it returns or SIGKILL arrives.
+`Quiesce` returns no error. It stops accepting new work and blocks until the component's in-flight work completes. The caller's context deadline is observational: when it fires, the built-in overrun interceptor logs that the participant exceeded its window but the framework keeps waiting for `Quiesce` to return, so a slow participant stalls the participants that depend on it until it returns or SIGKILL arrives.
 
-The "stop accepting new work" step is wrapped with the `EnsureExactlyOnce` helper so it fires exactly once. Repeated or overlapping shutdowns observe the same underlying completion rather than re-triggering it. This is the codegen-wired path, not something each component reinvents.
+Idempotent shutdown is the framework's own guarantee: `Stop` runs the quiesce and teardown passes once, so repeated or overlapping `Stop` calls do not re-trigger them. A component whose own "stop accepting new work" step must fire exactly once uses ordinary `sync.Once`; the framework provides no helper for it.
 
 During startup-failure cleanup, generated quiesce code is scoped to participants that successfully started before startup failed.
 
@@ -295,7 +307,7 @@ During startup-failure cleanup, generated quiesce code is scoped to participants
 
 Both passes run under the caller's context — the single context passed to `Stop`, whose deadline, if any, spans the whole sequence. The quiesce pass completes before any teardown begins.
 
-Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable participants. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent participants in the same shutdown level stop concurrently inside the level. Legacy Google Wire cleanup functions participate here as `cleanupAdapter` values implementing `Stopper`, so every teardown node is a `Stopper` on a single dispatch path.
+Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable participants. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent participants in the same shutdown level stop concurrently inside the level. Google Wire cleanup functions participate here as `cleanupAdapter` values implementing `Stopper`, so every teardown node is a `Stopper` on a single dispatch path.
 
 Each stop invocation passes through:
 
@@ -389,7 +401,7 @@ Startup uses fail-fast coordination within a level. The quiesce and teardown pas
 
 Yama generates no deadline and owns no timeout policy. The only deadline is the one carried by the caller's context passed to `Start` and `Stop`. That single context is threaded through the whole traversal — for shutdown, the quiesce pass and teardown pass share it. Generated code never lengthens the caller's deadline.
 
-The deadline is observational. When it fires, the universal wrapper logs that a participant exceeded its window — giving per-node attribution — but does not return early. It continues waiting for the participant's operation to actually complete. Returning early would let the traversal reach a participant's dependencies while that participant might still be using them, violating reverse-topological ordering. Preserving ordering is chosen over liveness; external liveness is bounded by the orchestrator's SIGKILL.
+The deadline is observational. When it fires, the built-in overrun interceptor, attached to every node, logs that a participant exceeded its window — giving per-node attribution — but the framework does not return early. It continues waiting for the participant's operation to actually complete. Returning early would let the traversal reach a participant's dependencies while that participant might still be using them, violating reverse-topological ordering. Preserving ordering is chosen over liveness; external liveness is bounded by the orchestrator's SIGKILL.
 
 There is no timeout error and no framework-owned remediation. Because one context spans the whole shutdown, it is accepted that a slow quiesce can consume the window and leave teardown little time. Overruns are observable through interceptors, which receive the operation context and observe the operation.
 
@@ -403,7 +415,7 @@ Yama is observability-tool agnostic. It does not expose logger, tracer, meter, h
 
 Observability is implemented through interceptors and lifecycle metadata propagated in context. Generated code provides enough metadata for interceptors to associate observations with operation and component execution without exposing public graph APIs.
 
-Interceptors can measure duration, log failures, emit metrics, start traces, record deadline overruns, and record component diagnostics. The universal wrapper is where a deadline overrun is detected and logged with per-node attribution. The lifecycle manager itself only determines lifecycle outcomes.
+Interceptors can measure duration, log failures, emit metrics, start traces, record deadline overruns, and record component diagnostics. A built-in, Yama-authored interceptor attached to every node is where a deadline overrun is detected and logged, with per-node attribution; it is an internal detail that adds no public API. The lifecycle manager itself only determines lifecycle outcomes.
 
 ## 22. Failure Scenarios
 
@@ -480,7 +492,7 @@ Generated code may be larger for large dependency graphs. This is an accepted tr
 
 Testing covers the generator, generated code shape, and runtime behavior of generated lifecycle implementations.
 
-Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only nodes, and legacy cleanup functions wrapped as `cleanupAdapter`. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that the lint check rejects cleanup functions on opted-in providers. These tests operate on the generated injector and generated source, not on a private runtime graph API.
+Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only nodes, and cleanup functions wrapped as `cleanupAdapter`. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` yields two `Stopper` nodes at the same DAG position. These tests operate on the generated injector and generated source, not on a private runtime graph API.
 
 Generated-code tests should compile generated packages and exercise the public lifecycle surface. They should verify startup ordering, shutdown ordering, quiesce-before-teardown behavior, reverse-topological quiesce ordering, concurrent independent branches, startup fail-fast behavior, startup-failure cleanup, that shutdown returns nothing and runs to completion, observational-deadline overrun logging, and that only `ErrStartFailed` is returned. Golden-file tests should cover generated source shape for representative graphs so readability, naming stability, and chain construction remain reviewable.
 
@@ -533,3 +545,84 @@ Yama runs graceful shutdown when the process receives SIGTERM; it does not encod
 Yama cannot manufacture time that is not there. The observational deadline waits for a node, but the orchestrator's SIGKILL can still land mid-operation regardless of how the node handles its context.
 
 Work that must not be lost therefore has to be crash-safe and resumable at the storage layer — write-ahead logging, an outbox, or atomic and replayable writes — so that a process killed mid-operation can recover on restart. This is application-level guidance, not a Yama feature. A node may detach from the shutdown deadline with `context.WithoutCancel` to finish an in-flight unit of work, but it cannot rely on always being allowed to finish, so durability must not depend on shutdown completing.
+
+## Appendix C. Public API Reference
+
+ADR-007 records the decision to keep Yama's public API minimal and the reasoning behind it. This appendix is the current, authoritative enumeration of that surface — `package yama`'s complete set of exported symbols — and is the document to update whenever that surface changes. ADR-007 is not re-edited to keep this list current; its own listings illustrate the decision as accepted, not a live catalog.
+
+### Lifecycle Type
+
+```go
+type Lifecycle struct { /* generated implementation */ }
+
+func (*Lifecycle) Start(context.Context) error
+func (*Lifecycle) Stop(context.Context)
+```
+
+The generated constructor returns the application and its `Lifecycle` together:
+
+```go
+app, lifecycle, err := NewLifecycle(interceptors, WithBeginNode(n1), WithEndNode(n2))
+```
+
+### Capability Interfaces
+
+```go
+type Starter interface {
+    Start(context.Context) error
+}
+
+type Quiescer interface {
+    Quiesce(context.Context)
+}
+
+type Stopper interface {
+    Stop(context.Context)
+}
+```
+
+### Interceptor Interfaces
+
+```go
+type StartInterceptor interface {
+    Start(ctx context.Context, next Starter) error
+}
+
+type QuiesceInterceptor interface {
+    Quiesce(ctx context.Context, next Quiescer)
+}
+
+type StopInterceptor interface {
+    Stop(ctx context.Context, next Stopper)
+}
+```
+
+### Context Accessor
+
+```go
+func ComponentFromContext(ctx context.Context) (Component, bool)
+
+type Component struct {
+    Name string
+}
+```
+
+### Errors
+
+```go
+var ErrStartFailed error
+```
+
+### Helpers
+
+```go
+func WithBeginNode(node any) Option // register a node that runs before the graph in each pass
+func WithEndNode(node any) Option   // register a node that runs after the graph in each pass
+func RunUntilSignal(lc *Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
+```
+
+`WithBeginNode` and `WithEndNode` take `any` because Go has no `Starter | Quiescer | Stopper` union type; Yama detects the node's capabilities by type assertion.
+
+### Explicitly Not Public
+
+Generated artifacts (private level structs, generated constructor internals) and the exported symbols of the Yama-owned runtime-support package (ADR-010) are not part of this surface, even though the latter are technically exported so generated code can reach them. Applications should not depend on anything outside the list above.

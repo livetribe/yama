@@ -43,6 +43,8 @@ The public API consists of:
 
 All graph analysis, orchestration implementation, generated lifecycle structures, and generated helper types remain implementation details.
 
+The listings below illustrate this decision as accepted. They are not the continuously updated catalog of the current public surface — that lives in the Architecture document's Public API Reference, which is the document to consult and update as the surface evolves.
+
 ## Public Lifecycle Type
 
 Applications interact with lifecycle orchestration through a concrete type,
@@ -72,10 +74,7 @@ app, lifecycle, err := NewLifecycle(interceptors, WithBeginNode(n1), WithEndNode
 `NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
 comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
 are node-authored wrappers. The only construction-time inputs are interceptors and
-boundary nodes registered through the `WithBeginNode` and `WithEndNode` options
-(ADR-009). A boundary node implements the same `Starter`, `Quiescer`, and `Stopper`
-interfaces as any lifecycle participant; the option only controls whether it runs
-before or after the graph.
+the boundary-node registration options described under Public Helpers below.
 
 On construction failure it returns `nil, nil, err` — there is no partial
 `Lifecycle`, inheriting Google Wire's failure semantics (Google Wire unwinds
@@ -145,6 +144,27 @@ semantics of the phase it wraps: `StartInterceptor` propagates an `error`, while
 
 Operation-specific interceptor interfaces are part of the public API.
 
+## Public Context Accessor
+
+Interceptors read the identity of the lifecycle participant they are wrapping
+through a single accessor:
+
+```go
+func ComponentFromContext(ctx context.Context) (Component, bool)
+```
+
+The lifecycle manager attaches the participant's component identity to the
+context before the interceptor chain runs; an interceptor recovers it with
+`ComponentFromContext`. This is part of the public API.
+
+The operation being performed (Start, Quiesce, or Stop) is **not** carried as
+context metadata. Because those are separate interceptor methods, an interceptor
+already knows which operation it is handling from the method that was invoked, so
+no operation-identity accessor exists.
+
+The accessor exposes component metadata only. It does not expose graph APIs,
+generated implementation types, lifecycle plans, or component error details.
+
 ## Public Errors
 
 The framework exposes a single lifecycle-level error:
@@ -163,22 +183,21 @@ The framework does not expose component-level failure information through the pu
 The framework provides a small set of helpers for common lifecycle patterns:
 
 ```go
-func RunInBackground(...)  // launch a blocking Start (e.g. ListenAndServe) in a
-                           // goroutine and route its error to a callback/channel
-func EnsureExactlyOnce(...) // wrap "stop accepting new work" so it fires once and
-                            // overlapping calls observe the same completion
 func RunUntilSignal(*Lifecycle, ...) error // Start, wait for a signal, then Stop
 func WithBeginNode(...)  // register a node that runs before the graph in each pass
 func WithEndNode(...)    // register a node that runs after the graph in each pass
 ```
 
-`RunInBackground` keeps a `Start` that would otherwise block from stalling
-forward-topological startup. `EnsureExactlyOnce` is the codegen-wired path for the
-"stop accepting new work" step so repeated or overlapping shutdowns are safe.
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. `WithBeginNode` and `WithEndNode` are the construction
-options that register boundary nodes (ADR-009). Their exact signatures are defined
-by the framework.
+signal, and calls `Stop()`. `WithBeginNode` and `WithEndNode` register boundary
+nodes as construction-time inputs, keeping that registration out of any generated
+or runtime API. Their exact signatures are defined by the framework.
+
+A `Start` that would otherwise block (for example `http.Server.ListenAndServe`)
+is the component's own responsibility to launch in a goroutine and return; the
+framework provides no helper for it. Likewise, idempotent shutdown is the
+framework's own guarantee — `Stop` runs its passes once — so components needing a
+once-only "stop accepting new work" step use ordinary `sync.Once`.
 
 ## Generated Artifacts
 
@@ -195,6 +214,16 @@ type yamaLvl002 struct {}
 Generated types may change as generator implementation evolves.
 
 Applications should not depend on generated implementation details.
+
+## Non-Public Implementation Symbols
+
+Generated code may call additional Yama-owned symbols that are exported only so
+generated application-package code can reach them, for execution plumbing the
+generator does not emit inline. Such symbols are **not** part of the stable public
+API defined by this ADR, and applications should not depend on them directly. The
+stable public surface remains only the types listed above: the capability
+interfaces, the interceptor interfaces, `ComponentFromContext`, `ErrStartFailed`,
+`Lifecycle`/`NewLifecycle`, and the small set of helpers.
 
 ## Intentionally Omitted APIs
 

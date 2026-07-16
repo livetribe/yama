@@ -184,7 +184,6 @@ Detailed diagnostics are intentionally separated from lifecycle outcomes.
 Examples of diagnostic information include:
 
 * Component identity.
-* Operation identity.
 * Duration.
 * Timeout occurrence.
 * Original component error.
