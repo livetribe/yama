@@ -1,44 +1,30 @@
 # yama
-A signal watcher that can be used to shutdown an application.
+
+A compile-time lifecycle orchestration framework: it derives application
+startup/quiesce/shutdown ordering from a Google Wire dependency graph and
+generates the orchestration code, rather than building a runtime engine that
+interprets one.
 
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama) 
-[![Documentation](https://godoc.org/github.com/livetribe/yama?status.svg)](http://godoc.org/github.com/livetribe/yama) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama)
+[![Documentation](https://godoc.org/l7e.io/yama/v2?status.svg)](http://godoc.org/l7e.io/yama/v2)
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=v2)](https://coveralls.io/github/livetribe/yama?branch=v2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![GitHub tag (latest SemVer)](https://img.shields.io/github/tag/livetribe/yama.svg?style=social)](https://github.com/livetribe/yama/tags)
 
 ![Image of Yama](https://github.com/livetribe/yama/raw/master/img/yama.jpg)
 
-Yama provides a signal watcher that can be used to shutdown an application<sup>[1](#inspiration)</sup>.
+## Status
 
-A signal watcher can be constructed to watch any number of signals and will
-call any number of registered `io.Closer` instances, when such signals occur; the
-results of calling `Close()` on the registered instances are ignored.
+This is v2, a green-field rewrite; it shares only a name and a repository
+with the earlier `v0.x` signal-watcher (see
+[ADR-011](docs/adr/ADR-011-v1-v2-disposition.md)). v2 is under active
+construction and exports no public API yet.
 
-	watcher, err := yama.NewWatcher(
-		yama.WatchingSignals(syscall.SIGINT, syscall.SIGTERM),
-		yama.WithTimeout(2*time.Second),
-		yama.WithClosers(server))
+For the design, see:
 
-An application can wait fir the completion of the `Closer` notifications by
-calling the blocking method, `Wait()`.
-
-    watcher.Wait()
-
-Here, the caller will be blocked until one of the signals occur and all the
-`Closer` notifications have either completed or two seconds have elapsed since
-the start of `Closer` notifications; the timeout is set above by passing
-`yama.WithTimeout()`.  Subsequent signals will not trigger `Closer` notifications.
-
-The application can programmatically trigger `Closer` notifications by calling
-
-    watcher.Close()
-
-If this is done, subsequent signals will not trigger `Closer` notifications.
-
-There are a few helper methods, `FnAsCloser()` and `ErrValFnAsCloser()`, that can
-be used to wrap simple functions and functions that can return an error,
-respectively, into instances that implement `io.Closer`.
-___
-<a name="inspiration">1</a>: Inspired by [Death](https://github.com/vrecan/death).
+* [`docs/PRD.md`](docs/PRD.md) — product requirements.
+* [`docs/adr/`](docs/adr/) — the accepted architecture decision records.
+* [`docs/Architecture.md`](docs/Architecture.md) — the resolved architecture,
+  including the Public API Reference.
+* [`implementation_plan_claude.md`](implementation_plan_claude.md) — the
+  phased implementation plan.
