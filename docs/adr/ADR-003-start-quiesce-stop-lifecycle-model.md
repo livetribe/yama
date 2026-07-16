@@ -76,13 +76,14 @@ The framework shall not support additional lifecycle phases.
 
 ## Public API
 
-The lifecycle manager is a concrete type that exposes:
+The lifecycle manager is exposed as `Lifecycle`, composed of the capability
+interfaces above (ADR-007 owns the public-API shape):
 
 ```go
-type Lifecycle struct { /* generated implementation */ }
-
-func (*Lifecycle) Start(context.Context) error
-func (*Lifecycle) Stop(context.Context)
+type Lifecycle interface {
+    Starter
+    Stopper
+}
 ```
 
 `Quiesce` is not part of `Lifecycle`'s public API. There is no

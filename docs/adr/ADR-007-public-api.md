@@ -47,18 +47,35 @@ The listings below illustrate this decision as accepted. They are not the contin
 
 ## Public Lifecycle Type
 
-Applications interact with lifecycle orchestration through a concrete type,
-`Lifecycle`:
+Applications interact with lifecycle orchestration through `Lifecycle`, an
+interface composed of the capability interfaces its own participants implement:
 
 ```go
-type Lifecycle struct { /* generated implementation */ }
-
-func (*Lifecycle) Start(context.Context) error
-func (*Lifecycle) Stop(context.Context)
+type Lifecycle interface {
+    Starter
+    Stopper
+}
 ```
 
 `Start` returns an error; `Stop` returns nothing. `Quiesce` is not exposed —
 `Stop` runs the quiesce pass internally as its first action.
+
+A `Lifecycle` starts and stops the whole graph, so it is the same kind of thing as
+the participants inside it: a `Starter` and a `Stopper`. Expressing it as the
+composition of those two interfaces states that directly rather than restating
+their method signatures a second time.
+
+The implementation is private and owned by the runtime-support package (ADR-010).
+Applications receive a `Lifecycle`; they do not implement or construct one, and no
+public construction path exists.
+
+An interface adds no compatibility commitment beyond the one already made.
+`Starter` and `Stopper` are public and frozen, so composing them introduces no
+method Yama was not already committed to. The freedom a concrete type would
+preserve — adding a method to `Lifecycle` later — is freedom this project has
+already renounced: ADR-003 Invariant 6 fixes the phase count at three, and the
+sections below reject runtime graph, observability, and configuration APIs. There
+is nothing left to add.
 
 `Lifecycle` is named without a `-Container` suffix. The type is the application's
 lifecycle, not a dependency-injection container, and the name pairs with the
@@ -183,7 +200,7 @@ The framework does not expose component-level failure information through the pu
 The framework provides a small set of helpers for common lifecycle patterns:
 
 ```go
-func RunUntilSignal(*Lifecycle, ...) error // Start, wait for a signal, then Stop
+func RunUntilSignal(Lifecycle, ...) error // Start, wait for a signal, then Stop
 func WithBeginNode(...)  // register a node that runs before the graph in each pass
 func WithEndNode(...)    // register a node that runs after the graph in each pass
 ```

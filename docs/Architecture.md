@@ -10,7 +10,7 @@ Yama supports exactly three lifecycle capabilities. Each interface's signature m
 * `Quiesce(context.Context)`
 * `Stop(context.Context)`
 
-Applications interact with generated lifecycle orchestration through the concrete `Lifecycle` type:
+Applications interact with generated lifecycle orchestration through the `Lifecycle` interface, which is composed of the `Starter` and `Stopper` capabilities above — a lifecycle starts and stops the whole graph, so it is the same kind of thing as the participants inside it:
 
 * `Lifecycle.Start(context.Context) error`
 * `Lifecycle.Stop(context.Context)`
@@ -51,7 +51,7 @@ Yama has two major parts:
 
 At generation time, Yama runs `wire gen`, walks the AST of the resulting `wire_gen.go`, derives lifecycle participation and ordering from the generated injector, and emits `lifecycle_gen.go`.
 
-At runtime, the application constructs its dependencies through Google Wire's generated injector and obtains the generated Yama `Lifecycle` value from the generated constructor, which returns `(*App, *Lifecycle, error)`. On failure it returns `nil, nil, err`; on success it captures and discards Google Wire's raw cleanup function so teardown runs only through `Lifecycle.Stop`. The `Lifecycle` value owns references to lifecycle-capable component instances, generated interceptor chains, and minimal execution state.
+At runtime, the application constructs its dependencies through Google Wire's generated injector and obtains the generated Yama `Lifecycle` value from the generated constructor, which returns `(*App, Lifecycle, error)`. On failure it returns `nil, nil, err`; on success it captures and discards Google Wire's raw cleanup function so teardown runs only through `Lifecycle.Stop`. The `Lifecycle` value owns references to lifecycle-capable component instances, generated interceptor chains, and minimal execution state.
 
 The runtime lifecycle implementation does not discover components. It does not sort dependencies. It does not construct graphs. It does not interpret plans. It executes generated functions whose structure already encodes the generation-time analysis.
 
@@ -553,11 +553,18 @@ ADR-007 records the decision to keep Yama's public API minimal and the reasoning
 ### Lifecycle Type
 
 ```go
-type Lifecycle struct { /* generated implementation */ }
-
-func (*Lifecycle) Start(context.Context) error
-func (*Lifecycle) Stop(context.Context)
+type Lifecycle interface {
+    Starter
+    Stopper
+}
 ```
+
+`Lifecycle` is an interface composed of the capability interfaces below: it starts
+and stops the whole graph, so it is the same kind of thing as the participants
+inside it. Its implementation is private and owned by the runtime-support package;
+applications receive a `Lifecycle` and never implement or construct one. Because
+`Starter` and `Stopper` are themselves public and frozen, the composition adds no
+compatibility commitment beyond those already made.
 
 The generated constructor returns the application and its `Lifecycle` together:
 
@@ -618,7 +625,7 @@ var ErrStartFailed error
 ```go
 func WithBeginNode(node any) Option // register a node that runs before the graph in each pass
 func WithEndNode(node any) Option   // register a node that runs after the graph in each pass
-func RunUntilSignal(lc *Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
+func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
 ```
 
 `WithBeginNode` and `WithEndNode` take `any` because Go has no `Starter | Quiescer | Stopper` union type; Yama detects the node's capabilities by type assertion.
