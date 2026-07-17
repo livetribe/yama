@@ -14,7 +14,7 @@ Yama v2 has **three separable artifacts**:
 
 1. **A hand-written runtime library** (`package yama`) — the stable public API:
    the capability interfaces (`Starter`/`Quiescer`/`Stopper`), the interceptor
-   interfaces, `ErrStartFailed`, `ComponentFromContext`, the boundary options
+   interfaces, `ErrStartFailed`, `FromContext`, the boundary options
    (`WithBeginNode`/`WithEndNode`), and `RunUntilSignal`.
 2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/yamart`, ADR-010)
    — the generic execution plumbing (chain construction, per-node wrapper,
@@ -58,14 +58,13 @@ naming because several phases lean on them:
 - **A shared internal bridge package (`internal/bridge` or similar), needed by Go
   visibility rules, not named in any ADR — and its reach is bounded by a second Go
   rule that must not be conflated with the first.** `package yama`'s context-carrier
-  key type is unexported (Phase 1), and `Lifecycle`'s fields must stay unexported to
-  preserve encapsulation — but the per-node wrapper that needs to *set* both lives
-  in the runtime-support package (ADR-010), a different package from `package
-  yama`. The fix: put the shared bits (the context-key type, and the
-  `Lifecycle`-construction primitive) in a small internal package under the module
-  root, e.g. `internal/bridge`, that both `package yama` and the runtime-support
-  package import. **Two distinct Go visibility mechanisms are both in play here,
-  and the design leans on both correctly:**
+  key type is unexported (Phase 1) — but the per-node wrapper that needs to *set*
+  that identity lives in the runtime-support package (ADR-010), a different package
+  from `package yama`. The fix: put the shared bits (the context-key type, and the
+  `Config` the boundary `Option`s accumulate) in a small internal package under the
+  module root, e.g. `internal/bridge`, that both `package yama` and the
+  runtime-support package import. **Two distinct Go visibility mechanisms are both
+  in play here, and the design leans on both correctly:**
   - **Import-path visibility** (the `internal/` directory convention): only code
     rooted at `l7e.io/yama/v2/...` may import `internal/bridge` at all. `package
     yama` and the runtime-support package (both inside that module) qualify.
@@ -76,26 +75,33 @@ naming because several phases lean on them:
     runtime-support package's *exported* API (ADR-010) — it never imports
     `internal/bridge` directly, and this plan does not claim otherwise.
   - **Identifier export** (capitalization): the symbols inside `internal/bridge`
-    that the runtime-support package calls (the setter/accessor pair, the
-    `Lifecycle`-construction primitive) must themselves be **exported identifiers**
-    (e.g. `bridge.SetComponent`, `bridge.Component`), not lowercase/unexported —
-    a package permitted to import another package by path still cannot reach its
-    unexported identifiers. The package's restricted *import path* is what keeps
-    this out of reach of external modules; capitalization alone would not.
-  - `package yama` re-exports `ComponentFromContext` and `Lifecycle`'s methods as
-    thin public wrappers over `internal/bridge`'s exported functions; the
-    runtime-support package imports the same internal package to attach identity
-    and to assemble the `*Lifecycle` value it hands back to generated code through
-    its own exported constructor. This keeps `package yama`'s literal exported
-    surface exactly what ADR-007 wants, while giving the runtime-support package
-    genuine, compiling access to the shared internals — and keeps generated,
-    external-module code off of `internal/bridge` entirely, reaching only the
-    runtime-support package's documented exported surface. Phase 1 introduces this
-    package; Phase 2 consumes it; **Phase 9 adds the external-module compile
-    fixture that proves it** — Phase 9's example app, in its own `go.mod` outside
-    the Yama module, imports only `package yama` and the runtime-support package,
-    proving generated code compiles from a genuinely external module and never
-    touches `internal/bridge`.
+    that the runtime-support package calls (the setter/accessor pair, `Config`)
+    must themselves be **exported identifiers** (e.g. `bridge.WithComponent`,
+    `bridge.Component`), not lowercase/unexported — a package permitted to import
+    another package by path still cannot reach its unexported identifiers. The
+    package's restricted *import path* is what keeps this out of reach of external
+    modules; capitalization alone would not.
+  - `package yama` re-exports `FromContext` as a thin public wrapper over
+    `internal/bridge`'s exported functions; the runtime-support package imports the
+    same internal package to attach the identity that wrapper reads. This keeps
+    `package yama`'s literal exported surface exactly what ADR-007 wants, while
+    giving the runtime-support package genuine, compiling access to the shared
+    internals — and keeps generated, external-module code off of `internal/bridge`
+    entirely, reaching only the runtime-support package's documented exported
+    surface. Phase 1 introduces this package; Phase 2 consumes it; **Phase 9 adds
+    the external-module compile fixture that proves it** — Phase 9's example app,
+    in its own `go.mod` outside the Yama module, imports only `package yama` and the
+    runtime-support package, proving generated code compiles from a genuinely
+    external module and never touches `internal/bridge`.
+  - **`Lifecycle` is deliberately *not* among the shared bits.** It is a public
+    *interface* (`Starter` + `Stopper`, Phase 1), so the runtime-support package
+    satisfies it with its own private type — structurally, with no shared
+    declaration to import and no construction primitive to route through. An
+    earlier draft made `Lifecycle` a concrete struct, which forced its definition
+    into the bridge (unexported fields are unreachable from another package) and
+    leaked `bridge` into `package yama`'s public surface as a type alias. The
+    interface removes that entire problem, which is why the bridge now carries only
+    the context key and `Config`.
 
 Plan-level implementation choices not covered by the docs (by design): the
 generator lives in `internal/generator` behind a thin `cmd/yama`; Google Wire is
@@ -163,7 +169,7 @@ references its exported names before marking done, and that `go build ./...` /
 targets: **the `Lifecycle` type and its `Start`/`Stop` methods** (ADR-007's
 "primary lifecycle abstraction," Architecture Appendix C), the three capability
 interfaces, the three interceptor interfaces, `ErrStartFailed`, the
-component-identity context carrier + `ComponentFromContext`, and the *signatures*
+component-identity context carrier + `FromContext`, and the *signatures*
 (bodies may be stubs) of **all** public helpers — `WithBeginNode`/`WithEndNode`,
 `RunUntilSignal` — plus the generated `YamaInterceptors` shape (per ADR-007 +
 Architecture §13). After this phase the API-surface golden is **complete**; Phases
@@ -206,7 +212,7 @@ so they do not enter `package yama`'s frozen surface here.)
     writing signatures; the non-uniform interceptor shapes are a deliberate,
     explicitly-argued decision (Start returns `error`; Quiesce/Stop do not) and must
     not be "normalized."
-  - Include `ComponentFromContext` in the public surface (ADR-007 §"Public Context
+  - Include `FromContext` in the public surface (ADR-007 §"Public Context
     Accessor"); the operation is conveyed by the interceptor method, so do **not**
     add an operation-identity context accessor.
   - Do **not** add any symbol outside the public surface enumerated in
@@ -216,24 +222,34 @@ so they do not enter `package yama`'s frozen surface here.)
     committed **API-surface golden test** (e.g. `go doc`-style exported-symbol
     snapshot) that fails on any unlisted export.
 - *Output checks:*
-  - **`Lifecycle` exists as a concrete exported struct with exactly
-    `(*Lifecycle) Start(context.Context) error` and `(*Lifecycle) Stop(context.Context)`**
-    (Architecture Appendix C, ADR-007 §"Public Lifecycle Type"); `Quiesce` is
-    **not** exposed on `Lifecycle` — asserted by the API-surface golden showing no
-    `Quiesce` method on the type. `Lifecycle`'s fields are unexported; the only way
-    to obtain a populated `*Lifecycle` is through the `internal/bridge` package
-    (below), never through a public zero-value construction path — a stub-bodied
-    `Lifecycle` with unset internal state is acceptable for this phase (Phase 3
-    gives it real behavior), but the **type and method signatures** are frozen now.
-  - **The `internal/bridge` compiles and is reachable from a second,
-    sibling *in-module* test package** (standing in for the Phase 2 runtime-support
-    package, which does not exist yet): a fixture package under the same module
-    (`l7e.io/yama/v2/...`) imports `internal/bridge`, attaches a
-    component-identity value using its exported setter, and
-    `yama.ComponentFromContext` — reading through `package yama`'s thin wrapper —
-    recovers the same value. This proves the cross-package identity path Phase 2
-    depends on actually compiles before Phase 2 starts, rather than discovering the
-    visibility problem mid-Phase-2.
+  - **`Lifecycle` exists as an exported interface composed of `Starter` and
+    `Stopper`**, giving it exactly `Start(context.Context) error` and
+    `Stop(context.Context)` (Architecture Appendix C, ADR-007 §"Public Lifecycle
+    Type"); `Quiesce` is **not** exposed on `Lifecycle` — asserted by the
+    API-surface golden showing no `Quiesce` method on the type. The interface is
+    what removes any public construction path: the implementation is private and
+    owned by the runtime-support package, so `package yama` needs no shared
+    `Lifecycle` type and `internal/bridge` carries only the context key and
+    `Config`. An unconstructed (nil) `Lifecycle` panics on use as a language
+    guarantee — no hand-written guard, and nothing to assert.
+  - **`internal/bridge` compiles, and the identity round-trips through it:** a test
+    attaches a participant with `bridge.WithComponent` — the exported setter the
+    runtime-support package will call — and `yama.FromContext`, reading
+    through `package yama`'s thin wrapper, recovers exactly that value. This lives
+    in `context_test.go` (`package yama_test`, which is rooted at
+    `l7e.io/yama/v2` and may therefore import `internal/bridge`), so it exercises
+    the public accessor from outside the package with no fixture package involved.
+    What it guards is real: that the accessor keeps delegating to `bridge` rather
+    than growing a key of its own.
+
+    An earlier draft demanded a whole sibling fixture package here, to prove the
+    cross-package path compiles "before Phase 2 starts." That was aimed at a
+    visibility subtlety that no longer exists — it applied when `Lifecycle` was a
+    struct whose *unexported fields* another package could not populate despite
+    being allowed to import `bridge`. With `Lifecycle` an interface, the only shared
+    item is a context key reached through exported functions, which any in-module
+    package may call by Go's plain `internal/` rule. A fixture proving that would be
+    a witness written to satisfy its own assertion.
   - **The negative case is asserted too, not just the positive one:** a fixture
     module with its own separate `go.mod` (outside `l7e.io/yama/v2`) that attempts
     `import "l7e.io/yama/v2/internal/bridge"` **fails to compile** with Go's
@@ -256,26 +272,62 @@ so they do not enter `package yama`'s frozen surface here.)
     and chain fixtures: `var _ StartInterceptor = (*overrunInterceptor)(nil)`).
   - `ErrStartFailed` is a package-level `error`; `errors.Is(x, ErrStartFailed)`
     works.
-  - The component-identity type returned by `ComponentFromContext` is **concretely
-    defined** here, not left as "a small value": specify its exact shape and fields
-    (proposed default: an exported value type carrying the generated participant
-    **name** as a string, e.g. `type Component struct { Name string }`, plus an `ok
-    bool` return). Whatever is chosen is fixed now and named in the DoD.
-  - `ComponentFromContext(ctx)` returns that identity when previously attached and a
-    documented zero value + `ok=false` when absent. The context key is an
-    **unexported** type (collision-proof) — verified by a test that a caller's own
-    `context.WithValue(ctx, "component", …)` does **not** leak into the accessor.
+  - **`FromContext[T any](ctx) (T, bool)` yields the participant itself**,
+    not a framework-owned descriptor of it. There is no `Component` type and no
+    framework-derived component name: a component that wants a printable identity
+    implements `fmt.Stringer`, and `%T` gives its type otherwise. This is settled,
+    not a placeholder. The rationale — a generated name could only come from the
+    Wire graph's shape and would disambiguate two same-typed nodes with a
+    meaningless suffix (`sqlDB`, `sqlDB2`), where a `String()` returning
+    `"replica-db"` is chosen by someone who knows what it means — is recorded in
+    ADR-007 §"Public Context Accessor". The context carries the participant because
+    an interceptor's `next` is the rest of the chain, so only the final link would
+    otherwise hold the component.
+  - **`T` is unconstrained, and must stay that way.** Go cannot express "implements
+    at least one of `Starter`, `Quiescer`, `Stopper`": a union may not contain
+    method-bearing interfaces (`cannot use Starter in union (Starter contains
+    methods)`), and embedding demands all three. A base interface does not rescue
+    it — empty constrains nothing, an unexported marker makes the capability
+    interfaces unimplementable outside `package yama`, and an exported marker is
+    boilerplate on every component that still proves nothing about participation.
+    Do not add a `type Component = any` constraint as a fig leaf; a constraint that
+    constrains nothing is the conformance-table anti-pattern.
+  - `FromContext(ctx)` returns the participant when previously attached and
+    the zero `T` + `ok=false` when absent or when the participant is not a `T`. The
+    context key is an **unexported** type (collision-proof) — verified by a test
+    that a caller's own `context.WithValue(ctx, "component", …)` does **not** leak
+    into the accessor.
   - Accessor exposes component metadata **only** — no graph/plan/error leakage, and
     **no operation identity** (that is conveyed by which interceptor method runs,
     per Architecture §12 / ADR-007); asserted by the returned type having exactly the
     fields defined above.
+  - **`Option` is sealed by import path, not by capitalization — do not "fix" the
+    exported `Apply`.** `Option`'s method is `Apply(*bridge.Config)`, exported on
+    purpose: the runtime-support package (a package of its own) must apply the
+    options generated code hands it. The seal comes from the parameter type —
+    implementing `Option` means naming `*bridge.Config`, which Go's `internal/` rule
+    forbids outside this module, so the compiler rejects a forged `Option`
+    (`have Apply(any)` / `want Apply(*bridge.Config)`). The obvious alternative, an
+    unexported `applyOption` method, satisfies the seal and silently breaks the
+    consumer: options compile and pass around, and only `package yama` can ever
+    apply them, leaving `bridge.Config` unreachable. That was the original Phase 1
+    implementation and it was a real defect. `TestOptionsApplyFromAnotherPackage`
+    (in `package yama_test`, a different package) is the guard: it stops compiling
+    if `Apply` is unexported again.
   - **All public-helper signatures are declared and compile** (`WithBeginNode`,
     `WithEndNode`, `RunUntilSignal`) with stub bodies (e.g. `panic("unimplemented")`
     guarded so it never ships, or a documented no-op). The API-surface golden
     includes them, so it is **complete at the end of Phase 1** and does not grow in
     Phase 4.
-- *Edge/failure cases:* `ComponentFromContext` on a nil/background context returns
-  the documented absent result (`ok=false`), never panics.
+- *Edge/failure cases:* `FromContext` on a context carrying no identity —
+  `context.Background()`, or any context Yama has not wrapped — returns the
+  documented absent result (zero `Component`, `ok=false`). A **nil** context
+  panics, and deliberately so: Go's own rule is "do not pass a nil Context", so a
+  nil one is a caller bug, and returning `(zero, false)` would mask it the same way
+  a silently-inert `Lifecycle` would mask an unconstructed one. This corrects an
+  earlier draft of this bullet that lumped nil in with background and demanded
+  "never panics"; the guard it asked for was defensive ceremony against a
+  programmer error.
 
 **Regression note.** These signatures are consumed by Phases 2–10. Any change here
 after Phase 5 forces regeneration and re-verification of all golden files
@@ -301,7 +353,7 @@ pick and record the real module-qualified path here), exported so generated
 app-package code can call them, and documented as not part of the stable ADR-007
 API. Identity attachment goes through the **`internal/bridge` introduced
 in Phase 1** — the wrapper imports it directly and calls its exported setter to
-attach the same unexported-typed context value `yama.ComponentFromContext` reads;
+attach the same unexported-typed context value `yama.FromContext` reads;
 it does **not** invent a second, incompatible key. All exercised via hand-authored
 "as-if-generated" fixtures in `_test.go`.
 
@@ -331,7 +383,9 @@ unmodified out of the interceptor chain and back to whatever called it.
     context (deadline intact). **Log sink, pinned as a concrete, checkable
     requirement (plan-level default; not specified by the docs):** the interceptor
     logs via the stdlib `log/slog` default logger at `Warn` level, one line per
-    overrun, including the component name and the elapsed-vs-deadline delta; it
+    overrun, including the component and the elapsed-vs-deadline delta; it
+    identifies the component by `String()` when it implements `fmt.Stringer` and by
+    `%T` otherwise (there is no framework-derived name — see Phase 1). It
     takes no constructor argument to redirect or silence the sink in this phase. A
     test asserts an overrun produces exactly one `slog` record matching that shape;
     the "can it be silenced" question is deferred, out of scope, and not claimed as
@@ -360,7 +414,7 @@ unmodified out of the interceptor chain and back to whatever called it.
     operation's chain (a type implementing only `StartInterceptor` never runs in
     the Stop chain).
   - An interceptor can: (a) observe, (b) modify context seen by `next`
-    (`ComponentFromContext` and a custom value both visible downstream),
+    (`FromContext` and a custom value both visible downstream),
     (c) **suppress** execution (return without calling `next`, and the component
     method is provably not invoked), (d) modify the outcome (turn a component
     error into `nil` for Start).
@@ -384,7 +438,7 @@ unmodified out of the interceptor chain and back to whatever called it.
     §20/§21).** With a
     context whose deadline fires before a node's operation returns, the
     Yama-authored auto-attached interceptor reports the overrun **exactly once**,
-    attributed via `ComponentFromContext(ctx)`, to the chosen sink (assert against a
+    attributed via `FromContext(ctx)`, to the chosen sink (assert against a
     test sink). It does **not** cancel or abandon the operation; the wrapper waits
     for `next` to return (asserted with a controllable slow fake). No exported
     overrun API is involved.
@@ -485,6 +539,12 @@ DoD process checks below guard against that.
     by a shared observer seeing identical ordering, not a parallel implementation.
   - `Start` returns exactly `ErrStartFailed` (via `errors.Is`) and never the
     component's error; `Stop` returns nothing.
+  - **The runtime-support package's `Lifecycle` implementation is never a silent
+    no-op.** `Lifecycle` is an interface (Phase 1), so a nil one panics by language
+    guarantee and needs no check. What this phase must not do is reintroduce the
+    hazard at the other end: an implementation that returns `nil` from `Start`
+    while orchestrating nothing. `Start` reports success only when the participants
+    actually started.
   - **`Stop` is idempotent** (this is the framework's own guarantee that makes a
     separate once-only helper — informally called `EnsureExactlyOnce` in this plan,
     but never a documented ADR symbol, see Phase 4 — unnecessary): calling `Stop`
@@ -494,12 +554,19 @@ DoD process checks below guard against that.
     when `Start` already ran startup-failure cleanup, then the app also calls
     `Stop`.)
   - **Start deadline exceeded → `ErrStartFailed` (PRD §6.9 / ADR-006 §"Timeout
-    Errors").** A participant whose `Start` exceeds the caller's context deadline is
-    handled as an ordinary start failure: `Start` returns `ErrStartFailed` (not a
-    distinct timeout error), the startup context is canceled, later levels are not
-    started, and startup-failure cleanup (quiesce + teardown) runs over the
-    successfully-started participants. Asserted with a fixture whose one participant
-    blocks past a short caller deadline.
+    Errors").** A participant that *honors* the caller's context and returns an
+    error when its deadline fires is handled as an ordinary start failure: `Start`
+    returns `ErrStartFailed` (not a distinct timeout error), the startup context is
+    canceled, later levels are not started, and startup-failure cleanup (quiesce +
+    teardown) runs over the successfully-started participants.
+    **The fixture must honor `ctx` — e.g. `select { case <-ctx.Done(): return
+    ctx.Err() }` — not merely sleep past the deadline.** Yama never converts a
+    deadline into an error and never preempts a node (Architecture §20: the
+    deadline is observational; the overrun interceptor logs it and the framework
+    keeps waiting). A fixture that ignores `ctx` and blocks would therefore hang
+    this test forever rather than fail it. What is asserted here is that a
+    participant's *own* deadline error is treated like any other start failure —
+    Yama adds no timeout handling of its own.
   - **Caller context already canceled at `Start`** (explicit expected result, was
     previously unspecified): `Start` performs no participant starts beyond what the
     cancellation permits and returns `ErrStartFailed`; any participant that did
@@ -786,7 +853,7 @@ fixture (two teardown nodes, same level).
 **Goal.** Emit `lifecycle_gen.go`: the provenance header, generated level structs,
 per-node wrappers, interceptor-chain construction, the `YamaInterceptors` input
 and per-participant fields, the generated `NewLifecycle`-style constructor
-returning `(*App, *Lifecycle, error)`, and the Start/Quiesce/Stop methods —
+returning `(*App, Lifecycle, error)`, and the Start/Quiesce/Stop methods —
 gofmt-clean and deterministic.
 
 **Files/modules touched.** `internal/generator/emit*.go`,
@@ -1028,7 +1095,7 @@ change isn't mistaken for accidental drift, and vice-versa.
   **no** new exports beyond the runtime-support package (ADR-010), and generated
   code compiles against those frozen surfaces only.
 - **Metadata/observability across Phase 8:** re-verify that component identity
-  (`ComponentFromContext`) and operation identity (conveyed by the interceptor
+  (`FromContext`) and operation identity (conveyed by the interceptor
   method, ADR-007) and duration-measurability survive into generated output — an
   integration check, so the metadata contract can't silently regress at the
   generation boundary.
