@@ -30,7 +30,7 @@ application-package code can call it, without expanding the stable public API
 ## Decision
 
 The generic execution machinery lives in a dedicated, Yama-owned **runtime-support
-package** (a sibling of `package yama`, for example `l7e.io/yama/v2/yamart`) whose
+package** (a sibling of `package yama`, for example `l7e.io/yama/v2/rt`) whose
 symbols are **exported so generated code can import and call them**, and which is
 **documented as "called by generated code; not part of the stable ADR-007 public
 API."**

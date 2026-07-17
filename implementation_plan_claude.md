@@ -16,7 +16,7 @@ Yama v2 has **three separable artifacts**:
    the capability interfaces (`Starter`/`Quiescer`/`Stopper`), the interceptor
    interfaces, `ErrStartFailed`, `FromContext`, the boundary options
    (`WithBeginNode`/`WithEndNode`), and `RunUntilSignal`.
-2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/yamart`, ADR-010)
+2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/rt`, ADR-010)
    — the generic execution plumbing (chain construction, per-node wrapper,
    fail-fast level executor, boundary runner, `cleanupAdapter`, built-in overrun
    interceptor) that generated code imports. It is exported (generated
@@ -45,7 +45,7 @@ naming because several phases lean on them:
 - **The runtime-support package (ADR-010).** Generic execution plumbing (chain
   construction, per-node wrapper, fail-fast level executor, boundary runner,
   `cleanupAdapter`, the built-in overrun interceptor) lives in a Yama-owned sibling
-  package (e.g. `yamart`) that generated code imports — exported so
+  package (e.g. `rt`) that generated code imports — exported so
   application-package code can call it, but not part of the stable ADR-007 API.
   Only graph-specific code (level structs + ordering methods, `YamaInterceptors`,
   `NewLifecycle`) is generated inline. This is a well-justified default; Phase 3's
@@ -348,7 +348,7 @@ and threads the caller's context — *with its deadline* — unchanged.
 
 **Files/modules touched.** chain builders, the per-node wrapper, and identity
 attachment — in the **runtime-support package** (ADR-010; the package path, e.g.
-`l7e.io/yama/v2/yamart`, is ADR-010's own illustrative example, not a binding name —
+`l7e.io/yama/v2/rt`, is ADR-010's own illustrative example, not a binding name —
 pick and record the real module-qualified path here), exported so generated
 app-package code can call them, and documented as not part of the stable ADR-007
 API. Identity attachment goes through the **`internal/bridge` introduced
