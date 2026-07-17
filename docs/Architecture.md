@@ -212,7 +212,7 @@ Shutdown runs the quiesce pass and the teardown pass in dependency order, to com
 
 The caller's context enters `Start` and `Stop`. Generated code derives operation contexts from it when applying timeouts and lifecycle component metadata.
 
-Before invoking interceptors, generated code attaches the current lifecycle participant identity to context. This supports diagnostics, logging, metrics, tracing, and telemetry. The access mechanism is part of the framework-defined interceptor contract: interceptor implementations receive the operation context after component metadata has been attached and can read it with `yama.ComponentFromContext(ctx)`. The lifecycle operation does not need separate context metadata because the operation-specific interceptor method identifies whether the call is Start, Quiesce, or Stop. The context carrier uses unexported keys so components cannot accidentally collide with framework metadata. The accessor exposes component metadata only; it does not expose graph APIs, generated implementation types, lifecycle plans, or component error details.
+Before invoking interceptors, generated code attaches the current lifecycle participant to context. This supports diagnostics, logging, metrics, tracing, and telemetry. The access mechanism is part of the framework-defined interceptor contract: interceptor implementations receive the operation context after the participant has been attached and can read it with `yama.FromContext[T](ctx)`. This is the only way an interceptor can reach the component, since its `next` argument is the rest of the chain rather than the participant. The lifecycle operation does not need separate context metadata because the operation-specific interceptor method identifies whether the call is Start, Quiesce, or Stop. The context carrier uses unexported keys so components cannot accidentally collide with framework metadata. The accessor exposes the participant only; it does not expose graph APIs, generated implementation types, lifecycle plans, or component error details.
 
 Interceptors may replace or wrap the context before invoking the next element in the chain. Component lifecycle methods receive the context produced by timeout policy, component context injection, and interceptor processing.
 
@@ -230,7 +230,7 @@ Private generated names use a consistent prefix such as `yama` followed by descr
 
 The implementation plan defines the expected generated names and their responsibilities. Architecture only requires that those names remain in a Yama-owned namespace and that implementation details stay private whenever possible.
 
-The generated participant name is also the component name exposed through `yama.ComponentFromContext(ctx)`. The generator derives it deterministically from the application-facing value or field name when available, otherwise from the provider result type, with deterministic suffixes for collisions.
+Generated names are an implementation-detail concern only. Yama derives no component name for the public API: `yama.FromContext` yields the participant itself, and a component that wants a printable identity implements `fmt.Stringer`. The naming rules here govern generated identifiers — level structs, wrappers, chain values — not anything an application observes at runtime.
 
 Generated names must be:
 
@@ -607,12 +607,12 @@ type StopInterceptor interface {
 ### Context Accessor
 
 ```go
-func ComponentFromContext(ctx context.Context) (Component, bool)
-
-type Component struct {
-    Name string
-}
+func FromContext[T any](ctx context.Context) (T, bool)
 ```
+
+The accessor yields the lifecycle participant itself. `T` is the participant's concrete type: an interceptor scoped to one component instantiates `T` with that type, while a global interceptor uses `any` and type-switches. `T` is unconstrained because Go cannot express "implements at least one of `Starter`, `Quiescer`, `Stopper`" — the same limitation that makes `WithBeginNode` take `any`.
+
+Yama derives and exposes no component name. A component that wants a printable identity implements `fmt.Stringer`; `%T` yields its type otherwise.
 
 ### Errors
 

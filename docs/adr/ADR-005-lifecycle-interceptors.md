@@ -238,11 +238,13 @@ Context modification is a primary mechanism for propagating lifecycle metadata.
 
 ## Lifecycle Metadata
 
-The lifecycle manager shall populate the component identity into context before interceptor execution.
+The lifecycle manager shall populate the lifecycle participant into context before interceptor execution.
 
 ```text id="sd9bdk"
-Component identity
+The participant itself
 ```
+
+This is what an interceptor is given to identify the component it wraps. The framework derives no name for it: a component that wants a printable identity implements `fmt.Stringer`. An interceptor cannot obtain the participant from its `next` argument, because `next` is the rest of the chain rather than the component, which is why the context carries it.
 
 The operation is not carried as context metadata: because Start, Quiesce, and Stop are separate interceptor methods, an interceptor already knows which operation it is handling from the method that was invoked.
 

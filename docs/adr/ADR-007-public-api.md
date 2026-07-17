@@ -163,23 +163,49 @@ Operation-specific interceptor interfaces are part of the public API.
 
 ## Public Context Accessor
 
-Interceptors read the identity of the lifecycle participant they are wrapping
-through a single accessor:
+Interceptors read the lifecycle participant they are wrapping through a single
+accessor:
 
 ```go
-func ComponentFromContext(ctx context.Context) (Component, bool)
+func FromContext[T any](ctx context.Context) (T, bool)
 ```
 
-The lifecycle manager attaches the participant's component identity to the
-context before the interceptor chain runs; an interceptor recovers it with
-`ComponentFromContext`. This is part of the public API.
+The lifecycle manager attaches the participant itself to the context before the
+interceptor chain runs; an interceptor recovers it with `FromContext`.
+This is part of the public API.
+
+The accessor yields the participant, not a framework-owned descriptor of it. An
+interceptor cannot obtain the participant from its `next` argument — `next` is the
+rest of the chain, so only the final link ever holds the component — which is why
+the context carries it.
+
+`T` is the participant's concrete type. An interceptor scoped to one component
+instantiates `T` with that component's type; a global interceptor uses `any` and
+type-switches. `T` is unconstrained because Go cannot express "implements at least
+one of `Starter`, `Quiescer`, `Stopper`": a union may not contain method-bearing
+interfaces, and embedding them would require all three rather than any one. A base
+interface does not rescue this — an empty one constrains nothing, an unexported
+marker method would make the capability interfaces unimplementable outside
+`package yama`, and an exported marker would impose boilerplate on every component
+while still not proving the type participates in the lifecycle. This is the same
+limitation that makes `WithBeginNode` take `any`.
+
+**Components are not named by the framework.** Yama derives no participant name
+and exposes none. A component that wants a printable identity implements
+`fmt.Stringer`; otherwise `%T` yields its type. This is ordinary Go, and it is
+strictly better than a generated name: the framework could only derive a name from
+the shape of the Wire graph, and would have to disambiguate two same-typed
+participants with a mechanical suffix — `sqlDB` and `sqlDB2` — which is unique but
+tells an operator nothing. A `String()` returning `"replica-db"` is chosen by the
+person who knows what it means. Every participant implements a capability
+interface, so it is always a type the application owns and can extend.
 
 The operation being performed (Start, Quiesce, or Stop) is **not** carried as
 context metadata. Because those are separate interceptor methods, an interceptor
 already knows which operation it is handling from the method that was invoked, so
 no operation-identity accessor exists.
 
-The accessor exposes component metadata only. It does not expose graph APIs,
+The accessor exposes the participant only. It does not expose graph APIs,
 generated implementation types, lifecycle plans, or component error details.
 
 ## Public Errors
@@ -239,7 +265,7 @@ generated application-package code can reach them, for execution plumbing the
 generator does not emit inline. Such symbols are **not** part of the stable public
 API defined by this ADR, and applications should not depend on them directly. The
 stable public surface remains only the types listed above: the capability
-interfaces, the interceptor interfaces, `ComponentFromContext`, `ErrStartFailed`,
+interfaces, the interceptor interfaces, `FromContext`, `ErrStartFailed`,
 `Lifecycle`/`NewLifecycle`, and the small set of helpers.
 
 ## Intentionally Omitted APIs
