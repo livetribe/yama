@@ -42,7 +42,7 @@ Only the **graph-specific** parts are generated inline into `lifecycle_gen.go`:
 * the `NewLifecycle` constructor.
 
 Interceptors are supplied through the public, non-generated `WithInterceptors`
-`LifecycleOption` (ADR-005) rather than a generated input.
+`Option` (ADR-005) rather than a generated input.
 
 The runtime-support package holds the **graph-independent** parts:
 

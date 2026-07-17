@@ -85,13 +85,13 @@ The generated injector constructs the application and its `Lifecycle` together a
 returns them, mirroring Google Wire's `(T, func(), error)` convention:
 
 ```go
-app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNode(n1), WithEndNode(n2))
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNodes(n1), WithEndNodes(n2))
 ```
 
 `NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
 comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
 are node-authored wrappers. The only construction-time inputs are the
-`LifecycleOption` values — interceptors and boundary-node registration — described
+`Option` values — interceptors and boundary-node registration — described
 under Public Helpers below.
 
 On construction failure it returns `nil, nil, err` — there is no partial
@@ -180,16 +180,17 @@ interceptor cannot obtain the participant from its `next` argument — `next` is
 rest of the chain, so only the final link ever holds the component — which is why
 the context carries it.
 
-`T` is the participant's concrete type. An interceptor scoped to one component
-instantiates `T` with that component's type; a global interceptor uses `any` and
-type-switches. `T` is unconstrained because Go cannot express "implements at least
-one of `Starter`, `Quiescer`, `Stopper`": a union may not contain method-bearing
-interfaces, and embedding them would require all three rather than any one. A base
-interface does not rescue this — an empty one constrains nothing, an unexported
-marker method would make the capability interfaces unimplementable outside
-`package yama`, and an exported marker would impose boilerplate on every component
-while still not proving the type participates in the lifecycle. This is the same
-limitation that makes `WithBeginNode` take `any`.
+`T` is the participant's concrete type. Because interceptors attach globally
+(ADR-005), an interceptor uses `any` and type-switches to identify the
+participant it is wrapping. `T` is unconstrained because Go cannot express
+"implements at least one of `Starter`, `Quiescer`, `Stopper`": a union may not
+contain method-bearing interfaces, and embedding them would require all three
+rather than any one. A base interface does not rescue this — an empty one
+constrains nothing, an unexported marker method would make the capability
+interfaces unimplementable outside `package yama`, and an exported marker would
+impose boilerplate on every component while still not proving the type
+participates in the lifecycle. This is the same limitation that makes
+`WithBeginNodes` take `any`.
 
 **Components are not named by the framework.** Yama derives no participant name
 and exposes none. A component that wants a printable identity implements
@@ -234,12 +235,15 @@ func WithInterceptors(interceptors ...any) Option // attach interceptors globall
 ```
 
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. `WithBeginNode`, `WithEndNode`, and `WithInterceptors`
-register construction-time inputs as `LifecycleOption`s, keeping that registration
-out of any generated or runtime API. `WithInterceptors` is variadic and may be
-passed more than once; supplied interceptors accumulate and attach globally (ADR-005)
-— there is no generated, per-application variant of this helper. Their exact
-signatures are defined by the framework.
+signal, and calls `Stop()`. `WithBeginNodes`, `WithEndNodes`, and `WithInterceptors`
+register construction-time inputs as `Option`s, keeping that registration
+out of any generated or runtime API. All three are variadic and may each be
+passed more than once; supplied values accumulate. For `WithInterceptors`,
+accumulation order is the interceptor chain's registration order (ADR-005). For
+`WithBeginNodes`/`WithEndNodes`, each boundary is a flat, unordered set — call
+order carries no ordering guarantee among nodes registered into the same
+boundary (Architecture §18). There is no generated, per-application variant of
+any of these helpers. Their exact signatures are defined by the framework.
 
 A `Start` that would otherwise block (for example `http.Server.ListenAndServe`)
 is the component's own responsibility to launch in a goroutine and return; the

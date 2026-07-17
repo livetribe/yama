@@ -130,7 +130,7 @@ chain construction, the per-node wrapper, the fail-fast level executor, the boun
 runner, `cleanupAdapter`, and the built-in overrun interceptor — is identical in
 every application and lives in a Yama-owned **runtime-support package** that the
 generated code imports. `WithInterceptors` (ADR-005) is a public, non-generated
-`LifecycleOption` — because interceptors attach globally rather than per
+`Option` — because interceptors attach globally rather than per
 participant, no generated interceptor input is needed. Keeping ordering in the
 generated level structs is what satisfies ADR-004: execution order stays visible in
 the application's own source, while the mechanical plumbing is reused rather than
@@ -184,9 +184,8 @@ Generated lifecycle construction accepts interceptor values through the public, 
 
 Generated code builds separate chains for start, quiesce, and stop. Each operation chain combines:
 
-1. global interceptors that implement the operation-specific interceptor interface,
-2. per-component interceptors for the participant being invoked,
-3. the final component lifecycle method.
+1. interceptors supplied via `WithInterceptors` that implement the operation-specific interceptor interface,
+2. the final component lifecycle method.
 
 Execution order follows registration order. The lifecycle manager does not reorder, prioritize, or rediscover interceptors.
 
@@ -370,9 +369,10 @@ cleanup, which reuses the Quiesce and Stop passes over successfully started
 participants; there is no separate boundary execution path.
 
 Boundary nodes are supplied as runtime objects when the lifecycle value is
-constructed, using the `WithBeginNode` and `WithEndNode` options alongside
-interceptors. They are not derived from the Wire graph, are not lifecycle graph
-participants, and never appear in generated startup, quiesce, or teardown levels.
+constructed, using the `WithBeginNodes` and `WithEndNodes` options alongside
+`WithInterceptors`. They are not derived from the Wire graph, are not lifecycle
+graph participants, and never appear in generated startup, quiesce, or teardown
+levels.
 
 Two cases illustrate the boundaries without defining them:
 
@@ -498,7 +498,7 @@ Generator tests should use real source-file fixtures containing Google Wire inje
 
 Generated-code tests should compile generated packages and exercise the public lifecycle surface. They should verify startup ordering, shutdown ordering, quiesce-before-teardown behavior, reverse-topological quiesce ordering, concurrent independent branches, startup fail-fast behavior, startup-failure cleanup, that shutdown returns nothing and runs to completion, observational-deadline overrun logging, and that only `ErrStartFailed` is returned. Golden-file tests should cover generated source shape for representative graphs so readability, naming stability, and chain construction remain reviewable.
 
-Interceptor tests should verify separate operation chains, the non-uniform signatures, global and per-component composition, registration-order execution, context modification, behavior suppression, and outcome modification.
+Interceptor tests should verify separate operation chains, the non-uniform signatures, registration-order execution, context modification, behavior suppression, and outcome modification.
 
 Error tests should verify that callers receive only `ErrStartFailed`, that `Stop` returns nothing, and that component errors and deadline overruns are available only to interceptors or test observability hooks.
 
@@ -571,7 +571,7 @@ compatibility commitment beyond those already made.
 The generated constructor returns the application and its `Lifecycle` together:
 
 ```go
-app, lifecycle, err := NewLifecycle(interceptors, WithBeginNode(n1), WithEndNode(n2))
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNodes(n1), WithEndNodes(n2))
 ```
 
 ### Capability Interfaces
@@ -612,7 +612,7 @@ type StopInterceptor interface {
 func FromContext[T any](ctx context.Context) (T, bool)
 ```
 
-The accessor yields the lifecycle participant itself. `T` is the participant's concrete type: an interceptor scoped to one component instantiates `T` with that type, while a global interceptor uses `any` and type-switches. `T` is unconstrained because Go cannot express "implements at least one of `Starter`, `Quiescer`, `Stopper`" — the same limitation that makes `WithBeginNode` take `any`.
+The accessor yields the lifecycle participant itself. `T` is the participant's concrete type; since interceptors attach globally (ADR-005), callers type-switch on the yielded value with `T` as `any`. `T` is unconstrained because Go cannot express "implements at least one of `Starter`, `Quiescer`, `Stopper`" — the same limitation that makes `WithBeginNodes` take `any`.
 
 Yama derives and exposes no component name. A component that wants a printable identity implements `fmt.Stringer`; `%T` yields its type otherwise.
 
@@ -625,12 +625,13 @@ var ErrStartFailed error
 ### Helpers
 
 ```go
-func WithBeginNode(node any) Option // register a node that runs before the graph in each pass
-func WithEndNode(node any) Option   // register a node that runs after the graph in each pass
+func WithBeginNodes(nodes ...any) Option // register nodes that run before the graph in each pass
+func WithEndNodes(nodes ...any) Option   // register nodes that run after the graph in each pass
+func WithInterceptors(interceptors ...any) Option // attach interceptors globally
 func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
 ```
 
-`WithBeginNode` and `WithEndNode` take `any` because Go has no `Starter | Quiescer | Stopper` union type; Yama detects the node's capabilities by type assertion.
+`WithBeginComponents`, `WithEndComponents`, and `WithInterceptors` take `any` because Go cannot express a union of method-bearing interfaces — neither `Starter | Quiescer | Stopper` for components nor the three interceptor interfaces; Yama detects each value's capabilities by type assertion. All are variadic and may be called more than once; registered values accumulate in call order.
 
 ### Explicitly Not Public
 

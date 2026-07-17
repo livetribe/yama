@@ -15,7 +15,7 @@ Yama v2 has **three separable artifacts**:
 1. **A hand-written runtime library** (`package yama`) — the stable public API:
    the capability interfaces (`Starter`/`Quiescer`/`Stopper`), the interceptor
    interfaces, `ErrStartFailed`, `FromContext`, the boundary options
-   (`WithBeginNode`/`WithEndNode`), and `RunUntilSignal`.
+   (`WithBeginNodes`/`WithEndNodes`), and `RunUntilSignal`.
 2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/rt`, ADR-010)
    — the generic execution plumbing (chain construction, per-node wrapper,
    fail-fast level executor, boundary runner, `cleanupAdapter`, built-in overrun
@@ -171,7 +171,7 @@ targets: **the `Lifecycle` type and its `Start`/`Stop` methods** (ADR-007's
 "primary lifecycle abstraction," Architecture Appendix C), the three capability
 interfaces, the three interceptor interfaces, `ErrStartFailed`, the
 component-identity context carrier + `FromContext`, and the *signatures*
-(bodies may be stubs) of **all** public helpers — `WithBeginNode`/`WithEndNode`,
+(bodies may be stubs) of **all** public helpers — `WithBeginNodes`/`WithEndNodes`,
 `WithInterceptors`, `RunUntilSignal` (per ADR-007 + Architecture §13). After this
 phase the API-surface golden is **complete**; Phases
 3/4 add behavior to these symbols without changing their signatures.
@@ -315,8 +315,8 @@ so they do not enter `package yama`'s frozen surface here.)
     implementation and it was a real defect. `TestOptionsApplyFromAnotherPackage`
     (in `package yama_test`, a different package) is the guard: it stops compiling
     if `Apply` is unexported again.
-  - **All public-helper signatures are declared and compile** (`WithBeginNode`,
-    `WithEndNode`, `RunUntilSignal`) with stub bodies (e.g. `panic("unimplemented")`
+  - **All public-helper signatures are declared and compile** (`WithBeginNodes`,
+    `WithEndNodes`, `RunUntilSignal`) with stub bodies (e.g. `panic("unimplemented")`
     guarded so it never ships, or a documented no-op). The API-surface golden
     includes them, so it is **complete at the end of Phase 1** and does not grow in
     Phase 4.
@@ -342,8 +342,9 @@ identity-attachment tests, since both depend on the same shared type.
 ## Phase 2 — Interceptor chains + universal wrapper (runtime core)
 
 **Goal.** Implement the runtime machinery that generated code will call: build the
-three separate operation chains (global + per-participant, registration-ordered),
-attach component identity to context before the chain runs, and the **universal
+three separate operation chains (global, registration-ordered — no per-participant
+scoping, ADR-005), attach component identity to context before the chain runs, and
+the **universal
 per-node wrapper** that gives every node per-node attribution (identity in context)
 and threads the caller's context — *with its deadline* — unchanged.
 
@@ -446,7 +447,7 @@ unmodified out of the interceptor chain and back to whatever called it.
   - Chains are built **once** at construction and reused; the wrapper does not
     rebuild chains per call (asserted via a build-counter).
 - *Edge/failure cases:* empty interceptor set → node still invoked exactly once;
-  nil per-participant field → no panic.
+  no `WithInterceptors` call at all → same, `Option`s default to empty.
 
 **Regression note.** Phase 8 emits code that calls these runtime-support helpers
 (ADR-010). If a helper signature changes after Phase 8, regenerate goldens. The
@@ -511,7 +512,7 @@ DoD process checks below guard against that.
   - Do not introduce any timeout/deadline of Yama's own — the only deadline is the
     caller's context (ADR-003 §"Stop Deadline", Architecture §20). Assert no
     `context.WithTimeout` with a framework constant exists (grep/process check).
-  - **Boundary option ownership:** `WithBeginNode`/`WithEndNode` *signatures* are
+  - **Boundary option ownership:** `WithBeginNodes`/`WithEndNodes` *signatures* are
     fixed in Phase 1; their *behavior* is implemented and tested here. Phase 4 does
     **not** revisit them (removes the earlier "finalize in Phase 4" overlap).
 - *Output checks (ordering invariants):*
@@ -617,7 +618,7 @@ become the behavioral contract Phase 10 re-checks on generated output.
 
 **Goal.** Implement the **body** of `RunUntilSignal`. Its **signature is already
 frozen in Phase 1** (and in the Phase 1 API-surface golden); this phase changes
-behavior, not signature. (`WithBeginNode`/`WithEndNode` are fixed in Phase 1 and
+behavior, not signature. (`WithBeginNodes`/`WithEndNodes` are fixed in Phase 1 and
 implemented in Phase 3 — not revisited here. **`RunInBackground` and
 `EnsureExactlyOnce` are plan-level names for helpers this plan does not build, not
 a documented ADR-007 decision** — no canonical doc names either helper. ADR-007
