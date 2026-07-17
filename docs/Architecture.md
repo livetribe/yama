@@ -125,11 +125,13 @@ The result of lifecycle analysis is not emitted as a public or runtime data stru
 Lifecycle code is split between two homes (see ADR-010). Only the **graph-specific**
 parts are generated into the application's `lifecycle_gen.go`: the private level
 structs that name concrete participants, their Start/Quiesce/Stop ordering methods,
-the `YamaInterceptors` input, and the `NewLifecycle` constructor. The **generic
-execution plumbing** — interceptor chain construction, the per-node wrapper, the
-fail-fast level executor, the boundary runner, `cleanupAdapter`, and the built-in
-overrun interceptor — is identical in every application and lives in a Yama-owned
-**runtime-support package** that the generated code imports. Keeping ordering in the
+and the `NewLifecycle` constructor. The **generic execution plumbing** — interceptor
+chain construction, the per-node wrapper, the fail-fast level executor, the boundary
+runner, `cleanupAdapter`, and the built-in overrun interceptor — is identical in
+every application and lives in a Yama-owned **runtime-support package** that the
+generated code imports. `WithInterceptors` (ADR-005) is a public, non-generated
+`LifecycleOption` — because interceptors attach globally rather than per
+participant, no generated interceptor input is needed. Keeping ordering in the
 generated level structs is what satisfies ADR-004: execution order stays visible in
 the application's own source, while the mechanical plumbing is reused rather than
 re-emitted per file.
@@ -178,7 +180,7 @@ Yama uses operation-specific interceptor interfaces:
 
 The interceptor interfaces are intentionally not uniform; Yama rejects a single shared interceptor shape. Each interceptor's signature matches the error semantics of the phase it wraps. A start interceptor receives the operation context and a `Starter` next value and returns an `error`, because `Start` can fail. A quiesce interceptor receives the operation context and a `Quiescer` next value and returns nothing, and a stop interceptor receives the operation context and a `Stopper` next value and returns nothing, because those phases have nothing actionable to report. A uniform contract would force `Quiesce` and `Stop` to carry an unused error return or force `Start` to discard the error it must report. Interceptors still observe, suppress, replace, or modify execution by wrapping the `next` value while preserving strong typing.
 
-Generated lifecycle construction accepts global interceptor values and generated per-component interceptor fields through the generated `YamaInterceptors` input. Per-component attachment is strongly typed through generated constructor input fields named for the generated lifecycle participant. A caller attaches an interceptor to a specific component by placing it in that component's generated interceptor field, not by using component names, string keys, runtime lookup, or a registration API. During construction, generated code filters those explicit values by operation-specific interceptor interface and builds the relevant chains.
+Generated lifecycle construction accepts interceptor values through the public, non-generated `WithInterceptors(interceptors ...any) Option` helper. Interceptors attach globally only — there is no per-component scoping, no component names, string keys, runtime lookup, or registration API. During construction, generated code filters the supplied values by operation-specific interceptor interface and builds the relevant chains.
 
 Generated code builds separate chains for start, quiesce, and stop. Each operation chain combines:
 

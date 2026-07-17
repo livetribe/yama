@@ -85,13 +85,14 @@ The generated injector constructs the application and its `Lifecycle` together a
 returns them, mirroring Google Wire's `(T, func(), error)` convention:
 
 ```go
-app, lifecycle, err := NewLifecycle(interceptors, WithBeginNode(n1), WithEndNode(n2))
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNode(n1), WithEndNode(n2))
 ```
 
 `NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
 comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
-are node-authored wrappers. The only construction-time inputs are interceptors and
-the boundary-node registration options described under Public Helpers below.
+are node-authored wrappers. The only construction-time inputs are the
+`LifecycleOption` values — interceptors and boundary-node registration — described
+under Public Helpers below.
 
 On construction failure it returns `nil, nil, err` — there is no partial
 `Lifecycle`, inheriting Google Wire's failure semantics (Google Wire unwinds
@@ -229,12 +230,16 @@ The framework provides a small set of helpers for common lifecycle patterns:
 func RunUntilSignal(Lifecycle, ...) error // Start, wait for a signal, then Stop
 func WithBeginNode(...)  // register a node that runs before the graph in each pass
 func WithEndNode(...)    // register a node that runs after the graph in each pass
+func WithInterceptors(interceptors ...any) Option // attach interceptors globally
 ```
 
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. `WithBeginNode` and `WithEndNode` register boundary
-nodes as construction-time inputs, keeping that registration out of any generated
-or runtime API. Their exact signatures are defined by the framework.
+signal, and calls `Stop()`. `WithBeginNode`, `WithEndNode`, and `WithInterceptors`
+register construction-time inputs as `LifecycleOption`s, keeping that registration
+out of any generated or runtime API. `WithInterceptors` is variadic and may be
+passed more than once; supplied interceptors accumulate and attach globally (ADR-005)
+— there is no generated, per-application variant of this helper. Their exact
+signatures are defined by the framework.
 
 A `Start` that would otherwise block (for example `http.Server.ListenAndServe`)
 is the component's own responsibility to launch in a goroutine and return; the

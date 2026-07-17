@@ -47,8 +47,9 @@ naming because several phases lean on them:
   `cleanupAdapter`, the built-in overrun interceptor) lives in a Yama-owned sibling
   package (e.g. `rt`) that generated code imports — exported so
   application-package code can call it, but not part of the stable ADR-007 API.
-  Only graph-specific code (level structs + ordering methods, `YamaInterceptors`,
-  `NewLifecycle`) is generated inline. This is a well-justified default; Phase 3's
+  Only graph-specific code (level structs + ordering methods, `NewLifecycle`) is
+  generated inline; interceptors are supplied via the public, non-generated
+  `WithInterceptors` option (ADR-005), not a generated input. This is a well-justified default; Phase 3's
   "pin the generated-code shape" step is the checkpoint to re-confirm it before
   Phase 8 bakes it into the emitter.
 - **The overrun interceptor (Architecture §10/§20/§21).** Per-node deadline-overrun
@@ -171,8 +172,8 @@ targets: **the `Lifecycle` type and its `Start`/`Stop` methods** (ADR-007's
 interfaces, the three interceptor interfaces, `ErrStartFailed`, the
 component-identity context carrier + `FromContext`, and the *signatures*
 (bodies may be stubs) of **all** public helpers — `WithBeginNode`/`WithEndNode`,
-`RunUntilSignal` — plus the generated `YamaInterceptors` shape (per ADR-007 +
-Architecture §13). After this phase the API-surface golden is **complete**; Phases
+`WithInterceptors`, `RunUntilSignal` (per ADR-007 + Architecture §13). After this
+phase the API-surface golden is **complete**; Phases
 3/4 add behavior to these symbols without changing their signatures.
 
 **Files/modules touched.** `lifecycle.go` (the `Lifecycle` struct + `Start`/`Stop`
@@ -407,9 +408,9 @@ unmodified out of the interceptor chain and back to whatever called it.
   - Chain execution order equals registration order: given `[Telemetry, Metrics,
     Logging]` the observed call order is Telemetry→Metrics→Logging→component
     (Architecture §10). A test asserts the exact order string.
-  - Global interceptors apply to all participants; a per-participant interceptor
-    applies only to its participant and to no other (two-participant fixture
-    proves isolation).
+  - Interceptors apply globally to all participants that implement the matching
+    operation-specific interface — there is no per-participant scoping (ADR-005
+    Non-Goals).
   - Only interceptors implementing the operation-specific interface join that
     operation's chain (a type implementing only `StartInterceptor` never runs in
     the Stop chain).
@@ -851,10 +852,10 @@ fixture (two teardown nodes, same level).
 ## Phase 8 — Generator: code emission, naming, formatting
 
 **Goal.** Emit `lifecycle_gen.go`: the provenance header, generated level structs,
-per-node wrappers, interceptor-chain construction, the `YamaInterceptors` input
-and per-participant fields, the generated `NewLifecycle`-style constructor
-returning `(*App, Lifecycle, error)`, and the Start/Quiesce/Stop methods —
-gofmt-clean and deterministic.
+per-node wrappers, interceptor-chain construction (fed by the public
+`WithInterceptors` option, not a generated input), the generated
+`NewLifecycle`-style constructor returning `(*App, Lifecycle, error)`, and the
+Start/Quiesce/Stop methods — gofmt-clean and deterministic.
 
 **Files/modules touched.** `internal/generator/emit*.go`,
 `internal/generator/templates` (or `go/ast`/`jennifer`-style builder — decide),

@@ -39,8 +39,10 @@ Only the **graph-specific** parts are generated inline into `lifecycle_gen.go`:
 
 * the private level structs that name concrete participants,
 * their Start/Quiesce/Stop ordering methods,
-* the `YamaInterceptors` input,
 * the `NewLifecycle` constructor.
+
+Interceptors are supplied through the public, non-generated `WithInterceptors`
+`LifecycleOption` (ADR-005) rather than a generated input.
 
 The runtime-support package holds the **graph-independent** parts:
 

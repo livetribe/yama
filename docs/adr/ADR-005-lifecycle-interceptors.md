@@ -146,7 +146,8 @@ The lifecycle manager automatically includes interceptors in the chains correspo
 
 Interceptors are runtime objects.
 
-Interceptors are attached during lifecycle manager construction.
+Interceptors are attached during lifecycle manager construction, via the public
+`WithInterceptors(interceptors ...any) Option` helper.
 
 The framework does not generate interceptor implementations.
 
@@ -156,28 +157,18 @@ Applications provide interceptor instances explicitly.
 
 ## Interceptor Scope
 
-Interceptors may be attached:
+Interceptors attach globally. There is no per-component scoping.
 
-```text id="8w8c11"
-Globally
-```
+Global interceptors execute for every lifecycle participant that implements the
+matching operation-specific interceptor interface — this is what "Capability-Driven
+Participation" above already means: an interceptor's reach is determined by which
+interceptor interfaces it implements, not by which component it names.
 
-or
-
-```text id="jlwmgo"
-Per component instance
-```
-
-Global interceptors execute for all lifecycle participants.
-
-Per-component interceptors execute only for the associated lifecycle participant.
-
-Per-component attachment is strongly typed. Generated lifecycle construction
-accepts a generated interceptors input with one field per lifecycle participant,
-named for that participant. A caller scopes an interceptor to a component by
-placing it in that component's generated field. There are no component names,
-string keys, runtime lookup, or registration API. The concrete generated input is
-defined in the architecture document.
+`WithInterceptors` is variadic and may be passed more than once; all supplied
+interceptors accumulate. There are no component names, string keys, runtime
+lookup, or registration API, and no generated per-participant input — the same
+`WithInterceptors` call works unchanged for every application regardless of graph
+shape.
 
 This allows applications to apply:
 
@@ -188,7 +179,10 @@ Tracing
 Logging
 ```
 
-globally while applying specialized policy only to specific components.
+globally without needing to name or enumerate individual components.
+
+A future need for narrower, component-specific policy is not precluded by this
+decision, but no such mechanism exists today; see Non-Goals.
 
 ## Ordering
 
@@ -425,5 +419,10 @@ Interceptors do not introduce:
 * Workflow orchestration.
 * Plugin systems.
 * Runtime graph modification.
+* Per-component interceptor scoping. `WithInterceptors` attaches globally only.
+  A component that needs interceptor behavior applied selectively implements a
+  guard inside the interceptor itself (for example, a type switch on the
+  participant obtained from `FromContext`) rather than relying on a
+  framework-provided scoping mechanism.
 
 Interceptors exist to customize lifecycle behavior while preserving a small lifecycle orchestration core.
