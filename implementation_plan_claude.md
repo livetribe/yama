@@ -107,12 +107,14 @@ naming because several phases lean on them:
 Plan-level implementation choices not covered by the docs (by design): the
 generator lives in `internal/generator` behind a thin `cmd/yama`; Google Wire is
 pinned as a `go.mod` tool and invoked via `go tool wire`; v1 is deleted in Phase 0;
-the `internal/bridge` package above; **the graph-component panic policy**
-(Phase 2/3 — the PRD and ADRs define panic handling only for boundary components,
-ADR-009/Architecture §18, and are silent on panics from ordinary `Starter`/
-`Quiescer`/`Stopper` graph components or interceptors, so the recover-and-convert
-policy below is a plan-level default consistent with ADR-006's "shutdown always
-completes, no error aggregation" philosophy, not a documented ADR decision); and
+the `internal/bridge` package above; **the component panic policy**
+(Phase 2/3 — the PRD and ADRs are silent on panics from `Starter`/`Quiescer`/`Stopper`
+components or interceptors, graph or boundary alike — ADR-009 ties a boundary
+component's failure handling to a graph component's, but neither is itself specified,
+so the recover-and-convert policy below is a plan-level default consistent with
+ADR-006's "shutdown always completes, no error aggregation" philosophy, not a
+documented ADR decision, and it now applies uniformly to graph and boundary
+components); and
 **`RunUntilSignal`'s default signal set** (Phase 4 — ADR-007/Architecture give only
 the signature `signals ...os.Signal` and say it "waits for the signal," without
 specifying empty-variadic behavior; SIGINT/SIGTERM is a plan-level default). These
@@ -595,9 +597,12 @@ DoD process checks below guard against that.
     all graph components — for **all three** passes (Start / Quiesce / Stop) and also in
     startup-failure cleanup (same passes, no separate path).
   - A boundary component joins a pass only if it implements that pass's interface.
-  - Boundary execution is **best-effort**: a begin component that errors/panics does not
-    stop the graph pass; an end component that errors/panics does not change the
-    outcome (asserted for both error and panic).
+  - Boundary failure handling is **identical to a graph component's, not a separate
+    policy** (ADR-009): a begin/end `Starter`'s error or panic fails startup
+    (`ErrStartFailed` + cleanup ran) exactly as a graph `Starter`'s would; a begin/end
+    `Quiescer`/`Stopper`'s error or panic is recovered and swallowed exactly as a graph
+    component's would — asserted for both error and panic, and for both begin and end
+    placement.
   - Boundary sets are unordered/concurrent (no ordering assertion is made or
     required; a test must not depend on intra-set order).
 - *Edge/failure cases:* zero components; a single component with all/none
@@ -1111,8 +1116,9 @@ canonical docs (PRD, ADR-001…010, Architecture). A small number are plan-level
 defaults that fill a genuine gap in those docs rather than restate a documented
 decision — each is called out at its point of use so it isn't mistaken for ADR
 policy: the overrun log sink (Phase 2, now pinned to a concrete `slog` shape), the
-graph-component panic-recovery policy (Phase 2/3 — the docs define panic
-handling only for boundary components), `RunUntilSignal`'s default signal set when none
+component panic-recovery policy (Phase 2/3 — the docs are silent on it for both graph
+and boundary components; ADR-009 ties boundary failure handling to whatever the
+policy turns out to be, uniformly), `RunUntilSignal`'s default signal set when none
 is passed (Phase 4), and the `internal/bridge` package (Phase 1/2) that
 Go visibility rules require but no ADR names. The runtime-support-package
 sanity-check at Phase 3's generated-shape pin (ADR-010) remains a confirmed-in-flight

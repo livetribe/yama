@@ -351,12 +351,16 @@ them. A boundary component has no dependency relationship to any graph component
 that needs an ordering relative to specific components has a real dependency
 relationship and belongs in the construction graph, not in a boundary set.
 
-Boundary execution is best-effort. A boundary component that returns an error or panics
-does not prevent the pass from proceeding — a failed begin component still lets the
-graph run, and a failed end component does not change the outcome. This matches the
-shutdown model, in which shutdown returns nothing and always runs to completion.
-Like graph components, boundary components are wrapped, so a boundary failure or overrun is
-observable through interceptors.
+A boundary component's failure is handled exactly like a graph component's, because
+boundary placement changes execution order only, never failure handling: a Start error
+or panic is fail-fast and surfaces as `ErrStartFailed`, the same as a failing graph
+`Starter`; a Quiesce or Stop error or panic is recovered so the pass runs to completion
+and returns nothing, the same as for a graph component. Like graph components, boundary
+components are wrapped, so their failures and overruns are observable through
+interceptors. A caller that wants a boundary component's failure isolated from the pass —
+treated as optional rather than required — wraps that component so it recovers its own
+panics and swallows its own errors before Yama ever sees them; Yama itself makes no such
+accommodation.
 
 In each pass, boundary components run under the same caller context as the graph components
 and share its deadline. Yama gives a boundary component no budget of its own and does
