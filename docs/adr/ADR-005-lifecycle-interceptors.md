@@ -36,7 +36,7 @@ The project requires an extension mechanism that allows applications to customiz
 
 Lifecycle customization shall be implemented through interceptors.
 
-Interceptors are runtime objects attached to lifecycle participants
+Interceptors are runtime objects attached to lifecycle components
 and are the primary runtime extension mechanism.
 
 Interceptors may:
@@ -159,14 +159,14 @@ Applications provide interceptor instances explicitly.
 
 Interceptors attach globally. There is no per-component scoping.
 
-Global interceptors execute for every lifecycle participant that implements the
+Global interceptors execute for every lifecycle component that implements the
 matching operation-specific interceptor interface — this is what "Capability-Driven
 Participation" above already means: an interceptor's reach is determined by which
 interceptor interfaces it implements, not by which component it names.
 
 `WithInterceptors` is variadic and may be passed more than once; all supplied
 interceptors accumulate. There are no component names, string keys, runtime
-lookup, or registration API, and no generated per-participant input — the same
+lookup, or registration API, and no generated per-component input — the same
 `WithInterceptors` call works unchanged for every application regardless of graph
 shape.
 
@@ -214,7 +214,7 @@ The lifecycle manager performs no interceptor reordering.
 
 ## Context Propagation
 
-Interceptors may modify context before invoking the next lifecycle participant.
+Interceptors may modify context before invoking the next lifecycle component.
 
 Example:
 
@@ -232,13 +232,13 @@ Context modification is a primary mechanism for propagating lifecycle metadata.
 
 ## Lifecycle Metadata
 
-The lifecycle manager shall populate the lifecycle participant into context before interceptor execution.
+The lifecycle manager shall populate the lifecycle component into context before interceptor execution.
 
 ```text id="sd9bdk"
-The participant itself
+The component itself
 ```
 
-This is what an interceptor is given to identify the component it wraps. The framework derives no name for it: a component that wants a printable identity implements `fmt.Stringer`. An interceptor cannot obtain the participant from its `next` argument, because `next` is the rest of the chain rather than the component, which is why the context carries it.
+This is what an interceptor is given to identify the component it wraps. The framework derives no name for it: a component that wants a printable identity implements `fmt.Stringer`. An interceptor cannot obtain the component from its `next` argument, because `next` is the rest of the chain rather than the component, which is why the context carries it.
 
 The operation is not carried as context metadata: because Start, Quiesce, and Stop are separate interceptor methods, an interceptor already knows which operation it is handling from the method that was invoked.
 
@@ -272,7 +272,7 @@ if !enabled {
 }
 ```
 
-without invoking the underlying lifecycle participant.
+without invoking the underlying lifecycle component.
 
 The lifecycle manager intentionally permits such behavior.
 
@@ -303,14 +303,14 @@ Lifecycle execution uses the precomputed chains.
 
 ## Universal Wrapping
 
-Because interceptors require every lifecycle participant to be invoked through a
-chain, the wrapper layer is universal. Every node is wrapped, whether or not any
+Because interceptors require every lifecycle component to be invoked through a
+chain, the wrapper layer is universal. Every component is wrapped, whether or not any
 interceptor is attached to it. Wrapping is not opt-in.
 
 The observational deadline carried by the caller's context relies on this same
-universal wrapping. The wrapper is where per-node overrun is detected and logged
+universal wrapping. The wrapper is where per-component overrun is detected and logged
 when the deadline fires, so universal wrapping is what gives that mechanism
-per-node attribution.
+per-component attribution.
 
 ## Observability
 
@@ -422,7 +422,7 @@ Interceptors do not introduce:
 * Per-component interceptor scoping. `WithInterceptors` attaches globally only.
   A component that needs interceptor behavior applied selectively implements a
   guard inside the interceptor itself (for example, a type switch on the
-  participant obtained from `FromContext`) rather than relying on a
+  component obtained from `FromContext`) rather than relying on a
   framework-provided scoping mechanism.
 
 Interceptors exist to customize lifecycle behavior while preserving a small lifecycle orchestration core.

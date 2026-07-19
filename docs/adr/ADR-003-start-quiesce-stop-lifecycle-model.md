@@ -107,9 +107,9 @@ timing. This guarantee applies regardless of the reason shutdown was initiated.
 
 ## Lifecycle Participation
 
-All nodes in the Wire dependency graph participate in dependency analysis.
+All components in the Wire dependency graph participate in dependency analysis.
 
-Only nodes implementing one or more lifecycle capability interfaces participate in lifecycle execution.
+Only components implementing one or more lifecycle capability interfaces participate in lifecycle execution.
 
 Example:
 
@@ -134,9 +134,9 @@ KafkaConsumer    Starter, Quiescer, Stopper
 Router           Starter, Stopper
 ```
 
-Only lifecycle participants appear in generated execution code.
+Only lifecycle components appear in generated execution code.
 
-Dependency-only nodes influence ordering but do not receive lifecycle callbacks.
+Dependency-only components influence ordering but do not receive lifecycle callbacks.
 
 ## Startup Semantics
 
@@ -235,7 +235,7 @@ dependencies they rely on. This is the same direction as Stop, and for the same
 reason: a dependency (for example, a logger or a connection pool) must not
 quiesce while a dependent might still call into it.
 
-Independent branches of the dependency graph quiesce concurrently. Nodes with no
+Independent branches of the dependency graph quiesce concurrently. Components with no
 dependency relationship have no ordering constraint between them. Ordering applies
 only along dependency edges.
 
@@ -249,9 +249,9 @@ Router
 
 `Router` quiesces before `Database`, because `Router` depends on `Database`.
 
-Nodes that do not implement `Quiescer` are skipped, but ordering still holds
+Components that do not implement `Quiescer` are skipped, but ordering still holds
 transitively through them. If a `Quiescer` depends on a non-`Quiescer` that
-depends on another `Quiescer`, the two quiescing nodes remain ordered relative to
+depends on another `Quiescer`, the two quiescing components remain ordered relative to
 each other.
 
 This reverses the earlier concurrent, order-independent model: quiesce is now
@@ -259,13 +259,13 @@ ordered along dependency edges rather than run all at once.
 
 ### Quiesce Completion
 
-Quiesce is blocking. Each participant's `Quiesce` returns only when the component
+Quiesce is blocking. Each component's `Quiesce` returns only when the component
 considers its in-flight work complete, or when the component chooses to return in
 response to the context.
 
 The deadline carried by the context is observational (see Stop Semantics). The
-lifecycle manager does not abandon a quiescing participant to preserve ordering;
-it waits for the participant to return before proceeding to the dependencies it
+lifecycle manager does not abandon a quiescing component to preserve ordering;
+it waits for the component to return before proceeding to the dependencies it
 protects.
 
 ## Stop Semantics
@@ -303,20 +303,20 @@ Group 2:
 The framework owns no deadline of its own and generates no lifecycle
 configuration. The only deadline is the one carried by the caller's context passed
 to `Stop`. The quiesce pass and the teardown pass share that one context, and the
-framework never lengthens it. A participant that wants a per-node timeout wraps its
+framework never lengthens it. A component that wants a per-component timeout wraps its
 own `Quiesce` or `Stop`.
 
 The caller's deadline is observational. When it fires, the framework records that
-the participant exceeded its window but does not return early. It continues waiting
-for the participant's operation to actually complete.
+the component exceeded its window but does not return early. It continues waiting
+for the component's operation to actually complete.
 
-Returning early would let the traversal proceed to a participant's dependencies
-while that participant might still be using them, violating the reverse-topological
+Returning early would let the traversal proceed to a component's dependencies
+while that component might still be using them, violating the reverse-topological
 ordering that shutdown ordering exists to protect. Preserving ordering is chosen
 over liveness. External liveness is bounded by the orchestrator's SIGKILL, not by
 the framework.
 
-A consequence is that a hung participant stalls everything after it in the
+A consequence is that a hung component stalls everything after it in the
 traversal until SIGKILL. This is intentional and follows directly from "the
 framework waits, and ordering is never violated."
 
@@ -343,8 +343,8 @@ Quiesce
 Stop teardown
 ```
 
-always occurs in that order, and every participant's quiesce completes before any
-participant's teardown begins.
+always occurs in that order, and every component's quiesce completes before any
+component's teardown begins.
 
 ### Invariant 4
 
@@ -356,7 +356,7 @@ The same shutdown sequence is used for:
 ### Invariant 5
 
 Neither Quiesce nor Stop returns an error, and the shutdown traversal always runs
-to completion in dependency order. The framework does not abandon a participant to
+to completion in dependency order. The framework does not abandon a component to
 make progress; ordering is never violated to reclaim liveness.
 
 ### Invariant 6

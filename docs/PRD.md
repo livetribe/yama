@@ -211,9 +211,9 @@ Components may implement:
 * Stopper
 * Any combination
 
-All Wire graph nodes participate in dependency analysis.
+All Wire graph components participate in dependency analysis.
 
-Only lifecycle-capable nodes participate in lifecycle execution.
+Only lifecycle-capable components participate in lifecycle execution.
 
 ---
 
@@ -263,8 +263,8 @@ A dependent shall stop before the dependency it relies upon.
 Independent branches shall stop concurrently.
 
 Shutdown shall run to completion in dependency order. The caller's context
-deadline is observational: when it fires the framework logs per-node overrun but
-does not return early, so a hung participant stalls everything after it until
+deadline is observational: when it fires the framework logs per-component overrun but
+does not return early, so a hung component stalls everything after it until
 SIGKILL. Preserving ordering is chosen over liveness.
 
 ---
@@ -295,7 +295,7 @@ field. The only deadline is the one carried by the context the caller passes to
 never lengthens its deadline. The deadline is observational: exceeding it is
 logged, not enforced, and the traversal continues to completion.
 
-A component that wants a per-node timeout wraps its own `Start`, `Quiesce`, or
+A component that wants a per-component timeout wraps its own `Start`, `Quiesce`, or
 `Stop`. This is ordinary Go, not a framework mechanism. Slow-operation and overrun
 diagnostics are interceptor concerns.
 
@@ -333,7 +333,7 @@ Interceptors may:
 Interceptors may be attached:
 
 * Globally.
-* Per lifecycle participant, through generated, strongly-typed per-participant
+* Per lifecycle component, through generated, strongly-typed per-component
   fields (not string keys or a registration API).
 
 ---
@@ -349,7 +349,7 @@ Metadata shall support:
 * Telemetry.
 * Tracing.
 
-Metadata shall include the lifecycle participant identity being started, quiesced, or stopped.
+Metadata shall include the lifecycle component identity being started, quiesced, or stopped.
 
 The exact metadata representation is an implementation detail.
 

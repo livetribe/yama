@@ -160,7 +160,7 @@ No lifecycle analysis occurs at runtime.
 
 ### Internal Concurrency
 
-Generated lifecycle components may execute their contained participants concurrently.
+Generated lifecycle levels may execute their member components concurrently.
 
 Example:
 

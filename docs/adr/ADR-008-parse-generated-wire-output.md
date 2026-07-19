@@ -36,9 +36,9 @@ Yama shall not:
 
 The statement order of the generated injector body is a valid topological order. Walking it top to bottom visits dependencies before dependents.
 
-Any new variable declaration in the injector body is treated as a creation event, not only call expressions. `wire.Value` and `InterfaceValue` emit assignments; `wire.Struct` and `FieldsOf` emit struct literals. All of these introduce a provided value and are lifecycle-graph nodes.
+Any new variable declaration in the injector body is treated as a creation event, not only call expressions. `wire.Value` and `InterfaceValue` emit assignments; `wire.Struct` and `FieldsOf` emit struct literals. All of these introduce a provided value and are lifecycle-graph components.
 
-The final root-struct literal returned by the injector (for example an `App`) is the manifest of top-level roots. It is not itself a lifecycle node.
+The final root-struct literal returned by the injector (for example an `App`) is the manifest of top-level roots. It is not itself a lifecycle component.
 
 Each injector function is an independent graph. Multiple injector functions are never merged into a single graph.
 
@@ -46,9 +46,9 @@ Each injector function is an independent graph. Multiple injector functions are 
 
 Google Wire's cleanup functions (`func()` returns) are treated as the primary graceful-shutdown teardown mechanism, not only as error-path cleanup.
 
-A cleanup function is shorthand for a `Stopper`. Every cleanup function detected in the generated output is wrapped in a synthetic `cleanupAdapter` type that implements `Stopper` and is inserted at the same DAG position as the value it cleans up, for ordering only. The injected type graph is not modified. This yields a single teardown dispatch path: every teardown node is a `Stopper`, whether it is a hand-written `Stopper` or an adapter-wrapped cleanup function.
+A cleanup function is shorthand for a `Stopper`. Every cleanup function detected in the generated output is wrapped in a synthetic `cleanupAdapter` type that implements `Stopper` and is inserted at the same DAG position as the value it cleans up, for ordering only. The injected type graph is not modified. This yields a single teardown dispatch path: every teardown component is a `Stopper`, whether it is a hand-written `Stopper` or an adapter-wrapped cleanup function.
 
-A provider that both returns a cleanup function **and** produces a value that implements `Stopper` yields two `Stopper` nodes — the value itself and the cleanup adapter — sharing the same incoming and outgoing dependency edges. They occupy the same teardown level and run concurrently, with no ordering between them, because Yama has no principled basis to order a cleanup function against the value's own `Stop`. If those two teardowns interact, resolving that is the provider author's responsibility, consistent with Yama running every teardown node to completion without editorializing.
+A provider that both returns a cleanup function **and** produces a value that implements `Stopper` yields two `Stopper` components — the value itself and the cleanup adapter — sharing the same incoming and outgoing dependency edges. They occupy the same teardown level and run concurrently, with no ordering between them, because Yama has no principled basis to order a cleanup function against the value's own `Stop`. If those two teardowns interact, resolving that is the provider author's responsibility, consistent with Yama running every teardown component to completion without editorializing.
 
 ### Generation and drift
 
@@ -76,7 +76,7 @@ Because Yama references Google Wire's public types and runs its generator, exist
 
 ### Single Dispatch Path
 
-Wrapping cleanup functions as `Stopper` means teardown has exactly one dispatch path. The lifecycle code does not special-case adapter-wrapped nodes against hand-written `Stopper` nodes.
+Wrapping cleanup functions as `Stopper` means teardown has exactly one dispatch path. The lifecycle code does not special-case adapter-wrapped components against hand-written `Stopper` components.
 
 ## Consequences
 

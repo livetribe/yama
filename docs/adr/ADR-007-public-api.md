@@ -48,7 +48,7 @@ The listings below illustrate this decision as accepted. They are not the contin
 ## Public Lifecycle Type
 
 Applications interact with lifecycle orchestration through `Lifecycle`, an
-interface composed of the capability interfaces its own participants implement:
+interface composed of the capability interfaces its own components implement:
 
 ```go
 type Lifecycle interface {
@@ -61,7 +61,7 @@ type Lifecycle interface {
 `Stop` runs the quiesce pass internally as its first action.
 
 A `Lifecycle` starts and stops the whole graph, so it is the same kind of thing as
-the participants inside it: a `Starter` and a `Stopper`. Expressing it as the
+the components inside it: a `Starter` and a `Stopper`. Expressing it as the
 composition of those two interfaces states that directly rather than restating
 their method signatures a second time.
 
@@ -85,13 +85,13 @@ The generated injector constructs the application and its `Lifecycle` together a
 returns them, mirroring Google Wire's `(T, func(), error)` convention:
 
 ```go
-app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNodes(n1), WithEndNodes(n2))
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginComponents(c1), WithEndComponents(c2))
 ```
 
 `NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
-comes from the context the caller passes to `Start` and `Stop`; per-node timeouts
-are node-authored wrappers. The only construction-time inputs are the
-`Option` values — interceptors and boundary-node registration — described
+comes from the context the caller passes to `Start` and `Stop`; per-component timeouts
+are component-authored wrappers. The only construction-time inputs are the
+`Option` values — interceptors and boundary-component registration — described
 under Public Helpers below.
 
 On construction failure it returns `nil, nil, err` — there is no partial
@@ -164,25 +164,25 @@ Operation-specific interceptor interfaces are part of the public API.
 
 ## Public Context Accessor
 
-Interceptors read the lifecycle participant they are wrapping through a single
+Interceptors read the lifecycle component they are wrapping through a single
 accessor:
 
 ```go
 func FromContext[T any](ctx context.Context) (T, bool)
 ```
 
-The lifecycle manager attaches the participant itself to the context before the
+The lifecycle manager attaches the component itself to the context before the
 interceptor chain runs; an interceptor recovers it with `FromContext`.
 This is part of the public API.
 
-The accessor yields the participant, not a framework-owned descriptor of it. An
-interceptor cannot obtain the participant from its `next` argument — `next` is the
+The accessor yields the component, not a framework-owned descriptor of it. An
+interceptor cannot obtain the component from its `next` argument — `next` is the
 rest of the chain, so only the final link ever holds the component — which is why
 the context carries it.
 
-`T` is the participant's concrete type. Because interceptors attach globally
+`T` is the component's concrete type. Because interceptors attach globally
 (ADR-005), an interceptor uses `any` and type-switches to identify the
-participant it is wrapping. `T` is unconstrained because Go cannot express
+component it is wrapping. `T` is unconstrained because Go cannot express
 "implements at least one of `Starter`, `Quiescer`, `Stopper`": a union may not
 contain method-bearing interfaces, and embedding them would require all three
 rather than any one. A base interface does not rescue this — an empty one
@@ -190,16 +190,16 @@ constrains nothing, an unexported marker method would make the capability
 interfaces unimplementable outside `package yama`, and an exported marker would
 impose boilerplate on every component while still not proving the type
 participates in the lifecycle. This is the same limitation that makes
-`WithBeginNodes` take `any`.
+`WithBeginComponents` take `any`.
 
-**Components are not named by the framework.** Yama derives no participant name
+**Components are not named by the framework.** Yama derives no component name
 and exposes none. A component that wants a printable identity implements
 `fmt.Stringer`; otherwise `%T` yields its type. This is ordinary Go, and it is
 strictly better than a generated name: the framework could only derive a name from
 the shape of the Wire graph, and would have to disambiguate two same-typed
-participants with a mechanical suffix — `sqlDB` and `sqlDB2` — which is unique but
+components with a mechanical suffix — `sqlDB` and `sqlDB2` — which is unique but
 tells an operator nothing. A `String()` returning `"replica-db"` is chosen by the
-person who knows what it means. Every participant implements a capability
+person who knows what it means. Every component implements a capability
 interface, so it is always a type the application owns and can extend.
 
 The operation being performed (Start, Quiesce, or Stop) is **not** carried as
@@ -207,7 +207,7 @@ context metadata. Because those are separate interceptor methods, an interceptor
 already knows which operation it is handling from the method that was invoked, so
 no operation-identity accessor exists.
 
-The accessor exposes the participant only. It does not expose graph APIs,
+The accessor exposes the component only. It does not expose graph APIs,
 generated implementation types, lifecycle plans, or component error details.
 
 ## Public Errors
@@ -235,13 +235,13 @@ func WithInterceptors(interceptors ...any) Option // attach interceptors globall
 ```
 
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. `WithBeginNodes`, `WithEndNodes`, and `WithInterceptors`
+signal, and calls `Stop()`. `WithBeginComponents`, `WithEndComponents`, and `WithInterceptors`
 register construction-time inputs as `Option`s, keeping that registration
 out of any generated or runtime API. All three are variadic and may each be
 passed more than once; supplied values accumulate. For `WithInterceptors`,
 accumulation order is the interceptor chain's registration order (ADR-005). For
-`WithBeginNodes`/`WithEndNodes`, each boundary is a flat, unordered set — call
-order carries no ordering guarantee among nodes registered into the same
+`WithBeginComponents`/`WithEndComponents`, each boundary is a flat, unordered set — call
+order carries no ordering guarantee among components registered into the same
 boundary (Architecture §18). There is no generated, per-application variant of
 any of these helpers. Their exact signatures are defined by the framework.
 
@@ -285,7 +285,7 @@ Examples:
 
 ```go
 type Graph struct {}
-type Node struct {}
+type Component struct {}
 type Plan struct {}
 type ExecutionGroup struct {}
 type Level struct {}

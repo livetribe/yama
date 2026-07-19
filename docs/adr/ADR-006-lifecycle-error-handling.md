@@ -127,7 +127,7 @@ and no framework-visible failure mode. There is no `ErrQuiesceFailed` and no
 There are no timeout errors.
 
 The shutdown deadline is observational. When it fires, the framework logs that a
-participant exceeded its window and continues waiting for the operation to
+component exceeded its window and continues waiting for the operation to
 complete; it does not return a timeout error and does not abandon the traversal.
 
 A start that exceeds its deadline is handled as an ordinary start failure and
@@ -169,8 +169,8 @@ Shutdown runs the quiesce pass and the teardown pass in dependency order, to
 completion. Neither pass returns an error, and the traversal is never abandoned to
 reclaim liveness.
 
-Because the framework waits for each participant rather than returning early, a
-hung participant stalls everything after it in the traversal until the orchestrator
+Because the framework waits for each component rather than returning early, a
+hung component stalls everything after it in the traversal until the orchestrator
 sends SIGKILL. This is an accepted consequence of preserving reverse-topological
 ordering. External liveness is bounded by SIGKILL, not by a returned error.
 

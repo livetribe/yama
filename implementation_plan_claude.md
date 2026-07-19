@@ -15,9 +15,9 @@ Yama v2 has **three separable artifacts**:
 1. **A hand-written runtime library** (`package yama`) — the stable public API:
    the capability interfaces (`Starter`/`Quiescer`/`Stopper`), the interceptor
    interfaces, `ErrStartFailed`, `FromContext`, the boundary options
-   (`WithBeginNodes`/`WithEndNodes`), and `RunUntilSignal`.
+   (`WithBeginComponents`/`WithEndComponents`), and `RunUntilSignal`.
 2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/rt`, ADR-010)
-   — the generic execution plumbing (chain construction, per-node wrapper,
+   — the generic execution plumbing (chain construction, per-component wrapper,
    fail-fast level executor, boundary runner, `cleanupAdapter`, built-in overrun
    interceptor) that generated code imports. It is exported (generated
    application-package code must be able to call it) but **not** part of the stable
@@ -43,7 +43,7 @@ the ADRs (`docs/adr/ADR-001`…`ADR-010`), and the architecture
 naming because several phases lean on them:
 
 - **The runtime-support package (ADR-010).** Generic execution plumbing (chain
-  construction, per-node wrapper, fail-fast level executor, boundary runner,
+  construction, per-component wrapper, fail-fast level executor, boundary runner,
   `cleanupAdapter`, the built-in overrun interceptor) lives in a Yama-owned sibling
   package (e.g. `rt`) that generated code imports — exported so
   application-package code can call it, but not part of the stable ADR-007 API.
@@ -52,14 +52,14 @@ naming because several phases lean on them:
   `WithInterceptors` option (ADR-005), not a generated input. This is a well-justified default; Phase 3's
   "pin the generated-code shape" step is the checkpoint to re-confirm it before
   Phase 8 bakes it into the emitter.
-- **The overrun interceptor (Architecture §10/§20/§21).** Per-node deadline-overrun
-  logging is a Yama-authored interceptor auto-attached to every node — internal, no
+- **The overrun interceptor (Architecture §10/§20/§21).** Per-component deadline-overrun
+  logging is a Yama-authored interceptor auto-attached to every component — internal, no
   public API. Its log sink is stdlib `log/slog` by default (Phase 2 pins this
   concretely; see Phase 2 for the exact checkable requirement).
 - **A shared internal bridge package (`internal/bridge` or similar), needed by Go
   visibility rules, not named in any ADR — and its reach is bounded by a second Go
   rule that must not be conflated with the first.** `package yama`'s context-carrier
-  key type is unexported (Phase 1) — but the per-node wrapper that needs to *set*
+  key type is unexported (Phase 1) — but the per-component wrapper that needs to *set*
   that identity lives in the runtime-support package (ADR-010), a different package
   from `package yama`. The fix: put the shared bits (the context-key type, and the
   `Config` the boundary `Option`s accumulate) in a small internal package under the
@@ -107,10 +107,10 @@ naming because several phases lean on them:
 Plan-level implementation choices not covered by the docs (by design): the
 generator lives in `internal/generator` behind a thin `cmd/yama`; Google Wire is
 pinned as a `go.mod` tool and invoked via `go tool wire`; v1 is deleted in Phase 0;
-the `internal/bridge` package above; **the graph-participant panic policy**
-(Phase 2/3 — the PRD and ADRs define panic handling only for boundary nodes,
+the `internal/bridge` package above; **the graph-component panic policy**
+(Phase 2/3 — the PRD and ADRs define panic handling only for boundary components,
 ADR-009/Architecture §18, and are silent on panics from ordinary `Starter`/
-`Quiescer`/`Stopper` graph participants or interceptors, so the recover-and-convert
+`Quiescer`/`Stopper` graph components or interceptors, so the recover-and-convert
 policy below is a plan-level default consistent with ADR-006's "shutdown always
 completes, no error aggregation" philosophy, not a documented ADR decision); and
 **`RunUntilSignal`'s default signal set** (Phase 4 — ADR-007/Architecture give only
@@ -171,7 +171,7 @@ targets: **the `Lifecycle` type and its `Start`/`Stop` methods** (ADR-007's
 "primary lifecycle abstraction," Architecture Appendix C), the three capability
 interfaces, the three interceptor interfaces, `ErrStartFailed`, the
 component-identity context carrier + `FromContext`, and the *signatures*
-(bodies may be stubs) of **all** public helpers — `WithBeginNodes`/`WithEndNodes`,
+(bodies may be stubs) of **all** public helpers — `WithBeginComponents`/`WithEndComponents`,
 `WithInterceptors`, `RunUntilSignal` (per ADR-007 + Architecture §13). After this
 phase the API-surface golden is **complete**; Phases
 3/4 add behavior to these symbols without changing their signatures.
@@ -219,7 +219,7 @@ so they do not enter `package yama`'s frozen surface here.)
   - Do **not** add any symbol outside the public surface enumerated in
     Architecture's Appendix C (Public API Reference) — the concrete target this
     phase builds — which reflects the ADR-007 minimal-API decision (no `Graph`,
-    `Node`, `Plan`, `Level`, `Register`, `SetLogger`, config types). Enforce with a
+    `Component`, `Plan`, `Level`, `Register`, `SetLogger`, config types). Enforce with a
     committed **API-surface golden test** (e.g. `go doc`-style exported-symbol
     snapshot) that fails on any unlisted export.
 - *Output checks:*
@@ -234,7 +234,7 @@ so they do not enter `package yama`'s frozen surface here.)
     `Config`. An unconstructed (nil) `Lifecycle` panics on use as a language
     guarantee — no hand-written guard, and nothing to assert.
   - **`internal/bridge` compiles, and the identity round-trips through it:** a test
-    attaches a participant with `bridge.WithComponent` — the exported setter the
+    attaches a component with `bridge.WithComponent` — the exported setter the
     runtime-support package will call — and `yama.FromContext`, reading
     through `package yama`'s thin wrapper, recovers exactly that value. This lives
     in `context_test.go` (`package yama_test`, which is rooted at
@@ -273,15 +273,15 @@ so they do not enter `package yama`'s frozen surface here.)
     and chain fixtures: `var _ StartInterceptor = (*overrunInterceptor)(nil)`).
   - `ErrStartFailed` is a package-level `error`; `errors.Is(x, ErrStartFailed)`
     works.
-  - **`FromContext[T any](ctx) (T, bool)` yields the participant itself**,
+  - **`FromContext[T any](ctx) (T, bool)` yields the component itself**,
     not a framework-owned descriptor of it. There is no `Component` type and no
     framework-derived component name: a component that wants a printable identity
     implements `fmt.Stringer`, and `%T` gives its type otherwise. This is settled,
     not a placeholder. The rationale — a generated name could only come from the
-    Wire graph's shape and would disambiguate two same-typed nodes with a
+    Wire graph's shape and would disambiguate two same-typed components with a
     meaningless suffix (`sqlDB`, `sqlDB2`), where a `String()` returning
     `"replica-db"` is chosen by someone who knows what it means — is recorded in
-    ADR-007 §"Public Context Accessor". The context carries the participant because
+    ADR-007 §"Public Context Accessor". The context carries the component because
     an interceptor's `next` is the rest of the chain, so only the final link would
     otherwise hold the component.
   - **`T` is unconstrained, and must stay that way.** Go cannot express "implements
@@ -293,8 +293,8 @@ so they do not enter `package yama`'s frozen surface here.)
     boilerplate on every component that still proves nothing about participation.
     Do not add a `type Component = any` constraint as a fig leaf; a constraint that
     constrains nothing is the conformance-table anti-pattern.
-  - `FromContext(ctx)` returns the participant when previously attached and
-    the zero `T` + `ok=false` when absent or when the participant is not a `T`. The
+  - `FromContext(ctx)` returns the component when previously attached and
+    the zero `T` + `ok=false` when absent or when the component is not a `T`. The
     context key is an **unexported** type (collision-proof) — verified by a test
     that a caller's own `context.WithValue(ctx, "component", …)` does **not** leak
     into the accessor.
@@ -315,8 +315,8 @@ so they do not enter `package yama`'s frozen surface here.)
     implementation and it was a real defect. `TestOptionsApplyFromAnotherPackage`
     (in `package yama_test`, a different package) is the guard: it stops compiling
     if `Apply` is unexported again.
-  - **All public-helper signatures are declared and compile** (`WithBeginNodes`,
-    `WithEndNodes`, `RunUntilSignal`) with stub bodies (e.g. `panic("unimplemented")`
+  - **All public-helper signatures are declared and compile** (`WithBeginComponents`,
+    `WithEndComponents`, `RunUntilSignal`) with stub bodies (e.g. `panic("unimplemented")`
     guarded so it never ships, or a documented no-op). The API-surface golden
     includes them, so it is **complete at the end of Phase 1** and does not grow in
     Phase 4.
@@ -342,13 +342,13 @@ identity-attachment tests, since both depend on the same shared type.
 ## Phase 2 — Interceptor chains + universal wrapper (runtime core)
 
 **Goal.** Implement the runtime machinery that generated code will call: build the
-three separate operation chains (global, registration-ordered — no per-participant
+three separate operation chains (global, registration-ordered — no per-component
 scoping, ADR-005), attach component identity to context before the chain runs, and
 the **universal
-per-node wrapper** that gives every node per-node attribution (identity in context)
+per-component wrapper** that gives every component per-component attribution (identity in context)
 and threads the caller's context — *with its deadline* — unchanged.
 
-**Files/modules touched.** chain builders, the per-node wrapper, and identity
+**Files/modules touched.** chain builders, the per-component wrapper, and identity
 attachment — in the **runtime-support package** (ADR-010; the package path, e.g.
 `l7e.io/yama/v2/rt`, is ADR-010's own illustrative example, not a binding name —
 pick and record the real module-qualified path here), exported so generated
@@ -360,10 +360,10 @@ it does **not** invent a second, incompatible key. All exercised via hand-author
 "as-if-generated" fixtures in `_test.go`.
 
 **Wrapper vs. level runner (component boundary).** Phase 2 and Phase 3 share
-ownership of per-node execution, so the split is stated explicitly to avoid the two
-being conflated: the **per-node wrapper** (this phase) is a single function/closure
-around one node's operation — it attaches identity, threads context, and runs the
-interceptor chain, and it is the unit Phase 8's generated per-node calls invoke
+ownership of per-component execution, so the split is stated explicitly to avoid the two
+being conflated: the **per-component wrapper** (this phase) is a single function/closure
+around one component's operation — it attaches identity, threads context, and runs the
+interceptor chain, and it is the unit Phase 8's generated per-component calls invoke
 directly. The **level runner** (Phase 3) is a distinct, separately-testable helper
 that *calls* the wrapper for each member of a level, adds `recover`, and applies
 fail-fast/ordering policy across the members. Panic recovery lives in the level
@@ -380,7 +380,7 @@ unmodified out of the interceptor chain and back to whatever called it.
   - Read ADR-005 §"Separate Lifecycle Chains", §"Ordering", §"Universal Wrapping",
     and Architecture §10, §20 before implementing.
   - **Overrun mechanism (Architecture §10/§20/§21):** overrun logging is a
-    **Yama-authored interceptor, auto-attached to every node** (internal, no exported
+    **Yama-authored interceptor, auto-attached to every component** (internal, no exported
     API); the wrapper only attaches component identity and threads the caller's
     context (deadline intact). **Log sink, pinned as a concrete, checkable
     requirement (plan-level default; not specified by the docs):** the interceptor
@@ -403,14 +403,14 @@ unmodified out of the interceptor chain and back to whatever called it.
     `next` with its own `recover`. (No panic "propagates to the caller" and also
     "becomes `ErrStartFailed`" — that was contradictory; conversion requires
     recovery, which is what happens.)
-  - Every node is wrapped whether or not an interceptor is attached (universal
+  - Every component is wrapped whether or not an interceptor is attached (universal
     wrapping is not opt-in) — assert this explicitly.
 - *Output checks:*
   - Chain execution order equals registration order: given `[Telemetry, Metrics,
     Logging]` the observed call order is Telemetry→Metrics→Logging→component
     (Architecture §10). A test asserts the exact order string.
-  - Interceptors apply globally to all participants that implement the matching
-    operation-specific interface — there is no per-participant scoping (ADR-005
+  - Interceptors apply globally to all components that implement the matching
+    operation-specific interface — there is no per-component scoping (ADR-005
     Non-Goals).
   - Only interceptors implementing the operation-specific interface join that
     operation's chain (a type implementing only `StartInterceptor` never runs in
@@ -436,9 +436,9 @@ unmodified out of the interceptor chain and back to whatever called it.
     `next` reaches the caller of the chain, i.e. the Phase 3 boundary, unrecovered).
     Full panic-outcome behavior (Start→`ErrStartFailed`, Quiesce/Stop→swallowed) is
     asserted in Phase 3 where recovery lives.
-  - **The built-in overrun interceptor reports per-node overrun (Architecture
+  - **The built-in overrun interceptor reports per-component overrun (Architecture
     §20/§21).** With a
-    context whose deadline fires before a node's operation returns, the
+    context whose deadline fires before a component's operation returns, the
     Yama-authored auto-attached interceptor reports the overrun **exactly once**,
     attributed via `FromContext(ctx)`, to the chosen sink (assert against a
     test sink). It does **not** cancel or abandon the operation; the wrapper waits
@@ -446,7 +446,7 @@ unmodified out of the interceptor chain and back to whatever called it.
     overrun API is involved.
   - Chains are built **once** at construction and reused; the wrapper does not
     rebuild chains per call (asserted via a build-counter).
-- *Edge/failure cases:* empty interceptor set → node still invoked exactly once;
+- *Edge/failure cases:* empty interceptor set → component still invoked exactly once;
   no `WithInterceptors` call at all → same, `Option`s default to empty.
 
 **Regression note.** Phase 8 emits code that calls these runtime-support helpers
@@ -463,8 +463,8 @@ mistake, which this phase's test is what would catch.
 ## Phase 3 — Shared execution helpers + the behavioral contract (NOT a generic engine)
 
 **Goal.** Build the **shared execution helpers** the generated orchestration relies
-on — the per-node wrapper (Phase 2), a boundary runner, an `errgroup`-style
-intra-level concurrency helper with fail-fast, per-participant "started" tracking,
+on — the per-component wrapper (Phase 2), a boundary runner, an `errgroup`-style
+intra-level concurrency helper with fail-fast, per-component "started" tracking,
 and the quiesce-then-teardown shutdown/cleanup plumbing — and establish the
 **behavioral contract** (ordering invariants, fail-fast, boundaries) that Phase 8's
 *generated* code must later satisfy. This phase does **not** build a generic runtime
@@ -512,30 +512,30 @@ DoD process checks below guard against that.
   - Do not introduce any timeout/deadline of Yama's own — the only deadline is the
     caller's context (ADR-003 §"Stop Deadline", Architecture §20). Assert no
     `context.WithTimeout` with a framework constant exists (grep/process check).
-  - **Boundary option ownership:** `WithBeginNodes`/`WithEndNodes` *signatures* are
+  - **Boundary option ownership:** `WithBeginComponents`/`WithEndComponents` *signatures* are
     fixed in Phase 1; their *behavior* is implemented and tested here. Phase 4 does
     **not** revisit them (removes the earlier "finalize in Phase 4" overlap).
 - *Output checks (ordering invariants):*
   - **Invariant 1:** a dependency's `Start` completes before any dependent's
     `Start` begins (fixture with A→B→C asserts start order and that same-level
-    independent nodes overlap in time).
+    independent components overlap in time).
   - **Invariant 2:** a dependent's `Stop` completes before its dependency's `Stop`
     begins (reverse order asserted).
-  - **Invariant 3:** *every* participant's `Quiesce` completes before *any*
-    participant's teardown `Stop` begins (a global "phase" observer proves no
+  - **Invariant 3:** *every* component's `Quiesce` completes before *any*
+    component's teardown `Stop` begins (a global "phase" observer proves no
     interleave).
   - Quiesce runs in **reverse dependency order** (dependents quiesce first), same
     direction as Stop — and ordering **holds transitively through non-`Quiescer`
-    nodes** (A→(non-quiescer)B→C: A quiesces before C).
+    components** (A→(non-quiescer)B→C: A quiesces before C).
   - Independent branches start/quiesce/stop **concurrently** (timing or
     barrier-based proof, not just "no error").
-  - Nodes implementing only some capabilities: a `Starter`-only node never gets
-    `Quiesce`/`Stop`; a `Stopper`-only node never gets `Start`.
+  - Components implementing only some capabilities: a `Starter`-only component never gets
+    `Quiesce`/`Stop`; a `Stopper`-only component never gets `Start`.
 - *Output checks (fail-fast + cleanup):*
   - Startup failure in the active level: startup context is canceled, no later
-    level is started (asserted: level-N+1 nodes' `Start` never called), in-flight
+    level is started (asserted: level-N+1 components' `Start` never called), in-flight
     same-level ops are awaited to settle, and **only the successfully-started**
-    participants are quiesced+stopped (scoping proven with a node that failed vs.
+    components are quiesced+stopped (scoping proven with a component that failed vs.
     a sibling that started).
   - The cleanup path is **the same code** as normal `Stop` (Invariant 4) — proven
     by a shared observer seeing identical ordering, not a parallel implementation.
@@ -545,7 +545,7 @@ DoD process checks below guard against that.
     no-op.** `Lifecycle` is an interface (Phase 1), so a nil one panics by language
     guarantee and needs no check. What this phase must not do is reintroduce the
     hazard at the other end: an implementation that returns `nil` from `Start`
-    while orchestrating nothing. `Start` reports success only when the participants
+    while orchestrating nothing. `Start` reports success only when the components
     actually started.
   - **`Stop` is idempotent** (this is the framework's own guarantee that makes a
     separate once-only helper — informally called `EnsureExactlyOnce` in this plan,
@@ -556,25 +556,25 @@ DoD process checks below guard against that.
     when `Start` already ran startup-failure cleanup, then the app also calls
     `Stop`.)
   - **Start deadline exceeded → `ErrStartFailed` (PRD §6.9 / ADR-006 §"Timeout
-    Errors").** A participant that *honors* the caller's context and returns an
+    Errors").** A component that *honors* the caller's context and returns an
     error when its deadline fires is handled as an ordinary start failure: `Start`
     returns `ErrStartFailed` (not a distinct timeout error), the startup context is
     canceled, later levels are not started, and startup-failure cleanup (quiesce +
-    teardown) runs over the successfully-started participants.
+    teardown) runs over the successfully-started components.
     **The fixture must honor `ctx` — e.g. `select { case <-ctx.Done(): return
     ctx.Err() }` — not merely sleep past the deadline.** Yama never converts a
-    deadline into an error and never preempts a node (Architecture §20: the
+    deadline into an error and never preempts a component (Architecture §20: the
     deadline is observational; the overrun interceptor logs it and the framework
     keeps waiting). A fixture that ignores `ctx` and blocks would therefore hang
     this test forever rather than fail it. What is asserted here is that a
-    participant's *own* deadline error is treated like any other start failure —
+    component's *own* deadline error is treated like any other start failure —
     Yama adds no timeout handling of its own.
   - **Caller context already canceled at `Start`** (explicit expected result, was
-    previously unspecified): `Start` performs no participant starts beyond what the
-    cancellation permits and returns `ErrStartFailed`; any participant that did
+    previously unspecified): `Start` performs no component starts beyond what the
+    cancellation permits and returns `ErrStartFailed`; any component that did
     start is cleaned up via the normal shutdown sequence. Asserted.
-  - A hung participant stalls the traversal (does **not** return early) — a test
-    with a bounded wait confirms the traversal blocks on it and later nodes have
+  - A hung component stalls the traversal (does **not** return early) — a test
+    with a bounded wait confirms the traversal blocks on it and later components have
     not run; document that only SIGKILL bounds this (do not add a framework
     escape).
   - **Panic policy — one exact rule, recovery at the operation/level-runner
@@ -591,16 +591,16 @@ DoD process checks below guard against that.
       `ErrStartFailed` + cleanup ran), and a Stop-component panic (→ traversal
       completes, later dependencies still torn down).
 - *Output checks (boundaries, ADR-009):*
-  - Begin nodes run before all graph nodes in each pass they join; end nodes after
-    all graph nodes — for **all three** passes (Start / Quiesce / Stop) and also in
+  - Begin components run before all graph components in each pass they join; end components after
+    all graph components — for **all three** passes (Start / Quiesce / Stop) and also in
     startup-failure cleanup (same passes, no separate path).
-  - A boundary node joins a pass only if it implements that pass's interface.
-  - Boundary execution is **best-effort**: a begin node that errors/panics does not
-    stop the graph pass; an end node that errors/panics does not change the
+  - A boundary component joins a pass only if it implements that pass's interface.
+  - Boundary execution is **best-effort**: a begin component that errors/panics does not
+    stop the graph pass; an end component that errors/panics does not change the
     outcome (asserted for both error and panic).
   - Boundary sets are unordered/concurrent (no ordering assertion is made or
     required; a test must not depend on intra-set order).
-- *Edge/failure cases:* zero participants; a single participant with all/none
+- *Edge/failure cases:* zero components; a single component with all/none
   capabilities; caller context canceled mid-shutdown (passes still run to
   completion, return nothing); no goroutine leaks (goleak-style check or explicit
   wait-group accounting). (The canceled-at-`Start` and start-deadline cases are
@@ -618,7 +618,7 @@ become the behavioral contract Phase 10 re-checks on generated output.
 
 **Goal.** Implement the **body** of `RunUntilSignal`. Its **signature is already
 frozen in Phase 1** (and in the Phase 1 API-surface golden); this phase changes
-behavior, not signature. (`WithBeginNodes`/`WithEndNodes` are fixed in Phase 1 and
+behavior, not signature. (`WithBeginComponents`/`WithEndComponents` are fixed in Phase 1 and
 implemented in Phase 3 — not revisited here. **`RunInBackground` and
 `EnsureExactlyOnce` are plan-level names for helpers this plan does not build, not
 a documented ADR-007 decision** — no canonical doc names either helper. ADR-007
@@ -691,12 +691,12 @@ Unsupported injector shapes must fail loudly at build time, not silently mis-ord
 - *Output checks:*
   - Statement order of the injector body is preserved as a valid topological order
     (top-to-bottom = dependencies-before-dependents).
-  - **Every** new-variable creation form is captured as a node: call-expression
+  - **Every** new-variable creation form is captured as a component: call-expression
     providers, `wire.Value`/`InterfaceValue` assignments, and
     `wire.Struct`/`FieldsOf` struct literals (one fixture per form; each asserts
-    the node is present).
+    the component is present).
   - The final returned root-struct literal (e.g. `App`) is recorded as the
-    manifest of roots and is **not** itself a node.
+    manifest of roots and is **not** itself a component.
   - Each injector function is parsed as an **independent** graph; a file with two
     injectors never merges them (asserted).
   - Dependency edges are derived from the arguments each creation event consumes
@@ -721,11 +721,11 @@ Unsupported injector shapes must fail loudly at build time, not silently mis-ord
   - `wire gen` failing (bad Wire input) surfaces as a generation error that
     names the underlying failure, distinct from a toolchain error (`wire` is
     pinned in `go.mod` and invoked via `go tool wire`).
-  - Empty injector (no lifecycle-capable nodes) parses cleanly and yields an empty
-    node set.
+  - Empty injector (no lifecycle-capable components) parses cleanly and yields an empty
+    component set.
 
-**Regression note.** This phase's output shape (node/edge model) is consumed by
-Phases 6–8. Freeze the internal node representation before Phase 6. Wire version
+**Regression note.** This phase's output shape (component/edge model) is consumed by
+Phases 6–8. Freeze the internal component representation before Phase 6. Wire version
 bumps can change output shape — Phase 10's drift check is the guard; note the
 tested Wire version.
 
@@ -733,15 +733,15 @@ tested Wire version.
 
 ## Phase 6 — Generator: lifecycle capability detection + level computation
 
-**Goal.** From the parsed graph, determine each node's lifecycle capabilities and
+**Goal.** From the parsed graph, determine each component's lifecycle capabilities and
 compute the three level structures: startup levels (dependency order), and quiesce
 & shutdown levels (reverse dependency order), with **transitive ordering preserved
-through dependency-only / non-capable nodes**.
+through dependency-only / non-capable components**.
 
 **Files/modules touched.** `internal/generator/analyze*.go`,
 `internal/generator/levels*.go`, fixtures + expected-level assertions.
 
-**Dependencies.** Phases 1 and 5. (Phase 5 supplies the parsed node/edge model;
+**Dependencies.** Phases 1 and 5. (Phase 5 supplies the parsed component/edge model;
 Phase 1 supplies the capability interface definitions that capability detection
 resolves against — "implements `Starter`" is decided by static type analysis of the
 generated package, not runtime reflection.)
@@ -753,36 +753,36 @@ assignment yields silently-wrong startup/shutdown ordering in every consuming ap
 **Definition of Done.**
 - *Process:*
   - Read ADR-003 §"Startup/Quiesce/Stop Semantics" and Architecture §7 before
-    implementing; the transitive-through-non-capable-node rule is stated in both
+    implementing; the transitive-through-non-capable-component rule is stated in both
     and is the most error-prone requirement.
   - Capability detection is done by **static type analysis** of the generated
     package (does the concrete type satisfy `Starter`/`Quiescer`/`Stopper`?), with
     **no reflection** and no runtime discovery (ADR-001, PRD §4).
 - *Output checks:*
-  - Startup levels: nodes with no lifecycle ordering edge between them share a
+  - Startup levels: components with no lifecycle ordering edge between them share a
     level (may run concurrently); a dependent is in a strictly later level than
     its dependency (the diamond `DB → {Router, Worker}` yields `[DB]`, then
     `[Router, Worker]` — matching ADR-003's worked example).
   - Shutdown & quiesce levels are the **reverse**: `[Router, Worker]` then `[DB]`.
-  - **Transitive ordering through non-capable nodes:** for capable A → non-capable
+  - **Transitive ordering through non-capable components:** for capable A → non-capable
     B → capable C, A and C remain correctly ordered relative to each other in all
     three level sets (dedicated fixture; this is the headline edge case).
-  - Only capability-bearing nodes appear in a given operation's levels
-    (dependency-only nodes influence ordering but receive no callbacks); a
-    `Quiescer`-only-absent node is skipped in quiesce levels but still transmits
+  - Only capability-bearing components appear in a given operation's levels
+    (dependency-only components influence ordering but receive no callbacks); a
+    `Quiescer`-only-absent component is skipped in quiesce levels but still transmits
     ordering.
   - Level computation is **deterministic**: identical input yields byte-identical
-    level assignment across runs (stable node iteration order — asserted by
+    level assignment across runs (stable component iteration order — asserted by
     repeated runs), so goldens in Phase 8 are stable.
-- *Edge/failure cases:* a node implementing all three vs. exactly one capability;
-  a graph with no capable nodes (empty level sets, no error); a wide fan-out
-  (many independent nodes in one level); a deep chain (many single-node levels);
-  a node that is both depended-upon and a dependent (interior of a chain).
+- *Edge/failure cases:* a component implementing all three vs. exactly one capability;
+  a graph with no capable components (empty level sets, no error); a wide fan-out
+  (many independent components in one level); a deep chain (many single-component levels);
+  a component that is both depended-upon and a dependent (interior of a chain).
 
-**Regression note.** Adding `cleanupAdapter` nodes (Phase 7) injects synthetic
+**Regression note.** Adding `cleanupAdapter` components (Phase 7) injects synthetic
 `Stopper`s into the shutdown/teardown level computation "at the cleaned-up value's
 position." Re-run all Phase 6 level tests after Phase 7 to confirm adapters land in
-the right level and don't shift other nodes. This is the highest-value regression
+the right level and don't shift other components. This is the highest-value regression
 checkpoint in the plan.
 
 ---
@@ -834,7 +834,7 @@ right by construction. The DoD below is held to that standard.
   - The injected **type graph is unmodified** — adapters exist only for ordering
     (assert the app's own types are untouched).
   - **Both-a-`Stopper`-and-a-cleanup value:** a provider that returns a cleanup func
-    *and* whose value implements `Stopper` yields **two `Stopper` nodes at the same
+    *and* whose value implements `Stopper` yields **two `Stopper` components at the same
     DAG position** — the value and the adapter — sharing incoming/outgoing edges,
     landing in the **same teardown level**, running concurrently with no ordering
     between them. Asserted; **not** an error and **not** deduplicated.
@@ -846,14 +846,14 @@ right by construction. The DoD below is held to that standard.
 **Regression note.** See Phase 6 note — this phase is the reason Phase 6's tests
 must be re-run. Also re-run Phase 3 ordering tests against a fixture whose ordering
 depends on an adapter's position, and against a both-a-`Stopper`-and-a-cleanup
-fixture (two teardown nodes, same level).
+fixture (two teardown components, same level).
 
 ---
 
 ## Phase 8 — Generator: code emission, naming, formatting
 
 **Goal.** Emit `lifecycle_gen.go`: the provenance header, generated level structs,
-per-node wrappers, interceptor-chain construction (fed by the public
+per-component wrappers, interceptor-chain construction (fed by the public
 `WithInterceptors` option, not a generated input), the generated
 `NewLifecycle`-style constructor returning `(*App, Lifecycle, error)`, and the
 Start/Quiesce/Stop methods — gofmt-clean and deterministic.
@@ -993,7 +993,7 @@ target package is malformed.
   injector → clear error; read-only output dir → clear error.
 
 **Regression note.** The example app becomes a living integration fixture reused by
-Phase 10. Keep it minimal but covering ≥2 capabilities, a dependency-only node, and
+Phase 10. Keep it minimal but covering ≥2 capabilities, a dependency-only component, and
 one cleanup func.
 
 ---
@@ -1033,12 +1033,12 @@ environment-sensitive drift check (Wire version, gofmt version, OS line endings)
     `ErrStartFailed` from `Start`, `Stop` returns nothing, and component errors are
     visible **only** through interceptors.
   - README documents: the `go:generate` line, the `(app, lifecycle, err)` pattern,
-    `RunUntilSignal` as the typical `main`, and the boundary-node options.
+    `RunUntilSignal` as the typical `main`, and the boundary-component options.
   - **Large-graph generation is exercised (PRD §9 "Generated Code Complexity").**
     The example app used elsewhere in this phase is deliberately minimal, so it does
     not exercise this named project risk. Add one additional, separate fixture (not
     part of the example app or the drift check) with a wide/deep synthetic graph —
-    on the order of 100+ nodes — that runs through the full pipeline (`wire
+    on the order of 100+ components — that runs through the full pipeline (`wire
     generate` → Yama generation) and asserts: (a) generation completes in bounded
     time (a generous CI-stable ceiling, not a tight benchmark), (b) the emitted file
     still `gofmt`-cleanly compiles, (c) generated names stay unique/collision-free at
@@ -1111,8 +1111,8 @@ canonical docs (PRD, ADR-001…010, Architecture). A small number are plan-level
 defaults that fill a genuine gap in those docs rather than restate a documented
 decision — each is called out at its point of use so it isn't mistaken for ADR
 policy: the overrun log sink (Phase 2, now pinned to a concrete `slog` shape), the
-graph-participant panic-recovery policy (Phase 2/3 — the docs define panic
-handling only for boundary nodes), `RunUntilSignal`'s default signal set when none
+graph-component panic-recovery policy (Phase 2/3 — the docs define panic
+handling only for boundary components), `RunUntilSignal`'s default signal set when none
 is passed (Phase 4), and the `internal/bridge` package (Phase 1/2) that
 Go visibility rules require but no ADR names. The runtime-support-package
 sanity-check at Phase 3's generated-shape pin (ADR-010) remains a confirmed-in-flight

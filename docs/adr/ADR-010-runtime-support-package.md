@@ -8,10 +8,10 @@ Accepted
 
 Yama emits `lifecycle_gen.go` into the target application's package (ADR-008,
 Architecture §14). That generated file needs execution machinery to do its work:
-interceptor chain construction, a per-node wrapper that attaches component identity
+interceptor chain construction, a per-component wrapper that attaches component identity
 and threads the caller's context, a fail-fast intra-level executor, a boundary
 runner, the `cleanupAdapter` that wraps Google Wire cleanup functions as `Stopper`,
-and the built-in per-node overrun interceptor.
+and the built-in per-component overrun interceptor.
 
 Two facts constrain where that machinery can live:
 
@@ -20,7 +20,7 @@ Two facts constrain where that machinery can live:
   that a hard compile-time boundary, not a style preference.
 * That machinery is **generic**. It is identical in every application and does not
   depend on the shape of any particular dependency graph. What *does* depend on the
-  graph — which participants sit in which level, and in what order the levels run —
+  graph — which components sit in which level, and in what order the levels run —
   is a small, separate concern.
 
 So Yama must decide where the generic machinery lives such that generated
@@ -37,7 +37,7 @@ API."**
 
 Only the **graph-specific** parts are generated inline into `lifecycle_gen.go`:
 
-* the private level structs that name concrete participants,
+* the private level structs that name concrete components,
 * their Start/Quiesce/Stop ordering methods,
 * the `NewLifecycle` constructor.
 
@@ -47,11 +47,11 @@ Interceptors are supplied through the public, non-generated `WithInterceptors`
 The runtime-support package holds the **graph-independent** parts:
 
 * interceptor chain construction,
-* the per-node wrapper (component-identity attachment, context threading),
+* the per-component wrapper (component-identity attachment, context threading),
 * the fail-fast intra-level executor and the ordered quiesce/stop passes,
 * the boundary runner,
 * `cleanupAdapter`,
-* the built-in per-node overrun interceptor.
+* the built-in per-component overrun interceptor.
 
 `package yama` retains only the stable public API of ADR-007. The runtime-support
 package is a distinct package precisely so that the ADR-007 surface stays minimal

@@ -10,7 +10,7 @@ Yama supports exactly three lifecycle capabilities. Each interface's signature m
 * `Quiesce(context.Context)`
 * `Stop(context.Context)`
 
-Applications interact with generated lifecycle orchestration through the `Lifecycle` interface, which is composed of the `Starter` and `Stopper` capabilities above — a lifecycle starts and stops the whole graph, so it is the same kind of thing as the participants inside it:
+Applications interact with generated lifecycle orchestration through the `Lifecycle` interface, which is composed of the `Starter` and `Stopper` capabilities above — a lifecycle starts and stops the whole graph, so it is the same kind of thing as the components inside it:
 
 * `Lifecycle.Start(context.Context) error`
 * `Lifecycle.Stop(context.Context)`
@@ -62,9 +62,9 @@ The generation pipeline is:
 1. Run `wire gen` to produce `wire_gen.go`. Google Wire resolves binding, interface bindings, cycle detection, and construction ordering.
 2. Parse `wire_gen.go` and walk the AST of each injector function.
 3. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
-4. Treat the final root-struct literal returned by the injector (for example `App`) as the manifest of top-level roots, not itself a node. Treat each injector function as an independent graph; never merge them.
+4. Treat the final root-struct literal returned by the injector (for example `App`) as the manifest of top-level roots, not itself a component. Treat each injector function as an independent graph; never merge them.
 5. Derive dependency edges from the arguments each creation event consumes.
-6. Detect lifecycle capabilities for each node. A cleanup function is shorthand for a `Stopper`: wrap every Google Wire cleanup function in a synthetic `cleanupAdapter` value implementing `Stopper`, positioned at the cleaned-up value's place for ordering only. A value that both returns a cleanup function and implements `Stopper` becomes two `Stopper` nodes at the same DAG position.
+6. Detect lifecycle capabilities for each component. A cleanup function is shorthand for a `Stopper`: wrap every Google Wire cleanup function in a synthetic `cleanupAdapter` value implementing `Stopper`, positioned at the cleaned-up value's place for ordering only. A value that both returns a cleanup function and implements `Stopper` becomes two `Stopper` components at the same DAG position.
 7. Compute lifecycle execution structure:
    * startup levels,
    * quiesce levels,
@@ -83,15 +83,15 @@ Google Wire provider declarations are the sole source inputs for dependency grap
 
 Yama obtains ordering by running Google Wire's generator and analyzing the generated injector. By the time `wire gen` emits an injector, Google Wire has resolved provider binding, interface bindings, values, struct and field providers, and cycle detection. The statement order of the generated injector body is a valid topological order, so Yama reuses Google Wire's resolved result rather than reconstructing it.
 
-Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. The final root-struct literal returned by the injector is the manifest of top-level roots and is not itself a node. Multiple injector functions are independent graphs and are never merged.
+Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. The final root-struct literal returned by the injector is the manifest of top-level roots and is not itself a component. Multiple injector functions are independent graphs and are never merged.
 
 Google Wire remains responsible for dependency construction semantics. Yama remains responsible for lifecycle orchestration semantics. Coupling to the shape of Google Wire's generated output is guarded by a CI check that regenerates and diffs both files, not by depending on Google Wire's internal APIs.
 
 ## 6. Dependency Graph Extraction
 
-The dependency graph Yama uses is the one expressed by the generated injector body. Each graph node represents a value created by a statement in the injector. Each edge represents a value that a later creation event consumes as an argument.
+The dependency graph Yama uses is the one expressed by the generated injector body. Each graph component represents a value created by a statement in the injector. Each edge represents a value that a later creation event consumes as an argument.
 
-All nodes participate in dependency analysis, including nodes with no lifecycle capability. Dependency-only nodes influence ordering between lifecycle-capable nodes.
+All components participate in dependency analysis, including components with no lifecycle capability. Dependency-only components influence ordering between lifecycle-capable components.
 
 Yama extracts:
 
@@ -99,10 +99,10 @@ Yama extracts:
 * the values each creation event consumes,
 * the resulting dependency edges,
 * the injector's root-struct literal (its output roots),
-* concrete values that become lifecycle participants,
+* concrete values that become lifecycle components,
 * names usable for generated code.
 
-Lifecycle execution includes only nodes whose resulting value implements at least one lifecycle capability. A component with no `Start`, `Quiesce`, or `Stop` method never receives lifecycle callbacks, but it may still impose ordering between lifecycle participants that depend through it.
+Lifecycle execution includes only components whose resulting value implements at least one lifecycle capability. A component with no `Start`, `Quiesce`, or `Stop` method never receives lifecycle callbacks, but it may still impose ordering between lifecycle components that depend through it.
 
 Yama does not expose the extracted graph publicly. The graph exists only inside the generator.
 
@@ -110,11 +110,11 @@ Yama does not expose the extracted graph publicly. The graph exists only inside 
 
 Lifecycle analysis occurs entirely during generation.
 
-For startup, Yama computes dependency-directed levels over lifecycle-capable participants using the full Google Wire graph. Dependency-only nodes are traversed when deriving ordering. If lifecycle participant A depends on dependency-only node B, and B depends on lifecycle participant C, A is ordered after C even though B does not receive lifecycle callbacks. Participants in the same level have no lifecycle ordering dependency between them and may start concurrently.
+For startup, Yama computes dependency-directed levels over lifecycle-capable components using the full Google Wire graph. Dependency-only components are traversed when deriving ordering. If lifecycle component A depends on dependency-only component B, and B depends on lifecycle component C, A is ordered after C even though B does not receive lifecycle callbacks. Components in the same level have no lifecycle ordering dependency between them and may start concurrently.
 
-For shutdown, Yama computes the reverse dependency-directed levels. Dependents stop before the dependencies they rely on. Independent participants in the same shutdown level may stop concurrently.
+For shutdown, Yama computes the reverse dependency-directed levels. Dependents stop before the dependencies they rely on. Independent components in the same shutdown level may stop concurrently.
 
-For quiesce, Yama computes the same reverse dependency-directed levels over `Quiescer` participants. Quiesce is ordered along dependency edges — dependents quiesce before the dependencies they rely on — because a dependency must not quiesce while a dependent might still call into it. Independent branches quiesce concurrently. Non-`Quiescer` nodes are skipped, but ordering still holds transitively through them.
+For quiesce, Yama computes the same reverse dependency-directed levels over `Quiescer` components. Quiesce is ordered along dependency edges — dependents quiesce before the dependencies they rely on — because a dependency must not quiesce while a dependent might still call into it. Independent branches quiesce concurrently. Non-`Quiescer` components are skipped, but ordering still holds transitively through them.
 
 The analysis also records which generated chain wrappers are needed for each operation. Yama generates no lifecycle configuration and no timeout fields; any deadline is carried by the caller's context.
 
@@ -124,14 +124,14 @@ The result of lifecycle analysis is not emitted as a public or runtime data stru
 
 Lifecycle code is split between two homes (see ADR-010). Only the **graph-specific**
 parts are generated into the application's `lifecycle_gen.go`: the private level
-structs that name concrete participants, their Start/Quiesce/Stop ordering methods,
+structs that name concrete components, their Start/Quiesce/Stop ordering methods,
 and the `NewLifecycle` constructor. The **generic execution plumbing** — interceptor
-chain construction, the per-node wrapper, the fail-fast level executor, the boundary
+chain construction, the per-component wrapper, the fail-fast level executor, the boundary
 runner, `cleanupAdapter`, and the built-in overrun interceptor — is identical in
 every application and lives in a Yama-owned **runtime-support package** that the
 generated code imports. `WithInterceptors` (ADR-005) is a public, non-generated
 `Option` — because interceptors attach globally rather than per
-participant, no generated interceptor input is needed. Keeping ordering in the
+component, no generated interceptor input is needed. Keeping ordering in the
 generated level structs is what satisfies ADR-004: execution order stays visible in
 the application's own source, while the mechanical plumbing is reused rather than
 re-emitted per file.
@@ -140,10 +140,10 @@ Conceptually, the generated implementation contains:
 
 * references to lifecycle-capable component instances,
 * prebuilt start, quiesce, and stop interceptor chains (built by the runtime-support package),
-* one generated started flag per lifecycle participant,
+* one generated started flag per lifecycle component,
 * minimal terminal state for lifecycle completion.
 
-The per-participant started flags are the runtime state used to scope quiesce and stop during normal shutdown and startup-failure cleanup. They are concrete generated fields, not entries in a runtime graph or plan.
+The per-component started flags are the runtime state used to scope quiesce and stop during normal shutdown and startup-failure cleanup. They are concrete generated fields, not entries in a runtime graph or plan.
 
 Generated code contains explicit methods for:
 
@@ -154,7 +154,7 @@ Generated code contains explicit methods for:
 * stopping each generated level that implements `Stopper`,
 * performing startup-failure cleanup.
 
-Chain construction, per-node wrapping, and the built-in per-node overrun interceptor are provided by the runtime-support package and invoked from the generated construction and level methods.
+Chain construction, per-component wrapping, and the built-in per-component overrun interceptor are provided by the runtime-support package and invoked from the generated construction and level methods.
 
 The generated implementation returns only public lifecycle errors. Component-level errors remain inside generated control flow and interceptor observation paths.
 
@@ -164,9 +164,9 @@ Generated code favors readable repetition over compact indirection. Large graphs
 
 Yama generates no lifecycle configuration and owns no lifecycle policy of its own.
 
-There is no generated configuration structure, no start or shutdown deadline field, and no per-participant timeout field. The only deadline is the one carried by the caller's context passed to `Start` and `Stop`. The framework threads that context through the traversal and never lengthens it.
+There is no generated configuration structure, no start or shutdown deadline field, and no per-component timeout field. The only deadline is the one carried by the caller's context passed to `Start` and `Stop`. The framework threads that context through the traversal and never lengthens it.
 
-A component that wants a per-node timeout wraps its own `Start`, `Quiesce`, or `Stop` — this is ordinary Go, not a Yama mechanism. Slow-operation and overrun diagnostics are interceptor concerns. Removing lifecycle configuration keeps the framework out of the timeout-policy and configuration business entirely.
+A component that wants a per-component timeout wraps its own `Start`, `Quiesce`, or `Stop` — this is ordinary Go, not a Yama mechanism. Slow-operation and overrun diagnostics are interceptor concerns. Removing lifecycle configuration keeps the framework out of the timeout-policy and configuration business entirely.
 
 ## 10. Interceptor Architecture
 
@@ -193,7 +193,7 @@ Chain construction happens once during lifecycle manager initialization. Lifecyc
 
 Interceptors may observe execution, modify context, suppress execution, invoke the next element conditionally, alter returned outcomes, and provide diagnostics. Optional participation, environment policy, logging, metrics, tracing, and telemetry are interceptor responsibilities rather than lifecycle manager responsibilities.
 
-Because interceptors require every participant to be invoked through a chain, the wrapper layer is universal: every node is wrapped whether or not an application interceptor is attached to it. Wrapping is not opt-in. The observational overrun logging relies on this same universal wrapping: a built-in, Yama-authored interceptor is attached to every node's chain, and it is what detects and logs a caller's context-deadline overrun — so universal wrapping is what gives that mechanism per-node attribution. This built-in interceptor is an internal implementation detail; applications neither write nor register it, and it adds no public API.
+Because interceptors require every component to be invoked through a chain, the wrapper layer is universal: every component is wrapped whether or not an application interceptor is attached to it. Wrapping is not opt-in. The observational overrun logging relies on this same universal wrapping: a built-in, Yama-authored interceptor is attached to every component's chain, and it is what detects and logs a caller's context-deadline overrun — so universal wrapping is what gives that mechanism per-component attribution. This built-in interceptor is an internal implementation detail; applications neither write nor register it, and it adds no public API.
 
 ## 11. Error Handling Architecture
 
@@ -207,19 +207,19 @@ Component errors are not returned to the lifecycle caller. Component identity, d
 
 Startup-failure cleanup does not change the public startup error. If startup fails, generated code runs the same internal shutdown sequence — the quiesce pass, then teardown — for the successfully started components and then returns `ErrStartFailed`. Shutdown produces no error, so cleanup outcomes are observable through interceptors but never change the returned error.
 
-Shutdown runs the quiesce pass and the teardown pass in dependency order, to completion, returning nothing. Because the framework waits for each participant rather than returning early, a hung participant stalls everything after it in the traversal until the orchestrator sends SIGKILL. This is an accepted consequence of never violating reverse-topological ordering.
+Shutdown runs the quiesce pass and the teardown pass in dependency order, to completion, returning nothing. Because the framework waits for each component rather than returning early, a hung component stalls everything after it in the traversal until the orchestrator sends SIGKILL. This is an accepted consequence of never violating reverse-topological ordering.
 
 ## 12. Context Propagation Architecture
 
 The caller's context enters `Start` and `Stop`. Generated code derives operation contexts from it when applying timeouts and lifecycle component metadata.
 
-Before invoking interceptors, generated code attaches the current lifecycle participant to context. This supports diagnostics, logging, metrics, tracing, and telemetry. The access mechanism is part of the framework-defined interceptor contract: interceptor implementations receive the operation context after the participant has been attached and can read it with `yama.FromContext[T](ctx)`. This is the only way an interceptor can reach the component, since its `next` argument is the rest of the chain rather than the participant. The lifecycle operation does not need separate context metadata because the operation-specific interceptor method identifies whether the call is Start, Quiesce, or Stop. The context carrier uses unexported keys so components cannot accidentally collide with framework metadata. The accessor exposes the participant only; it does not expose graph APIs, generated implementation types, lifecycle plans, or component error details.
+Before invoking interceptors, generated code attaches the current lifecycle component to context. This supports diagnostics, logging, metrics, tracing, and telemetry. The access mechanism is part of the framework-defined interceptor contract: interceptor implementations receive the operation context after the component has been attached and can read it with `yama.FromContext[T](ctx)`. This is the only way an interceptor can reach the component, since its `next` argument is the rest of the chain rather than the component. The lifecycle operation does not need separate context metadata because the operation-specific interceptor method identifies whether the call is Start, Quiesce, or Stop. The context carrier uses unexported keys so components cannot accidentally collide with framework metadata. The accessor exposes the component only; it does not expose graph APIs, generated implementation types, lifecycle plans, or component error details.
 
 Interceptors may replace or wrap the context before invoking the next element in the chain. Component lifecycle methods receive the context produced by timeout policy, component context injection, and interceptor processing.
 
 Generated code never extends an existing caller deadline, and generates no deadline of its own. The caller's context deadline, if any, is the only deadline, and it remains authoritative.
 
-Nodes receive an ordinary context that may carry a deadline and handle it with standard Go idioms — including detaching with `context.WithoutCancel` or a fresh context for work that must complete regardless of the deadline. The framework introduces no special contract here beyond "you get a context."
+Components receive an ordinary context that may carry a deadline and handle it with standard Go idioms — including detaching with `context.WithoutCancel` or a fresh context for work that must complete regardless of the deadline. The framework introduces no special contract here beyond "you get a context."
 
 On startup failure, generated code cancels the startup context to prevent additional startup work from being scheduled and to signal in-flight operations in the active level.
 
@@ -231,7 +231,7 @@ Private generated names use a consistent prefix such as `yama` followed by descr
 
 The implementation plan defines the expected generated names and their responsibilities. Architecture only requires that those names remain in a Yama-owned namespace and that implementation details stay private whenever possible.
 
-Generated names are an implementation-detail concern only. Yama derives no component name for the public API: `yama.FromContext` yields the participant itself, and a component that wants a printable identity implements `fmt.Stringer`. The naming rules here govern generated identifiers — level structs, wrappers, chain values — not anything an application observes at runtime.
+Generated names are an implementation-detail concern only. Yama derives no component name for the public API: `yama.FromContext` yields the component itself, and a component that wants a printable identity implements `fmt.Stringer`. The naming rules here govern generated identifiers — level structs, wrappers, chain values — not anything an application observes at runtime.
 
 Generated names must be:
 
@@ -258,7 +258,7 @@ The lifecycle file contains:
 * generated lifecycle constructor integration,
 * generated startup, quiesce, and shutdown methods.
 
-The generic execution plumbing (chain construction, per-node wrapping, level execution, boundary running, `cleanupAdapter`, the built-in overrun interceptor) is not emitted here; it lives in the runtime-support package the lifecycle file imports (ADR-010).
+The generic execution plumbing (chain construction, per-component wrapping, level execution, boundary running, `cleanupAdapter`, the built-in overrun interceptor) is not emitted here; it lives in the runtime-support package the lifecycle file imports (ADR-010).
 
 Generated artifacts are implementation details. Applications may inspect them for debugging and review, but they should not depend on private generated type names or helper method names.
 
@@ -266,49 +266,49 @@ Generated artifacts are implementation details. Applications may inspect them fo
 
 `Start(ctx)` executes generated level values in dependency order.
 
-Each generated level is a private generated value that implements `Starter` when any of its members participate in startup. The top-level lifecycle treats the level like a component by calling its `Start` method. Inside the level, generated code starts all member participants concurrently. Each participant invocation passes through:
+Each generated level is a private generated value that implements `Starter` when any of its members participate in startup. The top-level lifecycle treats the level like a component by calling its `Start` method. Inside the level, generated code starts all member components concurrently. Each component invocation passes through:
 
-1. participant-specific start timeout policy,
+1. component-specific start timeout policy,
 2. generated lifecycle component context injection,
 3. the prebuilt start interceptor chain,
 4. the component's `Start` method.
 
 A `Start` is expected to return once the component's start side effects have begun; construction already produced an inert, valid value. A component whose start would otherwise block — for example `http.Server.ListenAndServe` or `grpc.Server.Serve` — is responsible for launching the blocking call in its own goroutine and returning, routing the error wherever it needs to go. This is ordinary Go; the framework provides no helper for it.
 
-If all participants in a level succeed, generated code marks those participants as successfully started and proceeds to the next level.
+If all components in a level succeed, generated code marks those components as successfully started and proceeds to the next level.
 
-Startup is fail-fast. If any participant in the active level fails, generated code cancels the startup context, stops scheduling further startup levels, waits for in-flight operations in the active level to settle, records which participants started successfully, runs the normal generated shutdown sequence (quiesce pass, then teardown) for those participants, and returns `ErrStartFailed`.
+Startup is fail-fast. If any component in the active level fails, generated code cancels the startup context, stops scheduling further startup levels, waits for in-flight operations in the active level to settle, records which components started successfully, runs the normal generated shutdown sequence (quiesce pass, then teardown) for those components, and returns `ErrStartFailed`.
 
-Participants in later levels are never started after a startup failure.
+Components in later levels are never started after a startup failure.
 
 ## 16. Quiesce Architecture
 
 Quiesce is invoked internally by generated shutdown processing, as the first pass of `Stop`. Applications do not call quiesce directly, and it is not exposed on `Lifecycle`.
 
-Generated quiesce code invokes `Quiesce` on generated levels that implement `Quiescer`, in reverse dependency order — the same direction as teardown — because a dependency must not quiesce while a dependent might still call into it. Inside each level, generated code invokes independent quiesce-capable members concurrently. Each participant invocation passes through:
+Generated quiesce code invokes `Quiesce` on generated levels that implement `Quiescer`, in reverse dependency order — the same direction as teardown — because a dependency must not quiesce while a dependent might still call into it. Inside each level, generated code invokes independent quiesce-capable members concurrently. Each component invocation passes through:
 
 1. the caller's context (shared across the whole shutdown),
 2. generated lifecycle component context injection,
 3. the prebuilt quiesce interceptor chain,
 4. the component's `Quiesce` method.
 
-`Quiesce` returns no error. It stops accepting new work and blocks until the component's in-flight work completes. The caller's context deadline is observational: when it fires, the built-in overrun interceptor logs that the participant exceeded its window but the framework keeps waiting for `Quiesce` to return, so a slow participant stalls the participants that depend on it until it returns or SIGKILL arrives.
+`Quiesce` returns no error. It stops accepting new work and blocks until the component's in-flight work completes. The caller's context deadline is observational: when it fires, the built-in overrun interceptor logs that the component exceeded its window but the framework keeps waiting for `Quiesce` to return, so a slow component stalls the components that depend on it until it returns or SIGKILL arrives.
 
 Idempotent shutdown is the framework's own guarantee: `Stop` runs the quiesce and teardown passes once, so repeated or overlapping `Stop` calls do not re-trigger them. A component whose own "stop accepting new work" step must fire exactly once uses ordinary `sync.Once`; the framework provides no helper for it.
 
-During startup-failure cleanup, generated quiesce code is scoped to participants that successfully started before startup failed.
+During startup-failure cleanup, generated quiesce code is scoped to components that successfully started before startup failed.
 
 ## 17. Shutdown Architecture
 
 `Stop(ctx)` executes generated shutdown processing:
 
-1. Run the quiesce pass over successfully started quiesce-capable participants in reverse dependency order.
-2. Run the teardown pass over successfully started stop-capable participants in reverse dependency order.
+1. Run the quiesce pass over successfully started quiesce-capable components in reverse dependency order.
+2. Run the teardown pass over successfully started stop-capable components in reverse dependency order.
 3. Return nothing.
 
 Both passes run under the caller's context — the single context passed to `Stop`, whose deadline, if any, spans the whole sequence. The quiesce pass completes before any teardown begins.
 
-Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable participants. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent participants in the same shutdown level stop concurrently inside the level. Google Wire cleanup functions participate here as `cleanupAdapter` values implementing `Stopper`, so every teardown node is a `Stopper` on a single dispatch path.
+Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable components. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent components in the same shutdown level stop concurrently inside the level. Google Wire cleanup functions participate here as `cleanupAdapter` values implementing `Stopper`, so every teardown component is a `Stopper` on a single dispatch path.
 
 Each stop invocation passes through:
 
@@ -317,21 +317,21 @@ Each stop invocation passes through:
 3. the prebuilt stop interceptor chain,
 4. the component's `Stop` method.
 
-`Stop` returns no error. The traversal runs to completion in dependency order; the framework waits for each participant rather than returning early, so a hung participant stalls everything after it until SIGKILL.
+`Stop` returns no error. The traversal runs to completion in dependency order; the framework waits for each component rather than returning early, so a hung component stalls everything after it until SIGKILL.
 
-## 18. Boundary Nodes
+## 18. Boundary Components
 
 Yama supports two boundary registration points that sit outside the construction
-DAG: a **begin** boundary and an **end** boundary. Boundary nodes are peers of the
-graph nodes. A boundary node participates in the lifecycle through whichever of
-`Starter`, `Quiescer`, and `Stopper` it implements, exactly as a graph node does.
-Registering a node in a boundary does not change what it does; it controls only its
+DAG: a **begin** boundary and an **end** boundary. Boundary components are peers of the
+graph components. A boundary component participates in the lifecycle through whichever of
+`Starter`, `Quiescer`, and `Stopper` it implements, exactly as a graph component does.
+Registering a component in a boundary does not change what it does; it controls only its
 execution order relative to the graph.
 
 The lifecycle runs three passes: the Start pass in dependency order, and the
-Quiesce and Stop passes in reverse dependency order. In each pass, boundary nodes
-bracket the graph — a begin node runs before every graph node in that pass, an end
-node runs after every graph node in that pass. A boundary node joins a pass only
+Quiesce and Stop passes in reverse dependency order. In each pass, boundary components
+bracket the graph — a begin component runs before every graph component in that pass, an end
+component runs after every graph component in that pass. A boundary component joins a pass only
 when it implements that pass's interface:
 
 ```text
@@ -340,76 +340,76 @@ Quiesce pass   begin Quiescers  → graph Quiescers → end Quiescers
 Stop pass      begin Stoppers   → graph Stoppers  → end Stoppers
 ```
 
-A boundary registration expresses one thing: this node runs before every graph
-node, or after every graph node. It exists so that "run first" or "run last" can be
+A boundary registration expresses one thing: this component runs before every graph
+component, or after every graph component. It exists so that "run first" or "run last" can be
 stated directly instead of by wiring dependency edges against every graph root and
 revising them whenever the set of roots changes.
 
-Each boundary is a flat, unordered set. Nodes in the same set have no ordering
+Each boundary is a flat, unordered set. Components in the same set have no ordering
 relationship and may execute concurrently; Yama makes no ordering guarantee among
-them. A boundary node has no dependency relationship to any graph node. Anything
-that needs an ordering relative to specific nodes has a real dependency
+them. A boundary component has no dependency relationship to any graph component. Anything
+that needs an ordering relative to specific components has a real dependency
 relationship and belongs in the construction graph, not in a boundary set.
 
-Boundary execution is best-effort. A boundary node that returns an error or panics
-does not prevent the pass from proceeding — a failed begin node still lets the
-graph run, and a failed end node does not change the outcome. This matches the
+Boundary execution is best-effort. A boundary component that returns an error or panics
+does not prevent the pass from proceeding — a failed begin component still lets the
+graph run, and a failed end component does not change the outcome. This matches the
 shutdown model, in which shutdown returns nothing and always runs to completion.
-Like graph nodes, boundary nodes are wrapped, so a boundary failure or overrun is
+Like graph components, boundary components are wrapped, so a boundary failure or overrun is
 observable through interceptors.
 
-In each pass, boundary nodes run under the same caller context as the graph nodes
-and share its deadline. Yama gives a boundary node no budget of its own and does
-not preempt it; a slow begin node consumes budget that the rest of the pass would
+In each pass, boundary components run under the same caller context as the graph components
+and share its deadline. Yama gives a boundary component no budget of its own and does
+not preempt it; a slow begin component consumes budget that the rest of the pass would
 otherwise have. This is a documented consequence, not a mitigated one.
 
-Because boundary nodes are part of the passes rather than a separate step, they
+Because boundary components are part of the passes rather than a separate step, they
 bracket those passes wherever they run. This includes the internal startup-failure
 cleanup, which reuses the Quiesce and Stop passes over successfully started
-participants; there is no separate boundary execution path.
+components; there is no separate boundary execution path.
 
-Boundary nodes are supplied as runtime objects when the lifecycle value is
-constructed, using the `WithBeginNodes` and `WithEndNodes` options alongside
+Boundary components are supplied as runtime objects when the lifecycle value is
+constructed, using the `WithBeginComponents` and `WithEndComponents` options alongside
 `WithInterceptors`. They are not derived from the Wire graph, are not lifecycle
-graph participants, and never appear in generated startup, quiesce, or teardown
+graph components, and never appear in generated startup, quiesce, or teardown
 levels.
 
 Two cases illustrate the boundaries without defining them:
 
-* An in-process readiness flip is a begin node. As a `Quiescer`, its `Quiesce`
-  runs before every graph node quiesces, so the readiness probe flips to failing
+* An in-process readiness flip is a begin component. As a `Quiescer`, its `Quiesce`
+  runs before every graph component quiesces, so the readiness probe flips to failing
   before the graph drains and the routing layer stops sending new work. (See
   Appendix A for how this relates to the `preStop` hook, which is the primary
   mechanism and is out of Yama's scope.)
-* A metrics flush that must run after everything else is an end node — a `Stopper`
-  whose `Stop` runs after every graph node stops. This holds only if it owns its
+* A metrics flush that must run after everything else is an end component — a `Stopper`
+  whose `Stop` runs after every graph component stops. This holds only if it owns its
   transport. If its exporter depends on a Wire-constructed connection or pool, the
-  flush has a genuine dependency on a graph node and belongs in the construction
-  graph as an ordinary teardown participant, not in the end boundary.
+  flush has a genuine dependency on a graph component and belongs in the construction
+  graph as an ordinary teardown component, not in the end boundary.
 
 ## 19. Concurrency Model
 
 Concurrency opportunities are computed during generation.
 
-Generated startup and shutdown code is divided into explicit private level values. Participants in the same level may execute concurrently because lifecycle analysis has determined that no lifecycle ordering edge exists between them for that operation. Levels execute sequentially and each level is invoked through the lifecycle capability interfaces it implements.
+Generated startup and shutdown code is divided into explicit private level values. Components in the same level may execute concurrently because lifecycle analysis has determined that no lifecycle ordering edge exists between them for that operation. Levels execute sequentially and each level is invoked through the lifecycle capability interfaces it implements.
 
-Generated quiesce code follows the same reverse dependency ordering as teardown; it does not ignore dependency ordering. Independent branches quiesce concurrently, but a participant quiesces only after the dependents that rely on it.
+Generated quiesce code follows the same reverse dependency ordering as teardown; it does not ignore dependency ordering. Independent branches quiesce concurrently, but a component quiesces only after the dependents that rely on it.
 
 Generated code may use standard Go synchronization primitives such as goroutines, wait groups, channels, mutexes, or `errgroup`-style helpers. These helpers are private implementation details. They coordinate only the generated operations for the current lifecycle call and do not represent runtime graph state or runtime execution plans.
 
-Startup uses fail-fast coordination within a level. The quiesce and teardown passes coordinate ordered work that waits for each participant to return, so ordering is never violated to reclaim liveness.
+Startup uses fail-fast coordination within a level. The quiesce and teardown passes coordinate ordered work that waits for each component to return, so ordering is never violated to reclaim liveness.
 
 ## 20. Timeout Handling
 
 Yama generates no deadline and owns no timeout policy. The only deadline is the one carried by the caller's context passed to `Start` and `Stop`. That single context is threaded through the whole traversal — for shutdown, the quiesce pass and teardown pass share it. Generated code never lengthens the caller's deadline.
 
-The deadline is observational. When it fires, the built-in overrun interceptor, attached to every node, logs that a participant exceeded its window — giving per-node attribution — but the framework does not return early. It continues waiting for the participant's operation to actually complete. Returning early would let the traversal reach a participant's dependencies while that participant might still be using them, violating reverse-topological ordering. Preserving ordering is chosen over liveness; external liveness is bounded by the orchestrator's SIGKILL.
+The deadline is observational. When it fires, the built-in overrun interceptor, attached to every component, logs that a component exceeded its window — giving per-component attribution — but the framework does not return early. It continues waiting for the component's operation to actually complete. Returning early would let the traversal reach a component's dependencies while that component might still be using them, violating reverse-topological ordering. Preserving ordering is chosen over liveness; external liveness is bounded by the orchestrator's SIGKILL.
 
 There is no timeout error and no framework-owned remediation. Because one context spans the whole shutdown, it is accepted that a slow quiesce can consume the window and leave teardown little time. Overruns are observable through interceptors, which receive the operation context and observe the operation.
 
-A component that needs a per-node timeout wraps its own `Start`, `Quiesce`, or `Stop` — this is ordinary Go, not a Yama mechanism. Nodes handle the deadline with ordinary Go idioms; work that must complete regardless can detach with `context.WithoutCancel` or a fresh context.
+A component that needs a per-component timeout wraps its own `Start`, `Quiesce`, or `Stop` — this is ordinary Go, not a Yama mechanism. Components handle the deadline with ordinary Go idioms; work that must complete regardless can detach with `context.WithoutCancel` or a fresh context.
 
-This fixes the boundary of Yama's responsibility. Yama guarantees phase ordering and deadline propagation: it runs each phase in the correct dependency order and threads the caller's context, with its deadline, through every node without lengthening it. Honoring that context is the node's responsibility. Yama does not preempt an uncooperative node; a node that ignores its deadline is stalled only by the orchestrator's SIGKILL. This holds for graph nodes and boundary nodes alike.
+This fixes the boundary of Yama's responsibility. Yama guarantees phase ordering and deadline propagation: it runs each phase in the correct dependency order and threads the caller's context, with its deadline, through every component without lengthening it. Honoring that context is the component's responsibility. Yama does not preempt an uncooperative component; a component that ignores its deadline is stalled only by the orchestrator's SIGKILL. This holds for graph components and boundary components alike.
 
 ## 21. Observability Architecture
 
@@ -417,46 +417,46 @@ Yama is observability-tool agnostic. It does not expose logger, tracer, meter, h
 
 Observability is implemented through interceptors and lifecycle metadata propagated in context. Generated code provides enough metadata for interceptors to associate observations with operation and component execution without exposing public graph APIs.
 
-Interceptors can measure duration, log failures, emit metrics, start traces, record deadline overruns, and record component diagnostics. A built-in, Yama-authored interceptor attached to every node is where a deadline overrun is detected and logged, with per-node attribution; it is an internal detail that adds no public API. The lifecycle manager itself only determines lifecycle outcomes.
+Interceptors can measure duration, log failures, emit metrics, start traces, record deadline overruns, and record component diagnostics. A built-in, Yama-authored interceptor attached to every component is where a deadline overrun is detected and logged, with per-component attribution; it is an internal detail that adds no public API. The lifecycle manager itself only determines lifecycle outcomes.
 
 ## 22. Failure Scenarios
 
-Startup participant failure:
+Startup component failure:
 
 * cancel startup context,
 * stop scheduling startup levels,
 * wait for in-flight operations in the active level,
-* quiesce successfully started participants,
-* stop successfully started participants,
+* quiesce successfully started components,
+* stop successfully started components,
 * return `ErrStartFailed`.
 
 Caller's start context deadline exceeded:
 
-* handled as startup participant failure,
+* handled as startup component failure,
 * exposed publicly as `ErrStartFailed`,
 * details available only through interceptors and observability.
 
-Quiesce participant that does not return:
+Quiesce component that does not return:
 
 * the framework keeps waiting; it does not return early,
-* the caller's context-deadline overrun is logged with per-node attribution,
-* dependencies protected by the participant do not quiesce until it returns,
+* the caller's context-deadline overrun is logged with per-component attribution,
+* dependencies protected by the component do not quiesce until it returns,
 * nothing is returned to the caller.
 
-Stop participant that does not return:
+Stop component that does not return:
 
 * the framework keeps waiting; the traversal does not proceed past it,
 * the overrun is logged,
 * nothing is returned to the caller.
 
-Hung participant:
+Hung component:
 
-* a participant that never returns stalls everything after it in the traversal until the orchestrator sends SIGKILL,
+* a component that never returns stalls everything after it in the traversal until the orchestrator sends SIGKILL,
 * this is intentional and follows from preserving reverse-topological ordering.
 
 Cleanup after startup failure:
 
-* run the quiesce pass and teardown pass for successfully started participants,
+* run the quiesce pass and teardown pass for successfully started components,
 * return `ErrStartFailed`,
 * expose cleanup diagnostics through interceptors.
 
@@ -485,7 +485,7 @@ Runtime overhead consists primarily of:
 * launching generated concurrent operations,
 * applying context timeouts,
 * invoking interceptor chains,
-* tracking which participants started successfully,
+* tracking which components started successfully,
 * aggregating lifecycle-level success or failure state internally.
 
 Generated code may be larger for large dependency graphs. This is an accepted trade-off for readability, determinism, and ordinary Go debugging.
@@ -494,7 +494,7 @@ Generated code may be larger for large dependency graphs. This is an accepted tr
 
 Testing covers the generator, generated code shape, and runtime behavior of generated lifecycle implementations.
 
-Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only nodes, and cleanup functions wrapped as `cleanupAdapter`. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` yields two `Stopper` nodes at the same DAG position. These tests operate on the generated injector and generated source, not on a private runtime graph API.
+Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only components, and cleanup functions wrapped as `cleanupAdapter`. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` yields two `Stopper` components at the same DAG position. These tests operate on the generated injector and generated source, not on a private runtime graph API.
 
 Generated-code tests should compile generated packages and exercise the public lifecycle surface. They should verify startup ordering, shutdown ordering, quiesce-before-teardown behavior, reverse-topological quiesce ordering, concurrent independent branches, startup fail-fast behavior, startup-failure cleanup, that shutdown returns nothing and runs to completion, observational-deadline overrun logging, and that only `ErrStartFailed` is returned. Golden-file tests should cover generated source shape for representative graphs so readability, naming stability, and chain construction remain reviewable.
 
@@ -540,13 +540,13 @@ Yama runs graceful shutdown when the process receives SIGTERM; it does not encod
 
 **The shutdown budget must fit inside `terminationGracePeriodSeconds`.** After SIGTERM, Kubernetes sends SIGKILL once the grace period elapses. The deadline on the context the caller passes to `Stop`, plus any `preStop` delay, should fit within `terminationGracePeriodSeconds`, because SIGKILL — not the observational deadline — is what ultimately bounds shutdown.
 
-**An in-process readiness flip is a begin boundary node, not a graph node.** The primary mechanism for the readiness-to-routing gap is the `preStop` hook above, which fires before SIGTERM and is out of Yama's scope; the total shutdown budget, including any `preStop` delay, must fit within `terminationGracePeriodSeconds`. If an application additionally wants to flip readiness from inside the process, that flip should run before the graph quiesces, which makes it a begin boundary node (see Boundary Nodes): a `Quiescer` registered in the begin boundary, rather than a `Quiescer` wired into the construction graph. Modeling it as a graph node would require wiring dependency edges only to force it to the front of the quiesce pass; the begin boundary expresses that position directly.
+**An in-process readiness flip is a begin boundary component, not a graph component.** The primary mechanism for the readiness-to-routing gap is the `preStop` hook above, which fires before SIGTERM and is out of Yama's scope; the total shutdown budget, including any `preStop` delay, must fit within `terminationGracePeriodSeconds`. If an application additionally wants to flip readiness from inside the process, that flip should run before the graph quiesces, which makes it a begin boundary component (see Boundary Components): a `Quiescer` registered in the begin boundary, rather than a `Quiescer` wired into the construction graph. Modeling it as a graph component would require wiring dependency edges only to force it to the front of the quiesce pass; the begin boundary expresses that position directly.
 
 ## Appendix B. Long-Lived Work
 
-Yama cannot manufacture time that is not there. The observational deadline waits for a node, but the orchestrator's SIGKILL can still land mid-operation regardless of how the node handles its context.
+Yama cannot manufacture time that is not there. The observational deadline waits for a component, but the orchestrator's SIGKILL can still land mid-operation regardless of how the component handles its context.
 
-Work that must not be lost therefore has to be crash-safe and resumable at the storage layer — write-ahead logging, an outbox, or atomic and replayable writes — so that a process killed mid-operation can recover on restart. This is application-level guidance, not a Yama feature. A node may detach from the shutdown deadline with `context.WithoutCancel` to finish an in-flight unit of work, but it cannot rely on always being allowed to finish, so durability must not depend on shutdown completing.
+Work that must not be lost therefore has to be crash-safe and resumable at the storage layer — write-ahead logging, an outbox, or atomic and replayable writes — so that a process killed mid-operation can recover on restart. This is application-level guidance, not a Yama feature. A component may detach from the shutdown deadline with `context.WithoutCancel` to finish an in-flight unit of work, but it cannot rely on always being allowed to finish, so durability must not depend on shutdown completing.
 
 ## Appendix C. Public API Reference
 
@@ -562,7 +562,7 @@ type Lifecycle interface {
 ```
 
 `Lifecycle` is an interface composed of the capability interfaces below: it starts
-and stops the whole graph, so it is the same kind of thing as the participants
+and stops the whole graph, so it is the same kind of thing as the components
 inside it. Its implementation is private and owned by the runtime-support package;
 applications receive a `Lifecycle` and never implement or construct one. Because
 `Starter` and `Stopper` are themselves public and frozen, the composition adds no
@@ -571,7 +571,7 @@ compatibility commitment beyond those already made.
 The generated constructor returns the application and its `Lifecycle` together:
 
 ```go
-app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginNodes(n1), WithEndNodes(n2))
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginComponents(c1), WithEndComponents(c2))
 ```
 
 ### Capability Interfaces
@@ -612,7 +612,7 @@ type StopInterceptor interface {
 func FromContext[T any](ctx context.Context) (T, bool)
 ```
 
-The accessor yields the lifecycle participant itself. `T` is the participant's concrete type; since interceptors attach globally (ADR-005), callers type-switch on the yielded value with `T` as `any`. `T` is unconstrained because Go cannot express "implements at least one of `Starter`, `Quiescer`, `Stopper`" — the same limitation that makes `WithBeginNodes` take `any`.
+The accessor yields the lifecycle component itself. `T` is the component's concrete type; since interceptors attach globally (ADR-005), callers type-switch on the yielded value with `T` as `any`. `T` is unconstrained because Go cannot express "implements at least one of `Starter`, `Quiescer`, `Stopper`" — the same limitation that makes `WithBeginComponents` take `any`.
 
 Yama derives and exposes no component name. A component that wants a printable identity implements `fmt.Stringer`; `%T` yields its type otherwise.
 
