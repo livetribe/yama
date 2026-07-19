@@ -1,0 +1,47 @@
+package yama // l7e.io/yama/v2
+
+var ErrStartFailed error
+
+func FromContext[T any](ctx context.Context) (T, bool)
+
+type Lifecycle interface {
+	Start(context.Context) error
+	Stop(context.Context)
+}
+
+type Option interface {
+	Apply(*bridge.Config)
+}
+
+type QuiesceInterceptor interface {
+	Quiesce(ctx context.Context, next Quiescer)
+}
+
+type Quiescer interface {
+	Quiesce(context.Context)
+}
+
+func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error
+
+type StartInterceptor interface {
+	Start(ctx context.Context, next Starter) error
+}
+
+type Starter interface {
+	Start(context.Context) error
+}
+
+type StopInterceptor interface {
+	Stop(ctx context.Context, next Stopper)
+}
+
+type Stopper interface {
+	Stop(context.Context)
+}
+
+func WithBeginComponents(components ...any) Option
+
+func WithEndComponents(components ...any) Option
+
+func WithInterceptors(interceptors ...any) Option
+
