@@ -31,7 +31,7 @@ Yama is implemented around the same operating model as Google Wire:
 * Preserve strong typing.
 * Keep generated code readable and debuggable.
 
-The runtime lifecycle implementation is intentionally small. It executes generated methods, applies generated timeout policy, calls generated interceptor chains, tracks minimal lifecycle state, and returns lifecycle-level outcomes.
+The runtime lifecycle implementation is intentionally small. It executes generated methods, calls generated interceptor chains, tracks minimal lifecycle state, and returns lifecycle-level outcomes.
 
 The architecture prefers:
 
@@ -211,11 +211,11 @@ Shutdown runs the quiesce pass and the teardown pass in dependency order, to com
 
 ## 12. Context Propagation Architecture
 
-The caller's context enters `Start` and `Stop`. Generated code derives operation contexts from it when applying timeouts and lifecycle component metadata.
+The caller's context enters `Start` and `Stop`. Generated code derives operation contexts from it by attaching lifecycle component metadata.
 
 Before invoking interceptors, generated code attaches the current lifecycle component to context. This supports diagnostics, logging, metrics, tracing, and telemetry. The access mechanism is part of the framework-defined interceptor contract: interceptor implementations receive the operation context after the component has been attached and can read it with `yama.FromContext[T](ctx)`. This is the only way an interceptor can reach the component, since its `next` argument is the rest of the chain rather than the component. The lifecycle operation does not need separate context metadata because the operation-specific interceptor method identifies whether the call is Start, Quiesce, or Stop. The context carrier uses unexported keys so components cannot accidentally collide with framework metadata. The accessor exposes the component only; it does not expose graph APIs, generated implementation types, lifecycle plans, or component error details.
 
-Interceptors may replace or wrap the context before invoking the next element in the chain. Component lifecycle methods receive the context produced by timeout policy, component context injection, and interceptor processing.
+Interceptors may replace or wrap the context before invoking the next element in the chain. Component lifecycle methods receive the context produced by component context injection and interceptor processing.
 
 Generated code never extends an existing caller deadline, and generates no deadline of its own. The caller's context deadline, if any, is the only deadline, and it remains authoritative.
 
@@ -268,10 +268,9 @@ Generated artifacts are implementation details. Applications may inspect them fo
 
 Each generated level is a private generated value that implements `Starter` when any of its members participate in startup. The top-level lifecycle treats the level like a component by calling its `Start` method. Inside the level, generated code starts all member components concurrently. Each component invocation passes through:
 
-1. component-specific start timeout policy,
-2. generated lifecycle component context injection,
-3. the prebuilt start interceptor chain,
-4. the component's `Start` method.
+1. generated lifecycle component context injection,
+2. the prebuilt start interceptor chain,
+3. the component's `Start` method.
 
 A `Start` is expected to return once the component's start side effects have begun; construction already produced an inert, valid value. A component whose start would otherwise block — for example `http.Server.ListenAndServe` or `grpc.Server.Serve` — is responsible for launching the blocking call in its own goroutine and returning, routing the error wherever it needs to go. This is ordinary Go; the framework provides no helper for it.
 
@@ -487,7 +486,6 @@ Runtime overhead consists primarily of:
 
 * calling generated methods,
 * launching generated concurrent operations,
-* applying context timeouts,
 * invoking interceptor chains,
 * tracking which components started successfully,
 * aggregating lifecycle-level success or failure state internally.

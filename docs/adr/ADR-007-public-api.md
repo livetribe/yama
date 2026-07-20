@@ -65,7 +65,7 @@ the components inside it: a `Starter` and a `Stopper`. Expressing it as the
 composition of those two interfaces states that directly rather than restating
 their method signatures a second time.
 
-The implementation is private and owned by the runtime-support package (ADR-010).
+The implementation is private and owned by the runtime-support package.
 Applications receive a `Lifecycle`; they do not implement or construct one, and no
 public construction path exists.
 

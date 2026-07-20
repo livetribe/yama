@@ -308,9 +308,10 @@ chain, the wrapper layer is universal. Every component is wrapped, whether or no
 interceptor is attached to it. Wrapping is not opt-in.
 
 The observational deadline carried by the caller's context relies on this same
-universal wrapping. The wrapper is where per-component overrun is detected and logged
-when the deadline fires, so universal wrapping is what gives that mechanism
-per-component attribution.
+universal wrapping. A built-in, Yama-authored overrun interceptor — attached to
+every component's chain, never supplied or registered by the application — is
+what detects and logs a per-component overrun when the deadline fires; universal
+wrapping is what gives that mechanism per-component attribution.
 
 ## Observability
 

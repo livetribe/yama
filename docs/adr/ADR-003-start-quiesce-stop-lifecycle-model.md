@@ -77,7 +77,7 @@ The framework shall not support additional lifecycle phases.
 ## Public API
 
 The lifecycle manager is exposed as `Lifecycle`, composed of the capability
-interfaces above (ADR-007 owns the public-API shape):
+interfaces above:
 
 ```go
 type Lifecycle interface {

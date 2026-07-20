@@ -16,9 +16,9 @@ interprets one.
 ## Status
 
 This is v2, a green-field rewrite; it shares only a name and a repository
-with the earlier `v0.x` signal-watcher (see
-[ADR-011](docs/adr/ADR-011-v1-v2-disposition.md)). v2 is under active
-construction and exports no public API yet.
+with the earlier `v0.x` signal-watcher. v2 is under active construction: the
+public API surface is defined and frozen, but the code generator and runtime
+are still being built.
 
 For the design, see:
 

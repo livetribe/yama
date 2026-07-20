@@ -134,6 +134,24 @@ A start that exceeds its deadline is handled as an ordinary start failure and
 surfaces as `ErrStartFailed`. The lifecycle manager does not distinguish a start
 timeout from any other start failure at the public API level.
 
+## Component Panics
+
+A component that panics in a lifecycle method is treated exactly as one that
+returns the corresponding failure for that phase. A panic is not a distinct
+public outcome.
+
+A panic during `Start` is a start failure: the lifecycle manager recovers it and
+surfaces `ErrStartFailed`, indistinguishable at the public API from any other
+start failure.
+
+A panic during `Quiesce` or `Stop` is recovered, and the pass continues in
+dependency order to completion. Shutdown returns nothing, so a recovered shutdown
+panic changes no return value and the pass is never abandoned.
+
+This holds uniformly for graph components and boundary components. The panicking
+component's identity and panic value are diagnostics, available only through
+interceptors and observability, never through a lifecycle return value.
+
 ## Startup Failure Cleanup
 
 If startup fails after one or more components have successfully started:

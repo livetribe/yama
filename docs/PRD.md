@@ -330,11 +330,8 @@ Interceptors may:
 * Suppress execution.
 * Modify lifecycle outcomes.
 
-Interceptors may be attached:
-
-* Globally.
-* Per lifecycle component, through generated, strongly-typed per-component
-  fields (not string keys or a registration API).
+Interceptors attach globally: an interceptor joins the chain for every lifecycle
+component whose operation it intercepts. There is no per-component scoping.
 
 ---
 
@@ -389,6 +386,33 @@ Generated code shall be executable Go code rather than runtime lifecycle plans.
 
 ---
 
+## 6.11 Boundary Components
+
+The framework shall support boundary components: lifecycle-capable components
+registered to participate in every lifecycle pass while sitting outside the Wire
+dependency graph.
+
+An application may register a component at the begin boundary or the end
+boundary. In each pass, begin-boundary components run before the graph's
+components and end-boundary components run after them. Boundary components have
+no ordering relative to the graph components or to one another.
+
+Boundary components implement the same optional lifecycle capabilities as graph
+components and follow the same startup, quiesce, and shutdown semantics.
+
+---
+
+## 6.12 Signal-Driven Run
+
+The framework shall provide a helper that runs a lifecycle until an operating-
+system signal is received: it starts the lifecycle, blocks until one of a
+caller-specified set of signals arrives, and then shuts the lifecycle down.
+
+When the caller specifies no signals, the helper shall run until an interrupt or
+termination signal.
+
+---
+
 # 7. Non-Functional Requirements
 
 ## 7.1 Type Safety
@@ -432,7 +456,7 @@ The project is considered successful when:
 7. Generated code remains readable.
 8. Generated code remains debuggable.
 9. Interceptors provide lifecycle extensibility.
-10. The public API stays minimal: capability interfaces, interceptor interfaces, the `Lifecycle` type, and `ErrStartFailed`.
+10. The public API stays minimal: the capability and interceptor interfaces, the `Lifecycle` type, `ErrStartFailed`, the `FromContext` accessor, the `Option` type with its `WithBeginComponents`, `WithEndComponents`, and `WithInterceptors` constructors, and `RunUntilSignal`.
 
 ---
 

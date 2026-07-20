@@ -18,5 +18,6 @@ stale, speculative, or inconsistent with the current repository state.
 
 ## Contents
 
-* `prd.md` - prompt used to generate ADRs and PRD
-* `architecture.md` - prompt used to generate architecture
+* `prd.md` - prompt used to generate the PRD
+* `architecture.md` - prompt used to generate the architecture
+* `codex-review.md` - archived Codex review findings for the implementation plan
