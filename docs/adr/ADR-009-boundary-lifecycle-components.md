@@ -27,18 +27,30 @@ construction DAG: a **begin** boundary and an **end** boundary.
 Boundary components are peers of the graph components. A boundary component participates in the
 lifecycle through whichever of `Starter`, `Quiescer`, and `Stopper` it implements,
 exactly as a graph component does. The boundary a component is registered in does not change
-what it does; it controls only its execution order relative to the graph:
+what it does; it fixes only its ordering position relative to the graph, as if it were a
+dependency extreme of the whole graph:
 
-* A **begin** component runs before all graph components in each pass it participates in.
-* An **end** component runs after all graph components in each pass it participates in.
+* A **begin** component behaves as a base dependency of the entire graph: it starts
+  before every graph component and, because shutdown is the reverse of startup,
+  quiesces and stops *after* every graph component. Base services such as telemetry
+  belong here — up first, down last, so they outlive everything that uses them.
+* An **end** component behaves as a top-level dependent of the entire graph: it starts
+  after every graph component and quiesces and stops *before* every graph component. Work
+  that must run at the very edge of shutdown — flipping a readiness probe to failing
+  before the graph drains — belongs here.
+
+Startup order is therefore `begin → graph (dependency order) → end`, and shutdown order is
+its exact reverse, `end → graph (reverse order) → begin`, for both the quiesce pass and the
+teardown pass.
 
 The following properties hold:
 
 * Each boundary is a flat, unordered set. There is no ordering guarantee among components
   in the same set.
-* A boundary component has no dependency relationship to any graph component. A component that has a
-  real dependency on, or dependents in, the graph belongs in the graph, not in a
-  boundary.
+* A boundary component has no dependency relationship to any *particular* graph component,
+  and no construction-graph edges: its ordering-extreme position is granted by the boundary,
+  not wired. A component that has a real dependency on, or dependents in, specific graph
+  components belongs in the graph, not in a boundary.
 * Failure semantics are identical to a graph component's. A Start error or panic is
   fail-fast and surfaces as `ErrStartFailed`, exactly as it would for a graph component
   (ADR-003, ADR-006). A Quiesce or Stop error or panic is recovered and the pass runs to
@@ -56,20 +68,22 @@ graph that ADR-002 and ADR-008 make authoritative.
 
 ## Rationale
 
-The mechanism exists to express one thing: this component runs before everything, or
-after everything. Wiring that through the construction graph would mean maintaining
-dependency edges that encode a position rather than a real dependency, revised
-whenever the set of roots changes. A boundary registration states the position
-directly.
+The mechanism exists to express one thing: this component sits at a dependency extreme
+of the whole graph — a base every graph component effectively depends on, or a top that
+effectively depends on every graph component. Wiring that through the construction graph
+would mean maintaining dependency edges against every root, revised whenever the set of
+roots changes. A boundary registration states the position directly, and because it is
+modeled as a dependency extreme, the same ordering rule that governs the graph governs it:
+startup runs bases before dependents, shutdown runs the exact reverse.
 
 Because boundary components are peers, a boundary registration changes only gross
-ordering — front or back — and nothing else, including how failure is handled. A
+ordering — base or top — and nothing else, including how failure is handled. A
 component's behavior comes entirely from the lifecycle interfaces it implements, the
 same interfaces a graph component uses, and its failure is handled by the same rules a
 graph component's is.
 
 Each boundary is kept flat and unordered on purpose. The mechanism grants only a
-coarse before-all or after-all pin. Anything that needs an ordering relative to
+coarse base or top pin. Anything that needs an ordering relative to
 specific other components has a real dependency relationship and belongs in the
 construction graph, where that relationship is expressed once and analyzed like any
 other edge. Ordering within a boundary set would recreate a second ordering
@@ -159,5 +173,7 @@ Boundary components do not provide:
 * A new lifecycle phase.
 * A distinct failure-handling policy from graph components.
 
-Boundary components exist only to register work that runs before all graph components or after
-all graph components, without expressing that position through the construction graph.
+Boundary components exist only to register work at a dependency extreme of the graph — a
+begin component that starts before all graph components and tears down after them, or an end
+component that starts after all graph components and tears down before them — without
+expressing that position through the construction graph.

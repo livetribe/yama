@@ -511,9 +511,14 @@ DoD process checks below guard against that.
       `ErrStartFailed` + cleanup ran), and a Stop-component panic (→ traversal
       completes, later dependencies still torn down).
 - *Output checks (boundaries, ADR-009):*
-  - Begin components run before all graph components in each pass they join; end components after
-    all graph components — for **all three** passes (Start / Quiesce / Stop) and also in
-    startup-failure cleanup (same passes, no separate path).
+  - Boundaries are dependency extremes: a begin component starts before all graph components
+    and quiesces/stops **after** all of them (a base every graph component depends on); an
+    end component starts after all graph components and quiesces/stops **before** all of them
+    (a top that depends on the whole graph). Shutdown is the exact reverse of startup —
+    `end → graph → begin` — for the Quiesce and Stop passes, and also in startup-failure
+    cleanup (same passes, no separate path). A non-`Starter` boundary component takes part in
+    shutdown only if its boundary was reached (begin always is; end only if startup got past
+    the graph).
   - A boundary component joins a pass only if it implements that pass's interface.
   - Boundary failure handling is **identical to a graph component's, not a separate
     policy** (ADR-009): a begin/end `Starter`'s error or panic fails startup

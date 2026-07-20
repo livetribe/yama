@@ -183,6 +183,14 @@ After startup context cancellation, the lifecycle manager waits for in-flight st
 
 Once the active startup level has settled, the lifecycle manager determines which components successfully started.
 
+A component that implements `Starter` counts as started only if its `Start` returned
+without error or panic. A component doesn't implement `Starter` has no start to succeed
+or fail; it counts as started if, and only if, its level was reached during startup — the
+traversal advanced to it before failing. Reaching a component's level is that component's
+start. Consequently, a non-`Starter` in a level the failed startup never reached is not
+brought up and takes no part in shutdown, exactly as a `Starter` whose level was never
+reached does not.
+
 The lifecycle manager then automatically initiates shutdown processing for those successfully started components.
 
 The application is not required to invoke Stop() after a failed Start().

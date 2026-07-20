@@ -229,8 +229,8 @@ The framework provides a small set of helpers for common lifecycle patterns:
 
 ```go
 func RunUntilSignal(Lifecycle, ...) error // Start, wait for a signal, then Stop
-func WithBeginNode(...)  // register a node that runs before the graph in each pass
-func WithEndNode(...)    // register a node that runs after the graph in each pass
+func WithBeginComponents(...) // base-extreme: start before the graph, tear down after it
+func WithEndComponents(...)   // top-extreme: start after the graph, tear down before it
 func WithInterceptors(interceptors ...any) Option // attach interceptors globally
 ```
 

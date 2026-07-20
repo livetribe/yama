@@ -143,7 +143,7 @@ Conceptually, the generated implementation contains:
 * one generated started flag per lifecycle component,
 * minimal terminal state for lifecycle completion.
 
-The per-component started flags are the runtime state used to scope quiesce and stop during normal shutdown and startup-failure cleanup. They are concrete generated fields, not entries in a runtime graph or plan.
+The per-component started flags are the runtime state used to scope quiesce and stop during normal shutdown and startup-failure cleanup. They are concrete generated fields, not entries in a runtime graph or plan. Every lifecycle component carries one, so shutdown gates uniformly on the flag: a `Starter`'s flag is set when its `Start` succeeds; a component that implements no `Starter` has its flag set when its level is reached — reaching its level is its start — so a non-`Starter` in a level the startup never reached is left untouched during cleanup, just as an unstarted `Starter` is.
 
 Generated code contains explicit methods for:
 
@@ -328,26 +328,31 @@ Registering a component in a boundary does not change what it does; it controls 
 execution order relative to the graph.
 
 The lifecycle runs three passes: the Start pass in dependency order, and the
-Quiesce and Stop passes in reverse dependency order. In each pass, boundary components
-bracket the graph — a begin component runs before every graph component in that pass, an end
-component runs after every graph component in that pass. A boundary component joins a pass only
+Quiesce and Stop passes in reverse dependency order. Boundaries are modeled as dependency
+extremes of the whole graph — a begin component behaves as a base every graph component
+depends on, an end component as a top that depends on every graph component — so the same
+ordering rule that governs the graph governs them. A begin component therefore starts
+before every graph component and quiesces and stops *after* every graph component; an end
+component starts after every graph component and quiesces and stops *before* every graph
+component. Shutdown is the exact reverse of startup. A boundary component joins a pass only
 when it implements that pass's interface:
 
 ```text
 Start pass     begin Starters   → graph Starters  → end Starters
-Quiesce pass   begin Quiescers  → graph Quiescers → end Quiescers
-Stop pass      begin Stoppers   → graph Stoppers  → end Stoppers
+Quiesce pass   end Quiescers    → graph Quiescers → begin Quiescers
+Stop pass      end Stoppers     → graph Stoppers  → begin Stoppers
 ```
 
-A boundary registration expresses one thing: this component runs before every graph
-component, or after every graph component. It exists so that "run first" or "run last" can be
-stated directly instead of by wiring dependency edges against every graph root and
-revising them whenever the set of roots changes.
+A boundary registration expresses one thing: this component sits at a dependency extreme of
+the graph — a base that comes up first and goes down last, or a top that comes up last and
+goes down first. It exists so that position can be stated directly instead of by wiring
+dependency edges against every graph root and revising them whenever the set of roots
+changes.
 
 Each boundary is a flat, unordered set. Components in the same set have no ordering
 relationship and may execute concurrently; Yama makes no ordering guarantee among
-them. A boundary component has no dependency relationship to any graph component. Anything
-that needs an ordering relative to specific components has a real dependency
+them. A boundary component has no dependency relationship to any particular graph component.
+Anything that needs an ordering relative to specific components has a real dependency
 relationship and belongs in the construction graph, not in a boundary set.
 
 A boundary component's failure is handled exactly like a graph component's, because
@@ -379,16 +384,19 @@ levels.
 
 Two cases illustrate the boundaries without defining them:
 
-* An in-process readiness flip is a begin component. As a `Quiescer`, its `Quiesce`
-  runs before every graph component quiesces, so the readiness probe flips to failing
-  before the graph drains and the routing layer stops sending new work. (See
-  Appendix A for how this relates to the `preStop` hook, which is the primary
-  mechanism and is out of Yama's scope.)
-* A metrics flush that must run after everything else is an end component — a `Stopper`
-  whose `Stop` runs after every graph component stops. This holds only if it owns its
-  transport. If its exporter depends on a Wire-constructed connection or pool, the
-  flush has a genuine dependency on a graph component and belongs in the construction
-  graph as an ordinary teardown component, not in the end boundary.
+* Telemetry, or another base service every component uses, is a begin component. It
+  starts before the graph, and because shutdown reverses startup, its `Quiesce` and
+  `Stop` run *after* every graph component — so components can still log, trace, and emit
+  metrics while they quiesce and tear down. A begin component outlives everything that
+  depends on it. This holds only if it owns its transport; if it depends on a
+  Wire-constructed connection or pool, it has a genuine dependency on a graph component and
+  belongs in the construction graph, not the begin boundary.
+* An in-process readiness flip is an end component. As a `Quiescer`, its `Quiesce` runs
+  before every graph component quiesces, so the readiness probe flips to failing before
+  the graph drains and the routing layer stops sending new work. As a `Starter`, it starts
+  after the whole graph is up, so the process reports ready only once everything behind it
+  is running. (See Appendix A for how this relates to the `preStop` hook, which is the
+  primary mechanism and is out of Yama's scope.)
 
 ## 19. Concurrency Model
 
@@ -542,7 +550,7 @@ Yama runs graceful shutdown when the process receives SIGTERM; it does not encod
 
 **The shutdown budget must fit inside `terminationGracePeriodSeconds`.** After SIGTERM, Kubernetes sends SIGKILL once the grace period elapses. The deadline on the context the caller passes to `Stop`, plus any `preStop` delay, should fit within `terminationGracePeriodSeconds`, because SIGKILL — not the observational deadline — is what ultimately bounds shutdown.
 
-**An in-process readiness flip is a begin boundary component, not a graph component.** The primary mechanism for the readiness-to-routing gap is the `preStop` hook above, which fires before SIGTERM and is out of Yama's scope; the total shutdown budget, including any `preStop` delay, must fit within `terminationGracePeriodSeconds`. If an application additionally wants to flip readiness from inside the process, that flip should run before the graph quiesces, which makes it a begin boundary component (see Boundary Components): a `Quiescer` registered in the begin boundary, rather than a `Quiescer` wired into the construction graph. Modeling it as a graph component would require wiring dependency edges only to force it to the front of the quiesce pass; the begin boundary expresses that position directly.
+**An in-process readiness flip is an end boundary component, not a graph component.** The primary mechanism for the readiness-to-routing gap is the `preStop` hook above, which fires before SIGTERM and is out of Yama's scope; the total shutdown budget, including any `preStop` delay, must fit within `terminationGracePeriodSeconds`. If an application additionally wants to flip readiness from inside the process, that flip should run before the graph quiesces — the very start of shutdown — which makes it an end boundary component (see Boundary Components): a `Quiescer` registered in the end boundary, whose `Quiesce` runs before every graph component's, rather than a `Quiescer` wired into the construction graph. Modeling it as a graph component would require wiring dependency edges only to force it to the front of the quiesce pass; the end boundary expresses that position directly.
 
 ## Appendix B. Long-Lived Work
 
@@ -627,8 +635,8 @@ var ErrStartFailed error
 ### Helpers
 
 ```go
-func WithBeginNodes(nodes ...any) Option // register nodes that run before the graph in each pass
-func WithEndNodes(nodes ...any) Option   // register nodes that run after the graph in each pass
+func WithBeginComponents(components ...any) Option // base-extreme components: start before the graph, tear down after it
+func WithEndComponents(components ...any) Option   // top-extreme components: start after the graph, tear down before it
 func WithInterceptors(interceptors ...any) Option // attach interceptors globally
 func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
 ```

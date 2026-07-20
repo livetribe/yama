@@ -393,9 +393,12 @@ registered to participate in every lifecycle pass while sitting outside the Wire
 dependency graph.
 
 An application may register a component at the begin boundary or the end
-boundary. In each pass, begin-boundary components run before the graph's
-components and end-boundary components run after them. Boundary components have
-no ordering relative to the graph components or to one another.
+boundary, which model dependency extremes of the whole graph. A begin-boundary
+component behaves as a base dependency: it starts before every graph component
+and quiesces and stops after them. An end-boundary component behaves as a top
+dependent: it starts after every graph component and quiesces and stops before
+them. Shutdown is the exact reverse of startup. Within a boundary set, components
+have no ordering relative to one another.
 
 Boundary components implement the same optional lifecycle capabilities as graph
 components and follow the same startup, quiesce, and shutdown semantics.
