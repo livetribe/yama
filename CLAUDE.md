@@ -38,6 +38,22 @@ it's deleted with the code it describes.
 Use `testify` (`assert`/`require`) for new tests where it clarifies intent —
 this is a deliberate choice for this repo, not a Go default.
 
+## Code formatting beyond gofmt
+
+gofmt does not enforce these; apply them by hand, in production and test code
+alike.
+
+- **Single-line bodies.** A method/function body shares the signature's line only
+  when it is empty (`{}`) or a single `return` of a bare value — a field,
+  identifier, or literal with no call. Anything that does work — a `return`/`panic`
+  whose expression calls something, multiple statements, or control flow — goes on
+  its own line.
+- **Blank-line grouping.** Separate a function's logical steps with a single blank
+  line so its structure is visible at a glance — for example, set a guard clause
+  off from the work it protects, or the result-producing step off from what builds
+  it. Conversely, keep tightly-coupled statements together (e.g. a loop's
+  accumulator seed stays with its loop).
+
 ## Canonical docs, and their roles
 
 - `docs/PRD.md` — product requirements.
