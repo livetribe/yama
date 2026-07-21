@@ -221,7 +221,7 @@ Generated code never extends an existing caller deadline, and generates no deadl
 
 Components receive an ordinary context that may carry a deadline and handle it with standard Go idioms — including detaching with `context.WithoutCancel` or a fresh context for work that must complete regardless of the deadline. The framework introduces no special contract here beyond "you get a context."
 
-On startup failure, generated code cancels the startup context to prevent additional startup work from being scheduled and to signal in-flight operations in the active level.
+On startup failure, no further startup levels are scheduled. Yama derives no context of its own to cancel; in-flight components in the failing level continue under the caller's context and are awaited.
 
 ## 13. Generated Naming Strategy
 
@@ -276,7 +276,7 @@ A `Start` is expected to return once the component's start side effects have beg
 
 If all components in a level succeed, generated code marks those components as successfully started and proceeds to the next level.
 
-Startup is fail-fast. If any component in the active level fails, generated code cancels the startup context, stops scheduling further startup levels, waits for in-flight operations in the active level to settle, records which components started successfully, runs the normal generated shutdown sequence (quiesce pass, then teardown) for those components, and returns `ErrStartFailed`.
+Startup is fail-fast across levels. If any component in the active level fails, generated code stops scheduling further startup levels, waits for in-flight operations in the active level to settle on their own terms, records which components started successfully, runs the normal generated shutdown sequence (quiesce pass, then teardown) for those components, and returns `ErrStartFailed`. A sibling's failure does not cancel the components running beside it.
 
 Components in later levels are never started after a startup failure.
 
@@ -408,7 +408,7 @@ Generated quiesce code follows the same reverse dependency ordering as teardown;
 
 Generated code may use standard Go synchronization primitives such as goroutines, wait groups, channels, mutexes, or `errgroup`-style helpers. These helpers are private implementation details. They coordinate only the generated operations for the current lifecycle call and do not represent runtime graph state or runtime execution plans.
 
-Startup uses fail-fast coordination within a level. The quiesce and teardown passes coordinate ordered work that waits for each component to return, so ordering is never violated to reclaim liveness.
+Startup is fail-fast across levels: a failed level stops every later level. Within a level, members run to completion and are awaited; a sibling's failure does not cancel them. The quiesce and teardown passes coordinate ordered work that waits for each component to return, so ordering is never violated to reclaim liveness.
 
 ## 20. Timeout Handling
 
@@ -434,9 +434,8 @@ Interceptors can measure duration, log failures, emit metrics, start traces, rec
 
 Startup component failure:
 
-* cancel startup context,
 * stop scheduling startup levels,
-* wait for in-flight operations in the active level,
+* wait for in-flight operations in the active level to settle uninterrupted,
 * quiesce successfully started components,
 * stop successfully started components,
 * return `ErrStartFailed`.

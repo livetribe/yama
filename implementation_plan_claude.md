@@ -456,11 +456,12 @@ DoD process checks below guard against that.
   - Components implementing only some capabilities: a `Starter`-only component never gets
     `Quiesce`/`Stop`; a `Stopper`-only component never gets `Start`.
 - *Output checks (fail-fast + cleanup):*
-  - Startup failure in the active level: startup context is canceled, no later
-    level is started (asserted: level-N+1 components' `Start` never called), in-flight
-    same-level ops are awaited to settle, and **only the successfully-started**
-    components are quiesced+stopped (scoping proven with a component that failed vs.
-    a sibling that started).
+  - Startup failure in the active level: no later level is started (asserted:
+    level-N+1 components' `Start` never called), in-flight same-level ops are
+    awaited to settle **uninterrupted** (asserted: a sibling's failure does not
+    cancel them), and **only the successfully-started** components are
+    quiesced+stopped (scoping proven with a component that failed vs. a sibling
+    that started).
   - The cleanup path is **the same code** as normal `Stop` (Invariant 4) — proven
     by a shared observer seeing identical ordering, not a parallel implementation.
   - `Start` returns exactly `ErrStartFailed` (via `errors.Is`) and never the

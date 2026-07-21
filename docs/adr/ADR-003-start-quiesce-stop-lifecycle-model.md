@@ -174,12 +174,20 @@ Startup is fail-fast.
 
 When a startup operation fails:
 
-1. The startup context is canceled.
-2. Additional startup work shall not be scheduled.
-3. In-flight startup operations may observe cancellation through context propagation.
-4. Startup is considered failed.
+1. Additional startup work shall not be scheduled; no later level is started.
+2. In-flight startup operations in the active level are not canceled.
+3. Startup is considered failed.
 
-After startup context cancellation, the lifecycle manager waits for in-flight startup operations in the active startup level to complete.
+Siblings within a level are independent subsystems, not collaborating halves of one
+job, so a failure in one is not a reason to interrupt the others. Cancelling them
+would also leave a component interrupted part-way through `Start` — a state it must
+unwind itself, since a failed `Start` receives no teardown. Letting each sibling
+finish on its own terms means every one ends either started, and therefore torn down
+cleanly, or failed, and therefore responsible for itself. The framework cancels
+nothing of its own; components observe the caller's context, whose deadline still
+bounds a slow `Start`.
+
+The lifecycle manager waits for in-flight startup operations in the active startup level to complete.
 
 Once the active startup level has settled, the lifecycle manager determines which components successfully started.
 
