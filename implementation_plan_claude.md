@@ -534,9 +534,9 @@ DoD process checks below guard against that.
   wait-group accounting). (The canceled-at-`Start` and start-deadline cases are
   covered as first-class output checks above.)
 
-**Regression note.** Phase 7 inserts `cleanupAdapter` `Stopper`s into shutdown
-levels — re-run **all** Phase 3 ordering tests after Phase 7 to confirm adapters
-occupy the correct DAG position and don't perturb ordering. Phase 8's emitted code
+**Regression note.** Phase 7 folds cleanup functions into shutdown levels — re-run
+**all** Phase 3 ordering tests after Phase 7 to confirm they occupy the correct DAG
+position and don't perturb ordering. Phase 8's emitted code
 must produce level structures that satisfy these same invariants — Phase 3's tests
 become the behavioral contract Phase 10 re-checks on generated output.
 
@@ -701,30 +701,27 @@ assignment yields silently-wrong startup/shutdown ordering in every consuming ap
   (many independent components in one level); a deep chain (many single-component levels);
   a component that is both depended-upon and a dependent (interior of a chain).
 
-**Regression note.** Adding `cleanupAdapter` components (Phase 7) injects synthetic
-`Stopper`s into the shutdown/teardown level computation "at the cleaned-up value's
-position." Re-run all Phase 6 level tests after Phase 7 to confirm adapters land in
-the right level and don't shift other components. This is the highest-value regression
+**Regression note.** Folding cleanup functions (Phase 7) adds teardown work to the
+shutdown level computation "at the cleaned-up value's position." Re-run all Phase 6
+level tests after Phase 7 to confirm cleanups land in the right level and don't
+shift other components. This is the highest-value regression
 checkpoint in the plan.
 
 ---
 
 ## Phase 7 — Generator: cleanup-adapter synthesis
 
-**Goal.** A cleanup function is shorthand for a `Stopper`: wrap **every** Wire
-cleanup function in a synthetic `cleanupAdapter` `Stopper` positioned at the
-cleaned-up value's DAG slot (ordering only, type graph unmodified). The change is
-small — adapter synthesis + positioning — but its stakes are not: per ADR-008
-cleanup functions are the *primary* graceful-shutdown teardown mechanism, so a
-mispositioned or dropped adapter is the same "dependency torn down while a
-dependent still uses it" failure Phase 3 rates HIGH, in the path most real apps'
-resource teardown (DB pools, file handles, connections) runs through. Kept a
-separate phase to hold the cleanup semantics and the
-both-a-`Stopper`-and-a-cleanup case in one place. Background: ADR-008 §"Cleanup
-functions".
+**Goal.** Fold **every** Wire cleanup function into the teardown of the value it
+cleans up, at that value's DAG slot (ordering only, type graph unmodified). The
+change is small — folding + positioning — but its stakes are not: a mispositioned
+or dropped cleanup is the same "dependency torn down while a dependent still uses
+it" failure Phase 3 rates HIGH, in the path much real resource teardown (DB pools,
+file handles, connections) runs through. Kept a separate phase to hold the cleanup
+semantics and the both-a-`Stopper`-and-a-cleanup case in one place. Background:
+ADR-008 §"Cleanup functions".
 
-**Files/modules touched.** `internal/generator/cleanup*.go`, the `cleanupAdapter`
-type (location/visibility per ADR-010), fixtures covering plain-cleanup and
+**Files/modules touched.** `internal/generator/cleanup*.go`, the cleanup-folding
+helper (location/visibility per ADR-010), fixtures covering plain-cleanup and
 both-a-`Stopper`-and-a-cleanup values.
 
 **Dependencies.** Phases 5–6.
@@ -739,26 +736,25 @@ constructor semantics). The DoD below is held to that standard.
 - *Process:*
   - Read ADR-008 §"Cleanup functions" and Architecture §4 step 6, §17.
 - *Output checks:*
-  - Every detected cleanup function becomes a `cleanupAdapter` implementing
-    `Stopper`, inserted at the **same DAG position** as the value it cleans up, so
-    Phase 6's shutdown levels place it correctly (verified against Phase 3's
-    ordering invariants on the generated result). (`cleanupAdapter`'s
-    location/visibility follows ADR-010, like the other shared helpers — it must be
-    constructible from generated app-package code.)
-  - Teardown has a **single dispatch path**: hand-written `Stopper`s and
-    adapter-wrapped cleanups are treated identically (no special-casing in emitted
-    code — asserted by inspecting the golden output).
-  - The injected **type graph is unmodified** — adapters exist only for ordering
+  - Every detected cleanup function is folded into the teardown of the value it
+    cleans up, at the **same DAG position** as that value, so Phase 6's shutdown
+    levels place it correctly (verified against Phase 3's ordering invariants on
+    the generated result). The folding helper's location/visibility follows
+    ADR-010 — it must be constructible from generated app-package code.
+  - The injected **type graph is unmodified** — folding affects ordering only
     (assert the app's own types are untouched).
+  - Cleanups do **not** pass through interceptor chains; a cleanup is a plain
+    `func()` with no context and no component identity. Asserted: an interceptor
+    registered over a graph with cleanups observes the components' own operations
+    and not the cleanups.
   - **Both-a-`Stopper`-and-a-cleanup value:** a provider that returns a cleanup func
-    *and* whose value implements `Stopper` yields **two `Stopper` components at the same
-    DAG position** — the value and the adapter — sharing incoming/outgoing edges,
-    landing in the **same teardown level**, running concurrently with no ordering
-    between them. Asserted; **not** an error and **not** deduplicated.
-- *Edge/failure cases:* a value with a cleanup func but no other capability (adapter
-  is its only lifecycle role); multiple cleanup funcs in one injector (each adapted
-  at its own position); a `Stopper` value with no cleanup func (plain `Stopper`, no
-  adapter).
+    *and* whose value implements `Stopper` yields **one** teardown participant whose
+    `Stop` runs the cleanup and then the value's own `Stop`, in that order and in the
+    same teardown level. Asserted; **not** an error and **not** two components.
+- *Edge/failure cases:* a value with a cleanup func but no other capability (the
+  cleanup is its only teardown role); multiple cleanup funcs in one injector (each
+  folded at its own position); a `Stopper` value with no cleanup func (plain
+  `Stopper`).
 
 **Regression note.** See Phase 6 note — this phase is the reason Phase 6's tests
 must be re-run. Also re-run Phase 3 ordering tests against a fixture whose ordering

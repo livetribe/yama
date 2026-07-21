@@ -64,7 +64,7 @@ The generation pipeline is:
 3. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
 4. Treat the final root-struct literal returned by the injector (for example `App`) as the manifest of top-level roots, not itself a component. Treat each injector function as an independent graph; never merge them.
 5. Derive dependency edges from the arguments each creation event consumes.
-6. Detect lifecycle capabilities for each component. A cleanup function is shorthand for a `Stopper`: wrap every Google Wire cleanup function in a synthetic `cleanupAdapter` value implementing `Stopper`, positioned at the cleaned-up value's place for ordering only. A value that both returns a cleanup function and implements `Stopper` becomes two `Stopper` components at the same DAG position.
+6. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
 7. Compute lifecycle execution structure:
    * startup levels,
    * quiesce levels,
@@ -307,7 +307,7 @@ During startup-failure cleanup, generated quiesce code is scoped to components t
 
 Both passes run under the caller's context — the single context passed to `Stop`, whose deadline, if any, spans the whole sequence. The quiesce pass completes before any teardown begins.
 
-Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable components. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent components in the same shutdown level stop concurrently inside the level. Google Wire cleanup functions participate here as `cleanupAdapter` values implementing `Stopper`, so every teardown component is a `Stopper` on a single dispatch path.
+Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable components. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent components in the same shutdown level stop concurrently inside the level. A Google Wire cleanup function runs as part of the teardown of the value it cleans up, before that value's own `Stop`; cleanups do not pass through interceptor chains.
 
 Each stop invocation passes through:
 
@@ -504,7 +504,7 @@ Generated code may be larger for large dependency graphs. This is an accepted tr
 
 Testing covers the generator, generated code shape, and runtime behavior of generated lifecycle implementations.
 
-Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only components, and cleanup functions wrapped as `cleanupAdapter`. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` yields two `Stopper` components at the same DAG position. These tests operate on the generated injector and generated source, not on a private runtime graph API.
+Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only components, and cleanup functions. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` has the cleanup folded into its teardown, ahead of that value's own `Stop`. These tests operate on the generated injector and generated source, not on a private runtime graph API.
 
 Generated-code tests should compile generated packages and exercise the public lifecycle surface. They should verify startup ordering, shutdown ordering, quiesce-before-teardown behavior, reverse-topological quiesce ordering, concurrent independent branches, startup fail-fast behavior, startup-failure cleanup, that shutdown returns nothing and runs to completion, observational-deadline overrun logging, and that only `ErrStartFailed` is returned. Golden-file tests should cover generated source shape for representative graphs so readability, naming stability, and chain construction remain reviewable.
 
