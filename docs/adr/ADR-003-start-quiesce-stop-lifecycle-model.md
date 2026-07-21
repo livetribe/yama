@@ -449,3 +449,11 @@ This lifecycle model does not provide:
 * Framework-managed backoff
 
 The lifecycle model exists solely to coordinate startup and shutdown behavior derived from a dependency graph.
+
+Restart is a non-goal in the sense that Yama offers it no semantics, not in the
+sense that Yama forbids it. `Start` after `Stop` re-runs the passes; whether the
+components tolerate being started twice is theirs to decide. Two things carry over
+unchanged and are the caller's to weigh: a component that released its resources in
+`Stop` gets no help reacquiring them, and a Google Wire cleanup function — written
+for a single injector lifetime, not authored with restart in mind — is invoked
+again by the second `Stop`.
