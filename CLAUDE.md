@@ -35,8 +35,27 @@ it's deleted with the code it describes.
 
 ## Testing
 
-Use `testify` (`assert`/`require`) for new tests where it clarifies intent —
-this is a deliberate choice for this repo, not a Go default.
+**Match the framework to the test.** Ginkgo (`ginkgo/v2`) for complicated
+behavioral tests — branching setup, a fixture shared across many related cases,
+or timing and concurrency to pin down; its containers and Gomega's
+`Eventually`/`Consistently` earn their weight there. Plain `testing.T` for
+simple features: a handful of independent assertions, a table of
+input-to-output cases, a single fact. Reaching for Ginkgo to assert one thing
+costs more than it returns. Do not convert an existing test to match — convert
+only when you are already changing it for another reason.
+
+**Assertions follow the framework:** Gomega (`Expect`) inside Ginkgo specs,
+`testify` (`assert`/`require`) in plain `testing.T` tests, where it clarifies
+intent. Do not mix them in one test — `require` inside a spec bypasses
+Ginkgo's failure reporting.
+
+**Prefer generated mocks to hand-written fakes**, under either framework. Stand
+a collaborator up with `go.uber.org/mock` via a `//go:generate ... mockgen`
+directive on the file declaring the interface. Put behaviour on the mock rather
+than in a bespoke struct — for example, `DoAndReturn` supplies a slow call, and
+an unexpected call already fails the test, so "must never be called" needs no
+assertion. When a mock cannot carry something a test needs — a `fmt.Stringer`
+identity, say — embed it and add only the missing method.
 
 ## Code formatting beyond gofmt
 
