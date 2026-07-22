@@ -434,8 +434,10 @@ DoD process checks below guard against that.
   - Run the full test suite under `-race` for every check below; a passing but
     racy implementation is not done.
   - Do not introduce any timeout/deadline of Yama's own — the only deadline is the
-    caller's context (ADR-003 §"Stop Deadline", Architecture §20). Assert no
-    `context.WithTimeout` with a framework constant exists (grep/process check).
+    caller's context (ADR-003 §"Stop Deadline", Architecture §20). This is an
+    absence property over an open set of mechanisms, so it is not testable; hold
+    it at review. What is testable is its consequence, checked below: a hung
+    component stalls everything after it in the traversal.
   - **Boundary option ownership:** `WithBeginComponents`/`WithEndComponents` *signatures* are
     fixed in Phase 1; their *behavior* is implemented and tested here. Phase 4 does
     **not** revisit them (removes the earlier "finalize in Phase 4" overlap).
