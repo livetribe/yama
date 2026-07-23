@@ -135,6 +135,7 @@ func captureSlog() *captureHandler {
 // expired returns a context whose deadline has already passed, so any operation
 // run under it returns late.
 func expired() context.Context {
+	//nolint:gosec // cancel is called via DeferCleanup below.
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-time.Millisecond))
 	DeferCleanup(cancel)
 

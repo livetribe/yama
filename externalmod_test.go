@@ -15,6 +15,7 @@
 package yama_test
 
 import (
+	"context"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -41,7 +42,7 @@ func TestInternalBridgeNotImportableFromExternalModule(t *testing.T) {
 
 	fixtureDir := filepath.Join("testdata", "externalmod")
 
-	cmd := exec.Command("go", "build", "./...")
+	cmd := exec.CommandContext(context.Background(), "go", "build", "./...")
 	cmd.Dir = fixtureDir
 	out, err := cmd.CombinedOutput()
 	require.Error(t, err, "expected the external-module build to FAIL on the internal/ import, but it succeeded:\n%s", out)

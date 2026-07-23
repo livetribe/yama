@@ -21,6 +21,9 @@ import (
 	"github.com/google/wire"
 )
 
+// sandboxLogPrefix tags every log line the sandbox app emits.
+const sandboxLogPrefix = "[sandbox] "
+
 // The component providers, grouped by graph layer.
 var (
 	BaseSet = wire.NewSet(NewBase1, NewBase2, NewBase3)
@@ -34,7 +37,7 @@ var (
 var InfraSet = wire.NewSet(
 	NewConsoleLogger,
 	wire.Bind(new(Logger), new(*ConsoleLogger)),
-	wire.Value(Config{Env: Prod, LogPrefix: "[sandbox] "}),
+	wire.Value(Config{Env: Prod, LogPrefix: sandboxLogPrefix}),
 	wire.FieldsOf(new(Config), "Env"),
 )
 
