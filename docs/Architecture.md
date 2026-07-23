@@ -73,7 +73,7 @@ The generation pipeline is:
 8. Emit the lifecycle file, carrying a provenance header.
 9. Format generated Go code with standard Go formatting.
 
-Generation runs one command and produces two files (`wire_gen.go` and the lifecycle file). A CI check regenerates both and diffs them to catch drift.
+Generation runs one command and produces one committed file, the lifecycle file. `wire_gen.go` is a transient intermediate that Yama removes after generation, preserving any pre-existing `wire_gen.go` it did not create. A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift.
 
 Generation failures are build-time failures. Examples include Google Wire generation errors, unsupported injector shapes, generated naming conflicts that cannot be resolved within the Yama namespace, or invalid lifecycle analysis results.
 
@@ -85,7 +85,7 @@ Yama obtains ordering by running Google Wire's generator and analyzing the gener
 
 Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. The final root-struct literal returned by the injector is the manifest of top-level roots and is not itself a component. Multiple injector functions are independent graphs and are never merged.
 
-Google Wire remains responsible for dependency construction semantics. Yama remains responsible for lifecycle orchestration semantics. Coupling to the shape of Google Wire's generated output is guarded by a CI check that regenerates and diffs both files, not by depending on Google Wire's internal APIs.
+Google Wire remains responsible for dependency construction semantics. Yama remains responsible for lifecycle orchestration semantics. Coupling to the shape of Google Wire's generated output is guarded by a CI check that regenerates the lifecycle file and diffs it against the committed copy, not by depending on Google Wire's internal APIs.
 
 ## 6. Dependency Graph Extraction
 
@@ -245,7 +245,11 @@ Application-facing generated constructor names may be exported only when the app
 
 ## 14. Generated Artifact Layout
 
-Generation produces two files in the target application package: Google Wire's `wire_gen.go` and Yama's `lifecycle_gen.go`. One `go:generate` directive and one command produce both. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire generate`, so generation is reproducible and needs no assumption about `wire` being on `PATH`. A CI check regenerates both and diffs them against the committed copies to catch drift between `wire_gen.go` and the lifecycle file.
+Generation produces one committed file in the target application package: Yama's `lifecycle_gen.go`. One `go:generate` directive invokes Yama, which runs Google Wire, parses the generated injector, and emits the lifecycle file. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire gen`, so generation is reproducible and needs no assumption about `wire` being on `PATH`.
+
+Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory; Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and restored afterward, so generation never overwrites or deletes a file Yama does not own. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
+
+A CI check regenerates `lifecycle_gen.go` and diffs it against the committed copy to catch drift: a change in Google Wire's output shape changes the lifecycle file's content.
 
 The lifecycle file contains:
 
@@ -511,7 +515,7 @@ Interceptor tests should verify separate operation chains, the non-uniform signa
 
 Error tests should verify that callers receive only `ErrStartFailed`, that `Stop` returns nothing, and that component errors and deadline overruns are available only to interceptors or test observability hooks.
 
-Drift tests should regenerate `wire_gen.go` and the lifecycle file and diff them against the committed copies, so a change in Google Wire's generated output shape fails visibly at the drift boundary rather than at runtime.
+Drift tests should regenerate `lifecycle_gen.go` and diff it against the committed copy, so a change in Google Wire's generated output shape fails visibly at the drift boundary rather than at runtime.
 
 ## 25. Rejected Alternatives
 

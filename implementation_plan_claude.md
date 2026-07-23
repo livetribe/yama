@@ -846,12 +846,13 @@ golden test explaining that a diff means "confirm the change was intended."
 
 ---
 
-## Phase 9 — Generation driver: one command, two files, `go:generate`
+## Phase 9 — Generation driver: one command, `go:generate`
 
 **Goal.** Wire the pieces into a single user-facing generation step: one
-`go:generate` directive and one command that runs `wire gen` then Yama's
-generator, producing both `wire_gen.go` and `lifecycle_gen.go` in the target
-package.
+`go:generate` directive and one command that runs `wire gen`, parses the
+result, and emits `lifecycle_gen.go` in the target package. `lifecycle_gen.go`
+is the only committed output; `wire_gen.go` is a transient intermediate Yama
+removes when it is done (see the non-destructive-generation DoD below).
 
 **Files/modules touched.** `cmd/yama/main.go`, example app under `examples/…` with
 a `//go:generate` directive, README usage section. **The example app is its own
@@ -872,10 +873,21 @@ target package is malformed.
 **Definition of Done.**
 - *Process:* read Architecture §4, §14 and ADR-008 §"Generation and drift".
 - *Output checks:*
-  - A single command run in a fixture app produces **both** files; running it
-    twice is idempotent (second run yields no diff).
-  - The `//go:generate` directive (using `go tool wire`) is documented and
-    works via `go generate ./…` on the example app.
+  - A single command run in a fixture app produces the committed
+    `lifecycle_gen.go`; running it twice is idempotent (second run yields no
+    diff).
+  - **Transient, non-destructive `wire_gen.go` handling (asserted):** Google Wire
+    writes `wire_gen.go` into the package dir and cannot redirect it, so the
+    driver generates it there, parses it, and removes it after emitting
+    `lifecycle_gen.go`. It removes only a `wire_gen.go` it created: if one already
+    exists it is moved aside first (to a leading-dot name such as
+    `.yama.wire_gen.go`, which the Go toolchain ignores as a source file) and
+    restored afterward, byte-for-byte, so generation never overwrites or deletes a
+    file Yama does not own. Cleanup (removal and restore) runs even when the Yama
+    step fails, so no `wire_gen.go` or stray backup is left behind. Tests cover
+    both the pre-existing and absent cases and the failure path.
+  - The `//go:generate` directive (invoking Yama, which runs `go tool wire`
+    internally) is documented and works via `go generate ./…` on the example app.
   - Generation is atomic-ish: a failure in the Yama step does not leave a
     half-written `lifecycle_gen.go` that would compile-break the package
     (write-to-temp-then-rename or equivalent; asserted).
@@ -906,9 +918,9 @@ one cleanup func.
 
 ## Phase 10 — CI drift check, integration & golden coverage, docs
 
-**Goal.** Add the CI drift check (regenerate both files, diff against committed
-copies, fail on divergence), an end-to-end integration test that builds and runs
-the example app's lifecycle, and finalize docs/README.
+**Goal.** Add the CI drift check (regenerate `lifecycle_gen.go`, diff against the
+committed copy, fail on divergence), an end-to-end integration test that builds
+and runs the example app's lifecycle, and finalize docs/README.
 
 **Files/modules touched.** `.github/workflows/ci.yml`, `Makefile`/scripts,
 `examples/…` integration test, `README.md`, possibly `docs/`.
@@ -922,8 +934,8 @@ environment-sensitive drift check (Wire version, gofmt version, OS line endings)
 - *Process:* read Architecture §24 (testing strategy) and ADR-008 §"Generation and
   drift"; pin the Wire version used in CI and record it.
 - *Output checks:*
-  - CI regenerates `wire_gen.go` + `lifecycle_gen.go` for the example app and
-    **fails** if either differs from the committed copy.
+  - CI regenerates `lifecycle_gen.go` for the example app and **fails** if it
+    differs from the committed copy.
   - The drift mechanism itself is verified by a **durable, committed self-test**
     (script or `go test`), not a one-off manual tamper-and-revert: the test writes a
     known perturbation to a *copy* of a generated file, runs the drift comparison,
