@@ -492,10 +492,13 @@ DoD process checks below guard against that.
     this test forever rather than fail it. What is asserted here is that a
     component's *own* deadline error is treated like any other start failure —
     Yama adds no timeout handling of its own.
-  - **Caller context already canceled at `Start`:** `Start` performs no component
-    starts beyond what the cancellation permits and returns `ErrStartFailed`; any
-    component that did start is cleaned up via the normal shutdown sequence.
-    Asserted.
+  - **Caller context already canceled at `Start`:** `Start` observes the caller's
+    context and, finding it already canceled or past its deadline, returns
+    `ErrStartFailed` before any level runs — no component is started and nothing is
+    torn down. Because the start ran nothing, the lifecycle is left unchanged and
+    stays startable under a live context; it is **not** driven into the spent
+    terminal state a real start failure produces (ADR-006 §"Canceled Start
+    Context"). Asserted, including the retry under a live context.
   - A hung component stalls the traversal (does **not** return early) — a test
     with a bounded wait confirms the traversal blocks on it and later components have
     not run; document that only SIGKILL bounds this (do not add a framework
