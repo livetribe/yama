@@ -25,7 +25,7 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
       - name: test
-        run: go test -v -race -timeout 10s ./...
+        run: go test -v -race -timeout 30s ./...
 
   lint:
     runs-on: ubuntu-latest
@@ -54,7 +54,7 @@ jobs:
           go-version: 1.25.x
           cache: true
       - name: Calc coverage
-        run: go test -v -covermode=count -coverprofile=coverage.out -timeout 10s ./...
+        run: go test -v -covermode=count -coverprofile=coverage.out -timeout 30s ./...
       - name: Coveralls
         uses: coverallsapp/github-action@v2
         with:

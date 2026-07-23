@@ -76,10 +76,10 @@ func (*Base2) tree() string { return "base2" }
 // the injector's aggregated cleanup (Base2 returns cleanup and error).
 type Base3 struct{}
 
-func NewBase3(log Logger, env Environment) (*Base3, func()) {
+func NewBase3(log Logger, env Environment) (base *Base3, cleanup func()) {
 	log.Logf("construct base3 (env=%s)", env)
 
-	cleanup := func() { log.Logf("cleanup base3") }
+	cleanup = func() { log.Logf("cleanup base3") }
 
 	return &Base3{}, cleanup
 }

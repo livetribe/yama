@@ -181,6 +181,18 @@ because the lifecycle operation that failed was startup.
 
 Detailed cleanup diagnostics belong in observability systems.
 
+## Canceled Start Context
+
+Before it runs any component, `Start` observes the caller's context. A context
+already canceled or past its deadline returns `ErrStartFailed` with no component
+started.
+
+A `Start` that started no component leaves the lifecycle unchanged and may be
+started again under a live context. A `Start` that started at least one component
+and then failed has already run startup-failure cleanup over the components that
+came up; it is spent, and a later `Start` returns `ErrStartFailed` without
+re-running.
+
 ## Shutdown Always Completes
 
 Shutdown runs the quiesce pass and the teardown pass in dependency order, to

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package rt
+package exec
 
 import (
 	"context"
@@ -20,7 +20,7 @@ import (
 	"log/slog"
 	"time"
 
-	yama "l7e.io/yama/v2"
+	"l7e.io/yama/v2"
 	"l7e.io/yama/v2/internal/bridge"
 )
 

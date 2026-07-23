@@ -54,8 +54,8 @@ naming because several phases lean on them:
   `cleanupAdapter`, the built-in overrun interceptor) lives in a Yama-owned sibling
   package (e.g. `rt`) that generated code imports — exported so
   application-package code can call it, but not part of the stable ADR-007 API.
-  Only graph-specific code (level structs + ordering methods, `NewLifecycle`) is
-  generated inline; interceptors are supplied via the public, non-generated
+  Only graph-specific code (the `NewLifecycle` constructor, which declares each
+  level and its members) is generated inline; interceptors are supplied via the public, non-generated
   `WithInterceptors` option (ADR-005), not a generated input. Phase 3's "pin the
   generated-code shape" step is the checkpoint that re-confirms this split before
   Phase 8 bakes it into the emitter.
@@ -391,9 +391,9 @@ on — the per-component wrapper (Phase 2), a boundary runner, an `errgroup`-sty
 intra-level concurrency helper with fail-fast, per-component "started" tracking,
 and the quiesce-then-teardown shutdown/cleanup plumbing — and establish the
 **behavioral contract** (ordering invariants, fail-fast, boundaries) that Phase 8's
-*generated* code must later satisfy. This phase does **not** build a generic runtime
-runner that interprets a plan; per ADR-004 and ADR-010, the level structs and their
-Start/Quiesce/Stop orchestration methods are generated, not hand-written here.
+*generated* code must later satisfy. Ordering is carried by the order in which the
+generated constructor declares its levels; the runtime-support package holds that
+level list and drives each pass over it.
 
 **Files/modules touched.** The boundary runner, intra-level concurrency helper,
 started-flag tracking, and cleanup plumbing — in the **runtime-support package**
@@ -414,23 +414,20 @@ DoD process checks below guard against that.
   - Read ADR-003 (all lifecycle semantics + Invariants 1–6), **ADR-004**, ADR-009
     (boundaries), Architecture §8, §15–§20, §22 before implementing.
   - **Pin the generated-code shape first (the ADR-010 revisit checkpoint; resolves
-    the "designing around fixtures" concern).** Before writing any fixture, produce a
-    short written skeleton of what a generated level struct and its
-    Start/Quiesce/Stop methods will look like (the shape Phase 8 emits). The
-    hand-authored test stand-ins in this phase MUST match that skeleton, so Phase 8
+    the "designing around fixtures" concern).** Before writing any fixture, settle
+    what the generated constructor will look like (the shape Phase 8 emits). The
+    hand-authored test stand-ins in this phase MUST match that shape, so Phase 8
     can later emit code of the same shape and inherit this phase's behavioral suite.
-    **Commit this skeleton as a checked-in artifact, not only prose**: a short
-    `.go` template/example file (e.g. `internal/generator/testdata/skeleton.go.example`,
-    excluded from build) that Phase 8's golden-emission tests diff their *shape*
-    against (field names/order, method signatures — not byte-identical, since real
-    graphs vary). This turns "Phase 8 conforms to Phase 3's skeleton" from an
+    **Pin it as a checked-in artifact, not only prose**: `internal/generator/sandbox`
+    is a hand-authored application package whose `lifecycle_gen.go` is exactly what
+    Phase 8 must emit, and Phase 8's golden-emission tests diff their *shape*
+    against it (call sequence, level membership — not byte-identical, since real
+    graphs vary). This turns "Phase 8 conforms to Phase 3's shape" from an
     implicit expectation enforced only by shared behavioral tests into a checkable
-    artifact: if Phase 8 drifts from the pinned shape, the shape-diff fails
-    independently of whether the behavioral suite happens to still pass.
-  - **Guard against a generic engine (ADR-004 process check):** no exported or
-    unexported type in `package yama` may hold a runtime list/plan of levels that a
-    hand-written loop interprets. Orchestration flows through generated methods
-    calling shared helpers. Verify by inspection and note it in the phase writeup.
+    artifact: if Phase 8 drifts, the shape-diff fails independently of whether the
+    behavioral suite happens to still pass. The exemplar is a **built** package, not
+    `testdata` or a `.example` file, so the compiler catches it drifting from the
+    runtime-support API it calls.
   - Run the full test suite under `-race` for every check below; a passing but
     racy implementation is not done.
   - Do not introduce any timeout/deadline of Yama's own — the only deadline is the
@@ -543,7 +540,7 @@ DoD process checks below guard against that.
 **Regression note.** Phase 7 folds cleanup functions into shutdown levels — re-run
 **all** Phase 3 ordering tests after Phase 7 to confirm they occupy the correct DAG
 position and don't perturb ordering. Phase 8's emitted code
-must produce level structures that satisfy these same invariants — Phase 3's tests
+must declare levels that satisfy these same invariants — Phase 3's tests
 become the behavioral contract Phase 10 re-checks on generated output.
 
 ---
@@ -771,11 +768,12 @@ fixture (two teardown components, same level).
 
 ## Phase 8 — Generator: code emission, naming, formatting
 
-**Goal.** Emit `lifecycle_gen.go`: the provenance header, generated level structs,
-per-component wrappers, interceptor-chain construction (fed by the public
-`WithInterceptors` option, not a generated input), the generated
-`NewLifecycle`-style constructor returning `(*App, Lifecycle, error)`, and the
-Start/Quiesce/Stop methods — gofmt-clean and deterministic.
+**Goal.** Emit `lifecycle_gen.go`: the provenance header and the generated
+`NewLifecycle`-style constructor returning `(*App, Lifecycle, error)`, which
+re-emits the injector body and then declares each level and its members —
+gofmt-clean and deterministic. Per-component wrapping and interceptor-chain
+construction (fed by the public `WithInterceptors` option, not a generated input)
+happen inside the runtime-support package, not in emitted code.
 
 **Files/modules touched.** `internal/generator/emit*.go`,
 `internal/generator/templates` (or `go/ast`/`jennifer`-style builder — decide),

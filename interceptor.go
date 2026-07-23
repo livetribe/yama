@@ -16,6 +16,8 @@ package yama
 
 import "context"
 
+//go:generate go run go.uber.org/mock/mockgen -source=interceptor.go -destination=internal/mocks/interceptor_mocks.go -package=mocks
+
 // Interceptors are operation-specific: a start interceptor participates only in
 // the start chain, a quiesce interceptor only in the quiesce chain, and a stop
 // interceptor only in the stop chain. A single type may implement any combination

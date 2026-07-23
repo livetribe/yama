@@ -19,6 +19,6 @@
 // applications use package yama, not this package, directly.
 //
 // The machinery here is graph-independent — identical in every application. The
-// graph-specific parts (level structs, their ordering methods, the NewLifecycle
-// constructor) are generated inline instead.
+// graph-specific part is the generated lifecycle constructor, which names the
+// components and the order of the levels it adds.
 package rt

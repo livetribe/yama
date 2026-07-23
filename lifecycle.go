@@ -16,6 +16,8 @@ package yama
 
 import "context"
 
+//go:generate go run go.uber.org/mock/mockgen -source=lifecycle.go -destination=internal/mocks/lifecycle_mocks.go -package=mocks
+
 // The three capability interfaces below are optional and independent: a component
 // may implement any combination of them, or none. Start returns error; Quiesce
 // and Stop do not.

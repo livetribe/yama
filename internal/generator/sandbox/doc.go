@@ -37,6 +37,8 @@
 // Each component optionally implements the yama lifecycle interfaces (Starter,
 // Quiescer, Stopper); the compile-time assertions in components.go record which.
 //
-// Regenerate wire_gen.go from wire.go with `go tool wire gen ./sandbox`, or
-// `go generate ./sandbox` via the directive wire_gen.go carries.
+// Regenerate wire_gen.go from wire.go with
+// `go tool wire gen ./internal/generator/sandbox`, or
+// `go generate ./internal/generator/sandbox` via the directive wire_gen.go
+// carries.
 package sandbox
