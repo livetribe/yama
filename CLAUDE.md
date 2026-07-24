@@ -72,6 +72,17 @@ alike.
   off from the work it protects, or the result-producing step off from what builds
   it. Conversely, keep tightly-coupled statements together (e.g. a loop's
   accumulator seed stays with its loop).
+- **No calls inside call arguments.** Hoist a function or method call out of
+  another call's argument list into a named local. Two reasons, and either alone
+  is enough: stepping into the outer call in a debugger otherwise walks the inner
+  calls first, landing somewhere other than the function under inspection; and
+  the name given to the result documents what the call returns, which the call
+  itself often leaves unclear. Skip the hoist only where neither applies — the
+  outer call is one you never step into, such as a stdlib helper
+  (`filepath.Base(fset.Position(f.Pos()).Filename)`) or an assertion wrapper
+  (`Expect(...)`, `require.NoError(...)`); or the inner call is a trivial
+  accessor whose own name already says what it returns
+  (`newParseError(fset, injector, s.Pos(), ...)`). Both stay as they are.
 
 ## Canonical docs, and their roles
 
