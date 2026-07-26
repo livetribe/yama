@@ -34,8 +34,10 @@ generate:
 tidy:
 	go mod tidy
 
-clean:
+clean: $(GOLANGCI_LINT)
 	rm -f coverage.out
+	$(GOLANGCI_LINT) cache clean
+	go clean -testcache
 
 check: test lint check-fmt
 
