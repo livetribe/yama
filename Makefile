@@ -22,11 +22,11 @@ $(GOLANGCI_LINT):
 lint: $(GOLANGCI_LINT)
 	$(GOLANGCI_LINT) run
 
-fmt:
-	gofmt -l -w .
+fmt: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) fmt
 
-check-fmt:
-	@test -z "$$(gofmt -l .)" || (echo "gofmt needs to be run on the following files:"; gofmt -l .; exit 1)
+check-fmt: $(GOLANGCI_LINT)
+	$(GOLANGCI_LINT) fmt --diff
 
 generate:
 	go generate ./...
