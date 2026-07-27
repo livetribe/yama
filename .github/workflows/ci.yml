@@ -24,6 +24,10 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
+      - name: Warm build cache
+        run: |
+          go build -race ./...
+          go tool wire --help
       - name: test
         run: go test -v -race -timeout 30s ./...
 
