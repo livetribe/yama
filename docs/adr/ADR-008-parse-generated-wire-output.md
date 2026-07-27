@@ -38,8 +38,6 @@ The statement order of the generated injector body is a valid topological order.
 
 Any new variable declaration in the injector body is treated as a creation event, not only call expressions. `wire.Value` and `InterfaceValue` emit assignments; `wire.Struct` and `FieldsOf` emit struct literals. All of these introduce a provided value and are lifecycle-graph components.
 
-The final root-struct literal returned by the injector (for example an `App`) is the manifest of top-level roots. It is not itself a lifecycle component.
-
 Each injector function is an independent graph. Multiple injector functions are never merged into a single graph.
 
 ### Cleanup functions

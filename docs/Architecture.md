@@ -62,7 +62,7 @@ The generation pipeline is:
 1. Run `wire gen` to produce `wire_gen.go`. Google Wire resolves binding, interface bindings, cycle detection, and construction ordering.
 2. Parse `wire_gen.go` and walk the AST of each injector function.
 3. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
-4. Treat the final root-struct literal returned by the injector (for example `App`) as the manifest of top-level roots, not itself a component. Treat each injector function as an independent graph; never merge them.
+4. Treat each injector function as an independent graph; never merge them.
 5. Derive dependency edges from the arguments each creation event consumes.
 6. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
 7. Compute lifecycle execution structure:
@@ -83,7 +83,7 @@ Google Wire provider declarations are the sole source inputs for dependency grap
 
 Yama obtains ordering by running Google Wire's generator and analyzing the generated injector. By the time `wire gen` emits an injector, Google Wire has resolved provider binding, interface bindings, values, struct and field providers, and cycle detection. The statement order of the generated injector body is a valid topological order, so Yama reuses Google Wire's resolved result rather than reconstructing it.
 
-Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. The final root-struct literal returned by the injector is the manifest of top-level roots and is not itself a component. Multiple injector functions are independent graphs and are never merged.
+Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. Multiple injector functions are independent graphs and are never merged.
 
 Google Wire remains responsible for dependency construction semantics. Yama remains responsible for lifecycle orchestration semantics. Coupling to the shape of Google Wire's generated output is guarded by a CI check that regenerates the lifecycle file and diffs it against the committed copy, not by depending on Google Wire's internal APIs.
 
@@ -98,7 +98,7 @@ Yama extracts:
 * the value created by each injector statement,
 * the values each creation event consumes,
 * the resulting dependency edges,
-* the injector's root-struct literal (its output roots),
+* the injector's return value,
 * concrete values that become lifecycle components,
 * names usable for generated code.
 

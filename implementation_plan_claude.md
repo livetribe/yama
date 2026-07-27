@@ -591,7 +591,7 @@ not only the golden diff.
 **Goal.** Build the generation front-end: invoke `wire gen`, then walk the
 AST of each injector function in the resulting `wire_gen.go`, extracting the
 ordered creation events, the dependency edges (argument consumption), the
-root-struct manifest, and detected legacy cleanup functions — **without** yet
+returned root, and detected legacy cleanup functions — **without** yet
 computing lifecycle levels.
 
 **Files/modules touched.** `internal/generator/parse*.go`, `cmd/yama` (thin
@@ -620,8 +620,8 @@ Unsupported injector shapes must fail loudly at build time, not silently mis-ord
     providers, `wire.Value`/`InterfaceValue` assignments, and
     `wire.Struct`/`FieldsOf` struct literals (one fixture per form; each asserts
     the component is present).
-  - The final returned root-struct literal (e.g. `App`) is recorded as the
-    manifest of roots and is **not** itself a component.
+  - The returned value (e.g. `App`) is recorded as the injector's root **and**
+    retained as an ordinary component with its own dependency edges.
   - Each injector function is parsed as an **independent** graph; a file with two
     injectors never merges them (asserted).
   - Dependency edges are derived from the arguments each creation event consumes
@@ -646,8 +646,8 @@ Unsupported injector shapes must fail loudly at build time, not silently mis-ord
   - `wire gen` failing (bad Wire input) surfaces as a generation error that
     names the underlying failure, distinct from a toolchain error (`wire` is
     pinned in `go.mod` and invoked via `go tool wire`).
-  - Empty injector (no lifecycle-capable components) parses cleanly and yields an empty
-    component set.
+  - Minimal injector, whose only creation event is the value it returns, parses
+    cleanly and yields that single component.
 
 **Regression note.** This phase's output shape (component/edge model) is consumed by
 Phases 6–8. Freeze the internal component representation before Phase 6. Wire version
@@ -702,7 +702,8 @@ assignment yields silently-wrong startup/shutdown ordering in every consuming ap
 - *Edge/failure cases:* a component implementing all three vs. exactly one capability;
   a graph with no capable components (empty level sets, no error); a wide fan-out
   (many independent components in one level); a deep chain (many single-component levels);
-  a component that is both depended-upon and a dependent (interior of a chain).
+  a component that is both depended-upon and a dependent (interior of a chain);
+  a **capable root**.
 
 **Regression note.** Folding cleanup functions (Phase 7) adds teardown work to the
 shutdown level computation "at the cleaned-up value's position." Re-run all Phase 6
@@ -757,7 +758,8 @@ constructor semantics). The DoD below is held to that standard.
 - *Edge/failure cases:* a value with a cleanup func but no other capability (the
   cleanup is its only teardown role); multiple cleanup funcs in one injector (each
   folded at its own position); a `Stopper` value with no cleanup func (plain
-  `Stopper`).
+  `Stopper`); a cleanup returned by the **root's** provider (folds at the root's
+  position like any other).
 
 **Regression note.** See Phase 6 note — this phase is the reason Phase 6's tests
 must be re-run. Also re-run Phase 3 ordering tests against a fixture whose ordering
