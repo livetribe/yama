@@ -1,0 +1,16 @@
+package rt // l7e.io/yama/v2/rt
+
+type LevelBuilder struct {
+}
+	method Add()
+	method WithCleanableComponent(c any, cleanup func()) *LevelBuilder
+	method WithCleanup(cleanup func()) *LevelBuilder
+	method WithComponents(components ...any) *LevelBuilder
+
+type LifecycleBuilder struct {
+}
+	method Build() yama.Lifecycle
+	method NextLevel() *LevelBuilder
+
+func NewLifecycleBuilder(opts ...yama.Option) *LifecycleBuilder
+

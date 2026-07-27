@@ -20,6 +20,7 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"testing"
@@ -29,63 +30,122 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// updateGolden regenerates the committed API-surface snapshot when set:
+// updateGolden regenerates the committed API-surface snapshots when set:
 //
-//	go test -run TestAPISurface -update ./...
-var updateGolden = flag.Bool("update", false, "update the API-surface golden file")
-
-const (
-	pkgPath        = "l7e.io/yama/v2"
-	goldenFilePath = "testdata/api_surface.golden"
-)
-
-// TestAPISurface is the frozen public-API snapshot for package yama. It
-// enumerates every exported symbol of the package — via go/types, so a composed
-// interface's promoted methods (Lifecycle's Start/Stop, embedded from Starter and
-// Stopper) are captured — and fails if the rendered surface differs from
-// testdata/api_surface.golden.
+//	go test -run TestAPISurface -update .
 //
-// This golden is complete and must not be extended. A diff means the
-// permanent public API moved. If that change is genuinely intended,
-// regenerate with -update and review the diff deliberately.
+// The trailing "." matters: -update is this test binary's own flag, not one
+// go test recognizes, so a package pattern given after it on the command line
+// is swallowed as a test-binary argument instead of a package to build.
+var updateGolden = flag.Bool("update", false, "update the API-surface golden files")
+
+// modulePath is this module's import path, used to turn a loaded package's
+// PkgPath into a path relative to the module root.
+const modulePath = "l7e.io/yama/v2"
+
+// goldenDir holds one snapshot per public package, named by its import path
+// relative to the module root.
+const goldenDir = "testdata/api_surface"
+
+// TestAPISurface is the frozen public-API snapshot for every importable
+// package in this module. It discovers packages by walking ./..., keeps only
+// the ones that are actually part of the public API — skipping internal/
+// packages (Go's own compiler already forbids importing those from outside
+// this module) and main packages (never importable at all) — and renders
+// each one's exported symbols via go/types, so a composed interface's
+// promoted methods (Lifecycle's Start/Stop, embedded from Starter and
+// Stopper) are captured. A package's rendered surface is compared against
+// testdata/api_surface/<relative import path>.golden.
+//
+// Each golden is complete and must not be extended by hand. A diff means
+// that package's permanent public API moved. If the change is genuinely
+// intended, regenerate with -update and review the diff deliberately. A new
+// public package picks up its own golden automatically the first time
+// -update runs — nothing needs to be wired in by name.
 func TestAPISurface(t *testing.T) {
-	got := renderPublicSurface(t)
-
-	if *updateGolden {
-		if err := os.WriteFile(goldenFilePath, []byte(got), 0o600); err != nil {
-			t.Fatalf("writing golden: %v", err)
-		}
-		t.Logf("updated %s", goldenFilePath)
-		return
-	}
-
-	wantBytes, err := os.ReadFile(goldenFilePath)
-	require.NoError(t, err, "reading golden (run `go test -run TestAPISurface -update` to create it)")
-
-	assert.Equal(t, string(wantBytes), got, "public API surface changed.\n"+
-		"This surface is frozen; a diff means the permanent public API moved.\n"+
-		"If the change is intended, run `go test -run TestAPISurface -update` and review the diff.")
-}
-
-// renderPublicSurface loads package yama with full type information and renders a
-// canonical, deterministic listing of its exported symbols.
-func renderPublicSurface(t *testing.T) string {
-	t.Helper()
-
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedTypes | packages.NeedTypesInfo | packages.NeedDeps,
 	}
-	pkgs, err := packages.Load(cfg, pkgPath)
-	require.NoError(t, err, "loading %s", pkgPath)
-	require.Zero(t, packages.PrintErrors(pkgs), "type errors while loading %s", pkgPath)
-	require.Len(t, pkgs, 1)
+	pkgs, err := packages.Load(cfg, "./...")
+	require.NoError(t, err, "loading ./...")
+	require.Zero(t, packages.PrintErrors(pkgs), "type errors while loading ./...")
 
-	pkg := pkgs[0]
+	for _, pkg := range publicPackages(pkgs) {
+		t.Run(goldenName(pkg.PkgPath), func(t *testing.T) {
+			assertGoldenSurface(t, pkg)
+		})
+	}
+}
+
+// publicPackages returns the packages that make up this module's public API:
+// every loaded package except internal/ packages, which Go's own import rule
+// already keeps out of reach from outside the module, and main packages,
+// which are never importable by anything.
+func publicPackages(pkgs []*packages.Package) []*packages.Package {
+	var out []*packages.Package
+	for _, pkg := range pkgs {
+		if pkg.Name == "main" || isInternal(pkg.PkgPath) {
+			continue
+		}
+		out = append(out, pkg)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].PkgPath < out[j].PkgPath })
+	return out
+}
+
+// isInternal reports whether pkgPath contains an "internal" path segment,
+// mirroring the rule the go command itself enforces on import.
+func isInternal(pkgPath string) bool {
+	for _, seg := range strings.Split(pkgPath, "/") {
+		if seg == "internal" {
+			return true
+		}
+	}
+	return false
+}
+
+// goldenName derives a golden filename (without extension) from a package's
+// import path relative to the module root, so the snapshot reads as which
+// package it covers rather than an encoded full import path.
+func goldenName(pkgPath string) string {
+	rel := strings.TrimPrefix(strings.TrimPrefix(pkgPath, modulePath), "/")
+	if rel == "" {
+		return "root"
+	}
+	return strings.ReplaceAll(rel, "/", "_")
+}
+
+// assertGoldenSurface renders pkg's public surface and compares it against
+// (or, with -update, writes it to) its golden file.
+func assertGoldenSurface(t *testing.T, pkg *packages.Package) {
+	t.Helper()
+
+	got := renderPublicSurface(pkg)
+	goldenPath := filepath.Join(goldenDir, goldenName(pkg.PkgPath)+".golden")
+
+	if *updateGolden {
+		require.NoError(t, os.MkdirAll(goldenDir, 0o750), "creating %s", goldenDir)
+		require.NoError(t, os.WriteFile(goldenPath, []byte(got), 0o600), "writing golden")
+		t.Logf("updated %s", goldenPath)
+		return
+	}
+
+	wantBytes, err := os.ReadFile(goldenPath)
+	require.NoError(t, err, "reading golden (run `go test -run TestAPISurface -update .` to create it)")
+
+	assert.Equal(t, string(wantBytes), got, "public API surface of %s changed.\n"+
+		"This surface is frozen; a diff means the permanent public API moved.\n"+
+		"If the change is intended, run `go test -run TestAPISurface -update .` and review the diff.", pkg.PkgPath)
+}
+
+// renderPublicSurface renders a canonical, deterministic listing of pkg's
+// exported symbols from its already-loaded type information.
+func renderPublicSurface(pkg *packages.Package) string {
 	scope := pkg.Types.Scope()
 
 	// Short-name qualifier: render foreign packages by name (context.Context,
 	// os.Signal, bridge.Config) rather than full import path, for a stable,
-	// readable snapshot. The current package renders unqualified.
+	// readable snapshot. The package under render renders unqualified.
 	qual := func(p *types.Package) string {
 		if p == pkg.Types {
 			return ""
@@ -102,7 +162,7 @@ func renderPublicSurface(t *testing.T) string {
 	sort.Strings(names)
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "package %s // %s\n\n", pkg.Name, pkgPath)
+	fmt.Fprintf(&b, "package %s // %s\n\n", pkg.Name, pkg.PkgPath)
 	for _, name := range names {
 		renderObject(&b, scope.Lookup(name), qual)
 	}

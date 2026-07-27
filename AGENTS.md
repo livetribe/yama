@@ -81,6 +81,27 @@ an unexpected call already fails the test, so "must never be called" needs no
 assertion. When a mock cannot carry something a test needs — a `fmt.Stringer`
 identity, say — embed it and add only the missing method.
 
+**A new public package needs a golden file.** `TestAPISurface`
+(`api_surface_test.go`) walks `./...` and snapshots every non-`internal`,
+non-`main` package's exported symbols into
+`testdata/api_surface/<import-path>.golden`. Adding a package's first
+exported symbol makes the test discover it automatically and fail
+immediately, since no golden exists for it yet — that failure is expected,
+not a bug. Generate the golden deliberately with
+`go test -run TestAPISurface -update .` and review the diff before
+committing; it is the record of what that package now promises to expose.
+
+**A suite that doesn't assert on log content should silence slog, not print
+it.** Production code in this module logs recovered panics and skipped steps
+via `slog`'s package-level default. A spec that needs to check what got
+logged installs a capturing handler for the duration (see
+`rt/internal/exec`'s `captureSlog` helper) and restores the previous default
+after. A suite that exercises those logging paths only incidentally — to
+prove recovery behavior, not to inspect the log — should instead silence the
+default for the whole run (a `BeforeSuite` swapping in a discard handler; see
+`rt/rt_suite_test.go`) rather than let it print to stderr on every green
+pass.
+
 ## Code formatting beyond gofmt
 
 gofmt does not enforce these; apply them by hand, in production and test code
