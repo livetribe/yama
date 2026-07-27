@@ -22,5 +22,14 @@
 // only Google Wire's public types, never Google Wire's unexported
 // implementation packages.
 //
-// Not yet implemented; see implementation_plan_claude.md Phases 5-9.
+// The front-end is implemented: a Generator, built from Options with
+// NewGenerator, runs Google Wire over one or more packages and parses each
+// injector into a graph of creation events, dependency edges, results, and
+// cleanup functions. Wire's wire_gen.go is transient — a run leaves the
+// directory as it found it, preserving a wire_gen.go it did not create and
+// removing the one it did.
+//
+// The parser is coupled to the shape of Google Wire's generated output and is
+// validated against Google Wire v0.7.0, pinned in go.mod. A version bump can
+// change that shape; the drift check is the guard.
 package generator
