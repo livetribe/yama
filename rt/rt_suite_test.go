@@ -15,6 +15,8 @@
 package rt_test
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -39,6 +41,16 @@ func TestRT(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "rt")
 }
+
+// The contract suite deliberately drives components through panicking and
+// failing paths to prove the runtime recovers and reports them; no spec here
+// asserts on what gets logged, so the slog default is silenced for the whole
+// run rather than let recovery noise print to stderr on every green pass.
+var _ = BeforeSuite(func() {
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	DeferCleanup(func() { slog.SetDefault(prev) })
+})
 
 // verifyNoLeaks fails the current spec if a goroutine that started during it is
 // still running when it ends. Goroutines already running at the call are not
