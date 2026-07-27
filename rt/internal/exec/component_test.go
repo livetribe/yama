@@ -699,7 +699,7 @@ var _ = Describe("Startup-failure gates", func() {
 		comp.EXPECT().Start(gomock.Any()).Return(errCmpBoom)
 
 		cleaned := false
-		wrapped := NewCleanup(NewChains(nil).WrapComponent(comp), func() {
+		wrapped := NewCleanableComponent(NewChains(nil).WrapComponent(comp), func() {
 			cleaned = true
 		})
 

@@ -111,8 +111,8 @@ func (e *quiesceGate) Quiesce(ctx context.Context, next yama.Quiescer) {
 // stopGate keeps a component whose Start failed out of the teardown pass, on the
 // same terms as quiesceGate.
 //
-// A Google Wire cleanup is not gated: it wraps this chain from the outside, so a
-// component that failed to start still releases what its provider acquired.
+// Google Wire cleanups are not gated, so a component that failed to start still
+// releases what its provider acquired.
 type stopGate struct{}
 
 // StopGate is the gate every stop chain carries as its outermost link. The gate

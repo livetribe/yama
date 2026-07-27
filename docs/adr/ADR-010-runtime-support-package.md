@@ -10,8 +10,9 @@ Yama emits `lifecycle_gen.go` into the target application's package (ADR-008,
 Architecture §14). That generated file needs execution machinery to do its work:
 interceptor chain construction, a per-component wrapper that attaches component identity
 and threads the caller's context, a fail-fast intra-level executor, a boundary
-runner, the `cleanupAdapter` that wraps Google Wire cleanup functions as `Stopper`,
-and the built-in per-component overrun interceptor.
+runner, the wrappers that give a Google Wire cleanup `Stopper` behavior — paired
+with the component it cleans up, or standing alone at a dependency-only
+component's position — and the built-in per-component overrun interceptor.
 
 Two facts constrain where that machinery can live:
 
@@ -50,7 +51,7 @@ The runtime-support package holds the **graph-independent** parts:
 * the per-component wrapper (component-identity attachment, context threading),
 * the fail-fast intra-level executor and the ordered quiesce/stop passes,
 * the boundary runner,
-* `cleanupAdapter`,
+* the cleanup wrappers (paired-with-component and standalone),
 * the built-in per-component overrun interceptor.
 
 `package yama` retains only the stable public API of ADR-007. The runtime-support

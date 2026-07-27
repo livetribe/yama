@@ -133,14 +133,26 @@ func (b *LevelBuilder) WithComponents(components ...any) *LevelBuilder {
 	return b
 }
 
-// WithComponentAndCleanup adds a component whose provider also returned a Google
+// WithCleanableComponent adds a component whose provider also returned a Google
 // Wire cleanup function. The cleanup runs as part of that component's teardown,
 // ahead of the component's own Stop, and does not pass through the interceptor
 // chains.
-func (b *LevelBuilder) WithComponentAndCleanup(c any, cleanup func()) *LevelBuilder {
+func (b *LevelBuilder) WithCleanableComponent(c any, cleanup func()) *LevelBuilder {
 	b.check()
 
-	b.components = append(b.components, exec.NewCleanup(b.chains.WrapComponent(c), cleanup))
+	b.components = append(b.components, exec.NewCleanableComponent(b.chains.WrapComponent(c), cleanup))
+
+	return b
+}
+
+// WithCleanup adds the Google Wire cleanup function of a value that implements no
+// lifecycle capability of its own. The cleanup is the value's whole teardown, runs
+// at the value's position in the ordering, and does not pass through the
+// interceptor chains.
+func (b *LevelBuilder) WithCleanup(cleanup func()) *LevelBuilder {
+	b.check()
+
+	b.components = append(b.components, exec.Cleanup(cleanup))
 
 	return b
 }

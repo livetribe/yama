@@ -75,7 +75,7 @@ func clnMeet(mine, theirs chan struct{}) bool {
 	}
 }
 
-var _ = Describe("Wire cleanup pairing", func() {
+var _ = Describe("A Wire cleanup paired with a component", func() {
 	var (
 		ctrl *gomock.Controller
 		logs *captureHandler
@@ -97,7 +97,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 			comp := execmocks.NewMockCompleteLifecycle(ctrl)
 			comp.EXPECT().Start(gomock.Any()).Return(boom)
 
-			err := NewCleanup(comp, rec.recording("cleanup")).Start(ctx)
+			err := NewCleanableComponent(comp, rec.recording("cleanup")).Start(ctx)
 
 			Expect(err).To(BeIdenticalTo(boom))
 		})
@@ -107,7 +107,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				comp := execmocks.NewMockCompleteLifecycle(ctrl)
 				comp.EXPECT().Start(gomock.Any()).Return(outcome)
 
-				_ = NewCleanup(comp, rec.recording("cleanup")).Start(ctx)
+				_ = NewCleanableComponent(comp, rec.recording("cleanup")).Start(ctx)
 
 				Expect(rec.taken()).To(BeEmpty())
 			},
@@ -123,7 +123,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				rec.record("component")
 			})
 
-			NewCleanup(comp, rec.recording("cleanup")).Quiesce(ctx)
+			NewCleanableComponent(comp, rec.recording("cleanup")).Quiesce(ctx)
 
 			Expect(rec.taken()).To(Equal([]string{"component"}))
 		})
@@ -143,7 +143,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				next.Stop(ctx)
 			})
 
-			pair := NewCleanup(NewChains([]any{interceptor}).WrapComponent(comp), rec.recording("cleanup"))
+			pair := NewCleanableComponent(NewChains([]any{interceptor}).WrapComponent(comp), rec.recording("cleanup"))
 
 			Expect(pair.Start(ctx)).To(Succeed())
 			pair.Stop(ctx)
@@ -161,7 +161,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				Expect(rec.taken()).To(Equal(want))
 			},
 			Entry("a component that implements nothing", func() (CompleteLifecycle, []string) {
-				pair := NewCleanup(NewChains(nil).WrapComponent(struct{}{}), rec.recording("cleanup"))
+				pair := NewCleanableComponent(NewChains(nil).WrapComponent(struct{}{}), rec.recording("cleanup"))
 
 				return pair, []string{"cleanup"}
 			}),
@@ -169,7 +169,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				comp := apimocks.NewMockStarter(ctrl)
 				comp.EXPECT().Start(gomock.Any())
 
-				pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+				pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 				return pair, []string{"cleanup"}
 			}),
@@ -179,7 +179,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 					rec.record("component")
 				})
 
-				pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+				pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 				return pair, []string{"cleanup", "component"}
 			}),
@@ -190,7 +190,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 					rec.record("component")
 				})
 
-				pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+				pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 				return pair, []string{"cleanup", "component"}
 			}),
@@ -203,7 +203,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				rec.record("component")
 			})
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 			Expect(pair.Start(ctx)).To(Succeed())
 			pair.Stop(ctx)
@@ -218,9 +218,9 @@ var _ = Describe("Wire cleanup pairing", func() {
 				rec.record("component")
 			})
 
-			inner := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("inner"))
+			inner := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("inner"))
 
-			NewCleanup(inner, rec.recording("outer")).Stop(ctx)
+			NewCleanableComponent(inner, rec.recording("outer")).Stop(ctx)
 
 			Expect(rec.taken()).To(Equal([]string{"outer", "inner", "component"}))
 		})
@@ -236,7 +236,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 			}
 			comp.EXPECT().Start(gomock.Any()).Return(boom)
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 			Expect(pair.Start(ctx)).To(MatchError(boom))
 			pair.Stop(ctx)
@@ -256,7 +256,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 			comp := apimocks.NewMockStarter(ctrl)
 			comp.EXPECT().Start(gomock.Any()).Return(boom)
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 			Expect(pair.Start(ctx)).To(MatchError(boom))
 			pair.Stop(ctx)
@@ -277,7 +277,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				rec.record("stop")
 			})
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), rec.recording("cleanup"))
 
 			Expect(pair.Start(ctx)).To(Succeed())
 			pair.Quiesce(ctx)
@@ -301,7 +301,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				caller, cancel := context.WithTimeout(context.Background(), time.Hour)
 				DeferCleanup(cancel)
 
-				invoke(NewCleanup(comp, rec.recording("cleanup")), caller)
+				invoke(NewCleanableComponent(comp, rec.recording("cleanup")), caller)
 
 				Expect(seen).To(BeIdenticalTo(caller))
 			},
@@ -345,7 +345,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 			comp.EXPECT().Start(gomock.Any())
 			comp.EXPECT().Stop(gomock.Any())
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), func() {
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), func() {
 				time.Sleep(work)
 			})
 			Expect(pair.Start(ctx)).To(Succeed())
@@ -373,7 +373,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 			comp := apimocks.NewMockStarter(ctrl)
 			comp.EXPECT().Start(gomock.Any())
 
-			pair := NewCleanup(NewChains(nil).WrapComponent(comp), func() {
+			pair := NewCleanableComponent(NewChains(nil).WrapComponent(comp), func() {
 				time.Sleep(work)
 			})
 			Expect(pair.Start(ctx)).To(Succeed())
@@ -390,7 +390,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 		It("propagates a panicking cleanup and never reaches the component", func() {
 			comp := execmocks.NewMockCompleteLifecycle(ctrl)
 
-			pair := NewCleanup(comp, func() {
+			pair := NewCleanableComponent(comp, func() {
 				panic("cleanup exploded")
 			})
 
@@ -402,7 +402,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 				comp := execmocks.NewMockCompleteLifecycle(ctrl)
 				arrange(comp)
 
-				pair := NewCleanup(comp, rec.recording("cleanup"))
+				pair := NewCleanableComponent(comp, rec.recording("cleanup"))
 
 				Expect(func() { invoke(pair, ctx) }).To(PanicWith("component exploded"))
 			},
@@ -453,7 +453,7 @@ var _ = Describe("Wire cleanup pairing", func() {
 					met <- clnMeet(sibling, paired)
 				})
 
-				invoke(Level{NewCleanup(comp, rec.recording("cleanup")), other}, ctx)
+				invoke(Level{NewCleanableComponent(comp, rec.recording("cleanup")), other}, ctx)
 
 				Expect(met).To(HaveLen(2))
 				Expect(<-met).To(BeTrue())
@@ -503,10 +503,82 @@ var _ = Describe("Wire cleanup pairing", func() {
 				return nil
 			})
 
-			level := Level{NewCleanup(comp, rec.recording("cleanup")), other}
+			level := Level{NewCleanableComponent(comp, rec.recording("cleanup")), other}
 
 			Expect(level.Start(ctx)).To(MatchError(yama.ErrStartFailed))
 			Expect(rec.taken()).To(Equal([]string{"sibling"}))
 		})
+	})
+})
+
+var _ = Describe("A standalone Wire cleanup", func() {
+	var (
+		ctrl *gomock.Controller
+		rec  *clnRecorder
+		ctx  context.Context
+	)
+
+	BeforeEach(func() {
+		ctrl = gomock.NewController(GinkgoT())
+		rec = &clnRecorder{}
+		ctx = context.Background()
+	})
+
+	It("takes no part in the startup pass", func() {
+		Expect(Cleanup(rec.recording("cleanup")).Start(ctx)).To(Succeed())
+		Expect(rec.taken()).To(BeEmpty())
+	})
+
+	It("takes no part in the quiesce pass", func() {
+		Cleanup(rec.recording("cleanup")).Quiesce(ctx)
+
+		Expect(rec.taken()).To(BeEmpty())
+	})
+
+	It("runs the cleanup as its whole teardown", func() {
+		Cleanup(rec.recording("cleanup")).Stop(ctx)
+
+		Expect(rec.taken()).To(Equal([]string{"cleanup"}))
+	})
+
+	// A standalone cleanup never reaches the stop gate, so it still releases what
+	// its provider acquired even though a sibling's failed start gates that
+	// sibling's own teardown away.
+	It("releases the provider's resources when a sibling's start failed", func() {
+		boom := errors.New("boom")
+
+		comp := apimocks.NewMockStarter(ctrl)
+		comp.EXPECT().Start(gomock.Any()).Return(boom)
+
+		sibling := NewChains(nil).WrapComponent(comp)
+		level := Level{sibling, Cleanup(rec.recording("cleanup"))}
+
+		Expect(level.Start(ctx)).To(MatchError(yama.ErrStartFailed))
+		level.Stop(ctx)
+
+		Expect(rec.taken()).To(Equal([]string{"cleanup"}))
+	})
+
+	It("propagates a panicking cleanup to the level runner", func() {
+		Expect(func() {
+			Cleanup(func() { panic("cleanup exploded") }).Stop(ctx)
+		}).To(PanicWith("cleanup exploded"))
+	})
+
+	It("runs concurrently with the other members of its level", func() {
+		mine, theirs := make(chan struct{}), make(chan struct{})
+		met := make(chan bool, 2)
+
+		other := execmocks.NewMockCompleteLifecycle(ctrl)
+		other.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+			met <- clnMeet(theirs, mine)
+		})
+
+		level := Level{Cleanup(func() { met <- clnMeet(mine, theirs) }), other}
+		level.Stop(ctx)
+
+		Expect(met).To(HaveLen(2))
+		Expect(<-met).To(BeTrue())
+		Expect(<-met).To(BeTrue())
 	})
 })

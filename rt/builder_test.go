@@ -146,7 +146,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			})
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponentAndCleanup(owner, func() { cleaned = true }).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true }).Add()
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -164,7 +164,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			owner.EXPECT().Start(gomock.Any()).Return(errors.New("boom"))
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponentAndCleanup(owner, func() { cleaned = true }).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true }).Add()
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
@@ -183,7 +183,56 @@ var _ = Describe("LifecycleBuilder", func() {
 				Times(1)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
-			b.NextLevel().WithComponentAndCleanup(owner, func() {}).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() {}).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(Succeed())
+			lc.Stop(ctx)
+		})
+	})
+
+	Describe("Wire cleanup functions with no capable component", func() {
+		It("run as the value's whole teardown, and nothing else", func() {
+			events := []string{}
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") }).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(Succeed())
+			Expect(events).To(BeEmpty(), "a cleanup takes no part in startup")
+
+			lc.Stop(ctx)
+
+			Expect(events).To(Equal([]string{"cleanup"}))
+		})
+
+		It("run at their own level, after a later level's teardown", func() {
+			events := []string{}
+
+			later := execmocks.NewMockCompleteLifecycle(ctrl)
+			later.EXPECT().Start(gomock.Any())
+			later.EXPECT().Quiesce(gomock.Any())
+			later.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+				events = append(events, "later")
+			})
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") }).Add()
+			b.NextLevel().WithComponents(later).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(Succeed())
+			lc.Stop(ctx)
+
+			Expect(events).To(Equal([]string{"later", "cleanup"}))
+		})
+
+		It("bypass the interceptor chain entirely", func() {
+			interceptor := mocks.NewMockStopInterceptor(ctrl)
+
+			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
+			b.NextLevel().WithCleanup(func() {}).Add()
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())

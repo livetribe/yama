@@ -66,9 +66,7 @@ The generation pipeline is:
 5. Derive dependency edges from the arguments each creation event consumes.
 6. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
 7. Compute lifecycle execution structure:
-   * startup levels,
-   * quiesce levels,
-   * shutdown levels,
+   * one dependency-ordered level list,
    * per-operation interceptor eligibility.
 8. Emit the lifecycle file, carrying a provenance header.
 9. Format generated Go code with standard Go formatting.
@@ -102,7 +100,7 @@ Yama extracts:
 * concrete values that become lifecycle components,
 * names usable for generated code.
 
-Lifecycle execution includes only components whose resulting value implements at least one lifecycle capability. A component with no `Start`, `Quiesce`, or `Stop` method never receives lifecycle callbacks, but it may still impose ordering between lifecycle components that depend through it.
+Lifecycle execution includes every lifecycle-capable component and every dependency-only component with cleanup; each occupies a level. A component with neither trait occupies no level, though it may still impose ordering between lifecycle components that depend through it. Callbacks are limited to the capabilities a component implements — a dependency-only component with cleanup receives none; only its cleanup runs.
 
 Yama does not expose the extracted graph publicly. The graph exists only inside the generator.
 
@@ -110,11 +108,9 @@ Yama does not expose the extracted graph publicly. The graph exists only inside 
 
 Lifecycle analysis occurs entirely during generation.
 
-For startup, Yama computes dependency-directed levels over lifecycle-capable components using the full Google Wire graph. Dependency-only components are traversed when deriving ordering. If lifecycle component A depends on dependency-only component B, and B depends on lifecycle component C, A is ordered after C even though B does not receive lifecycle callbacks. Components in the same level have no lifecycle ordering dependency between them and may start concurrently.
+Yama computes one dependency-ordered level list over every component that occupies a level — every lifecycle-capable component, and every dependency-only component with cleanup. A component with neither trait is traversed when deriving ordering but occupies no level of its own. If lifecycle-capable component A depends on such a component B, and B depends on lifecycle-capable component C, A is ordered after C even though B occupies no level. Components in the same level have no ordering dependency between them and may run concurrently.
 
-For shutdown, Yama computes the reverse dependency-directed levels. Dependents stop before the dependencies they rely on. Independent components in the same shutdown level may stop concurrently.
-
-For quiesce, Yama computes the same reverse dependency-directed levels over `Quiescer` components. Quiesce is ordered along dependency edges — dependents quiesce before the dependencies they rely on — because a dependency must not quiesce while a dependent might still call into it. Independent branches quiesce concurrently. Non-`Quiescer` components are skipped, but ordering still holds transitively through them.
+Startup runs that list forward. Quiesce and shutdown run it back, so dependents quiesce and stop before the dependencies they rely on, because a dependency must not quiesce while a dependent might still call into it. A component takes no part in a pass whose capability interface it does not implement, and ordering still holds transitively through the ones it lacks.
 
 The analysis also records which generated chain wrappers are needed for each operation. Yama generates no lifecycle configuration and no timeout fields; any deadline is carried by the caller's context.
 
@@ -127,7 +123,7 @@ parts are generated into the application's `lifecycle_gen.go`: the private level
 structs that name concrete components, their Start/Quiesce/Stop ordering methods,
 and the `NewLifecycle` constructor. The **generic execution plumbing** — interceptor
 chain construction, the per-component wrapper, the fail-fast level executor, the boundary
-runner, `cleanupAdapter`, and the built-in overrun interceptor — is identical in
+runner, cleanup wrapping, and the built-in overrun interceptor — is identical in
 every application and lives in a Yama-owned **runtime-support package** that the
 generated code imports. `WithInterceptors` (ADR-005) is a public, non-generated
 `Option` — because interceptors attach globally rather than per
@@ -227,7 +223,7 @@ On startup failure, no further startup levels are scheduled. Yama derives no con
 
 Generated implementation artifacts use a Yama-owned namespace and remain private whenever possible.
 
-Private generated names use a consistent prefix such as `yama` followed by descriptive role names. Examples of generated implementation roles include lifecycle implementation, generated level structs such as `yamaLevel001`, component operation wrappers, operation policy structs, chain builders, and `cleanupAdapter` values that wrap Google Wire cleanup functions as `Stopper`.
+Private generated names use a consistent prefix such as `yama` followed by descriptive role names. Examples of generated implementation roles include lifecycle implementation, generated level structs such as `yamaLevel001`, component operation wrappers, operation policy structs, chain builders, and the two forms that give a Google Wire cleanup its `Stopper` behavior: paired with the component it cleans up, or standing alone at a dependency-only component's position.
 
 The implementation plan defines the expected generated names and their responsibilities. Architecture only requires that those names remain in a Yama-owned namespace and that implementation details stay private whenever possible.
 
@@ -262,7 +258,7 @@ The lifecycle file contains:
 * generated lifecycle constructor integration,
 * generated startup, quiesce, and shutdown methods.
 
-The generic execution plumbing (chain construction, per-component wrapping, level execution, boundary running, `cleanupAdapter`, the built-in overrun interceptor) is not emitted here; it lives in the runtime-support package the lifecycle file imports (ADR-010).
+The generic execution plumbing (chain construction, per-component wrapping, level execution, boundary running, cleanup wrapping, the built-in overrun interceptor) is not emitted here; it lives in the runtime-support package the lifecycle file imports (ADR-010).
 
 Generated artifacts are implementation details. Applications may inspect them for debugging and review, but they should not depend on private generated type names or helper method names.
 
@@ -270,7 +266,7 @@ Generated artifacts are implementation details. Applications may inspect them fo
 
 `Start(ctx)` executes generated level values in dependency order.
 
-Each generated level is a private generated value that implements `Starter` when any of its members participate in startup. The top-level lifecycle treats the level like a component by calling its `Start` method. Inside the level, generated code starts all member components concurrently. Each component invocation passes through:
+Each generated level is a private generated value that implements `Starter` when any of its members is a `Starter` component — a cleanup contributes no start work. The top-level lifecycle treats the level like a component by calling its `Start` method. Inside the level, generated code starts all members concurrently. Each component invocation passes through:
 
 1. generated lifecycle component context injection,
 2. the prebuilt start interceptor chain,
@@ -311,7 +307,7 @@ During startup-failure cleanup, generated quiesce code is scoped to components t
 
 Both passes run under the caller's context — the single context passed to `Stop`, whose deadline, if any, spans the whole sequence. The quiesce pass completes before any teardown begins.
 
-Stop levels are generated as private `yamaLevelNNN` values in reverse dependency order over stop-capable components. A level implements `Stopper` when any of its members participate in shutdown. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent components in the same shutdown level stop concurrently inside the level. A Google Wire cleanup function runs as part of the teardown of the value it cleans up, before that value's own `Stop`; cleanups do not pass through interceptor chains.
+Levels are generated once as private `yamaLevelNNN` values in dependency order; the teardown pass walks them back rather than reading a second, reversed structure. A level implements `Stopper` when any of its members has stop work — a `Stopper` component, or any member carrying a cleanup. The top-level lifecycle treats the level like a component by calling its `Stop` method. A dependent stops before the dependency it relies on. Independent members in the same shutdown level stop concurrently inside the level. A Google Wire cleanup runs as the teardown of the value it cleans up: ahead of a lifecycle-capable component's own `Stop`, or alone as a dependency-only component's entire `Stop`. Cleanups do not pass through interceptor chains.
 
 Each stop invocation passes through:
 
@@ -488,7 +484,6 @@ Yama moves expensive lifecycle work to generation time:
 * parsing the generated injector,
 * lifecycle capability analysis,
 * topological level computation from the injector's statement order,
-* shutdown level computation,
 * chain shape generation.
 
 Runtime avoids graph traversal, sorting, discovery, registration, reflection, and plan interpretation.
@@ -507,7 +502,7 @@ Generated code may be larger for large dependency graphs. This is an accepted tr
 
 Testing covers the generator, generated code shape, and runtime behavior of generated lifecycle implementations.
 
-Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only components, and cleanup functions. The tests assert that lifecycle analysis produces correct startup levels, quiesce levels, shutdown levels, and chain construction, and that a value which both returns a cleanup function and implements `Stopper` has the cleanup folded into its teardown, ahead of that value's own `Stop`. These tests operate on the generated injector and generated source, not on a private runtime graph API.
+Generator tests should use real source-file fixtures containing Google Wire injector inputs, run `wire gen`, and assert that the AST walk of the resulting `wire_gen.go` derives the correct ordering. Fixtures should cover provider functions, provider sets, bindings, values, struct providers, field providers, injector declarations, transitive ordering through dependency-only components, and cleanup functions. The tests assert that lifecycle analysis produces the correct level list and chain construction, that a value which both returns a cleanup function and implements `Stopper` has the cleanup folded into its teardown ahead of that value's own `Stop`, and that a value which returns a cleanup but implements no capability occupies a level on the strength of the cleanup alone. These tests operate on the generated injector and generated source, not on a private runtime graph API.
 
 Generated-code tests should compile generated packages and exercise the public lifecycle surface. They should verify startup ordering, shutdown ordering, quiesce-before-teardown behavior, reverse-topological quiesce ordering, concurrent independent branches, startup fail-fast behavior, startup-failure cleanup, that shutdown returns nothing and runs to completion, observational-deadline overrun logging, and that only `ErrStartFailed` is returned. Golden-file tests should cover generated source shape for representative graphs so readability, naming stability, and chain construction remain reviewable.
 

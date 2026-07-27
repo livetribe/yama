@@ -213,7 +213,7 @@ Components may implement:
 
 All Wire graph components participate in dependency analysis.
 
-Only lifecycle-capable components participate in lifecycle execution.
+A component occupies a level in lifecycle execution when it is lifecycle-capable, or when its provider returned a Google Wire cleanup. A component receives a callback only for the capabilities it implements; a component that occupies a level solely on the strength of a cleanup receives none.
 
 ---
 

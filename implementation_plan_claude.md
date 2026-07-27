@@ -25,7 +25,7 @@ Yama v2 has **three separable artifacts**:
    (`WithBeginComponents`/`WithEndComponents`), and `RunUntilSignal`.
 2. **A Yama-owned runtime-support package** (e.g. `l7e.io/yama/v2/rt`, ADR-010)
    — the generic execution plumbing (chain construction, per-component wrapper,
-   fail-fast level executor, boundary runner, `cleanupAdapter`, built-in overrun
+   fail-fast level executor, boundary runner, cleanup wrapping, built-in overrun
    interceptor) that generated code imports. It is exported (generated
    application-package code must be able to call it) but **not** part of the stable
    ADR-007 public API.
@@ -51,7 +51,7 @@ naming because several phases lean on them:
 
 - **The runtime-support package (ADR-010).** Generic execution plumbing (chain
   construction, per-component wrapper, fail-fast level executor, boundary runner,
-  `cleanupAdapter`, the built-in overrun interceptor) lives in a Yama-owned sibling
+  cleanup wrapping, the built-in overrun interceptor) lives in a Yama-owned sibling
   package (e.g. `rt`) that generated code imports — exported so
   application-package code can call it, but not part of the stable ADR-007 API.
   Only graph-specific code (the `NewLifecycle` constructor, which declares each
@@ -532,12 +532,22 @@ DoD process checks below guard against that.
   - Boundary sets are unordered/concurrent (no ordering assertion is made or
     required; a test must not depend on intra-set order).
 - *Edge/failure cases:* zero components; a single component with all/none
-  capabilities; caller context canceled mid-shutdown (passes still run to
-  completion, return nothing); no goroutine leaks (goleak-style check or explicit
-  wait-group accounting). (The canceled-at-`Start` and start-deadline cases are
-  covered as first-class output checks above.)
+  capabilities; a dependency-only value with a cleanup and no capability of its
+  own (occupies a level and receives a `Stop` call that runs only the cleanup, no
+  `Start`/`Quiesce` callback); a `Stop` context that is already dead on arrival
+  stops neither pass, over a graph deep enough that a between-level bail would
+  show (the harder form of "canceled mid-shutdown": the context is spent before
+  the first pass begins, so an implementation that consults it at entry or
+  between levels fails, and `Stop` returns nothing either way); no goroutine
+  leaks out of the intra-level fan-out — asserted with `goleak` per spec, scoped
+  by `IgnoreCurrent` so a failure names the spec that leaked rather than the one
+  that observed it, over each path that fans out (a level starting its members at
+  once, a member failing while its siblings are still running, and concurrent
+  `Stop`), with a suite-wide `VerifyTestMain` backstop covering the paths not
+  enumerated. (The canceled-at-`Start` and start-deadline cases are covered as
+  first-class output checks above.)
 
-**Regression note.** Phase 7 folds cleanup functions into shutdown levels — re-run
+**Regression note.** Phase 7 folds cleanup functions into the teardown pass — re-run
 **all** Phase 3 ordering tests after Phase 7 to confirm they occupy the correct DAG
 position and don't perturb ordering. Phase 8's emitted code
 must declare levels that satisfy these same invariants — Phase 3's tests
@@ -659,9 +669,11 @@ tested Wire version.
 ## Phase 6 — Generator: lifecycle capability detection + level computation
 
 **Goal.** From the parsed graph, determine each component's lifecycle capabilities and
-compute the three level structures: startup levels (dependency order), and quiesce
-& shutdown levels (reverse dependency order), with **transitive ordering preserved
-through dependency-only / non-capable components**.
+compute **one dependency-ordered level list per injector**, with **transitive ordering
+preserved through dependency-only / non-capable components**. Startup runs that list
+forward; quiesce and stop run it back. The runtime built in Phases 1–4 takes a single
+`[]exec.Level` and walks it in both directions, so the reverse orderings are a
+consequence of the one list rather than separately computed structures.
 
 **Files/modules touched.** `internal/generator/analyze*.go`,
 `internal/generator/levels*.go`, fixtures + expected-level assertions.
@@ -684,40 +696,45 @@ assignment yields silently-wrong startup/shutdown ordering in every consuming ap
     package (does the concrete type satisfy `Starter`/`Quiescer`/`Stopper`?), with
     **no reflection** and no runtime discovery (ADR-001, PRD §4).
 - *Output checks:*
-  - Startup levels: components with no lifecycle ordering edge between them share a
-    level (may run concurrently); a dependent is in a strictly later level than
-    its dependency (the diamond `DB → {Router, Worker}` yields `[DB]`, then
-    `[Router, Worker]` — matching ADR-003's worked example).
-  - Shutdown & quiesce levels are the **reverse**: `[Router, Worker]` then `[DB]`.
+  - Components with no lifecycle ordering edge between them share a level (may run
+    concurrently); a dependent is in a strictly later level than its dependency (the
+    diamond `DB → {Router, Worker}` yields the list `[DB]`, `[Router, Worker]` —
+    matching ADR-003's worked example). Walked back for quiesce and stop, that same
+    list is `[Router, Worker]`, `[DB]`.
   - **Transitive ordering through non-capable components:** for capable A → non-capable
-    B → capable C, A and C remain correctly ordered relative to each other in all
-    three level sets (dedicated fixture; this is the headline edge case).
-  - Only capability-bearing components appear in a given operation's levels
-    (dependency-only components influence ordering but receive no callbacks); a
-    `Quiescer`-only-absent component is skipped in quiesce levels but still transmits
-    ordering.
+    B → capable C, A and C remain correctly ordered relative to each other in the
+    single list, and therefore in all three passes (dedicated fixture; this is the
+    headline edge case).
+  - Every lifecycle-capable component occupies a level, and so does every
+    dependency-only component whose provider returned a cleanup — its cleanup runs
+    at that position even though it receives no callback. A dependency-only
+    component with neither trait occupies no level; it still transmits ordering. A
+    component receives a callback only for the capabilities it implements, so a
+    non-`Quiescer` transmits quiesce ordering without receiving a quiesce callback;
+    no separate per-pass level set expresses that.
   - Level computation is **deterministic**: identical input yields byte-identical
     level assignment across runs (stable component iteration order — asserted by
     repeated runs), so goldens in Phase 8 are stable.
 - *Edge/failure cases:* a component implementing all three vs. exactly one capability;
-  a graph with no capable components (empty level sets, no error); a wide fan-out
+  a graph with no capable components (empty level list, no error); a wide fan-out
   (many independent components in one level); a deep chain (many single-component levels);
   a component that is both depended-upon and a dependent (interior of a chain);
   a **capable root**.
 
-**Regression note.** Folding cleanup functions (Phase 7) adds teardown work to the
-shutdown level computation "at the cleaned-up value's position." Re-run all Phase 6
+**Regression note.** Folding cleanup functions (Phase 7) adds teardown work at the
+cleaned-up value's position in the level list. Re-run all Phase 6
 level tests after Phase 7 to confirm cleanups land in the right level and don't
 shift other components. This is the highest-value regression
 checkpoint in the plan.
 
 ---
 
-## Phase 7 — Generator: cleanup-adapter synthesis
+## Phase 7 — Generator: cleanup folding
 
-**Goal.** Fold **every** Wire cleanup function into the teardown of the value it
-cleans up, at that value's DAG slot (ordering only, type graph unmodified). The
-change is small — folding + positioning — but its stakes are not: a mispositioned
+**Goal.** Fold **every** Wire cleanup function into its value's position in the
+level list (ordering only, type graph unmodified): alongside the value's own
+`Stop` when the value is lifecycle-capable, or as the value's entire teardown when
+it is not. The change is small — folding + positioning — but its stakes are not: a mispositioned
 or dropped cleanup is the same "dependency torn down while a dependent still uses
 it" failure Phase 3 rates HIGH, in the path much real resource teardown (DB pools,
 file handles, connections) runs through. Kept a separate phase to hold the cleanup
@@ -754,7 +771,12 @@ constructor semantics). The DoD below is held to that standard.
   - **Both-a-`Stopper`-and-a-cleanup value:** a provider that returns a cleanup func
     *and* whose value implements `Stopper` yields **one** teardown participant whose
     `Stop` runs the cleanup and then the value's own `Stop`, in that order and in the
-    same teardown level. Asserted; **not** an error and **not** two components.
+    same teardown level. Asserted; **not** an error and **not** two components. Emitted
+    via `WithCleanableComponent`.
+  - **A cleanup with no other capability** emits via `WithCleanup` rather than
+    `WithCleanableComponent`: the value contributes no `Starter`/`Quiescer`/`Stopper`
+    behavior of its own, so nothing is gained by wrapping a component that implements
+    nothing. It still occupies the value's DAG position.
 - *Edge/failure cases:* a value with a cleanup func but no other capability (the
   cleanup is its only teardown role); multiple cleanup funcs in one injector (each
   folded at its own position); a `Stopper` value with no cleanup func (plain
@@ -991,7 +1013,7 @@ change isn't mistaken for accidental drift, and vice-versa.
 | 4 | `RunUntilSignal` | LOW-MEDIUM | concurrency + cross-platform signals; behavioral changes affect generated apps |
 | 5 | Wire AST parsing | HIGH | couples to Wire output shape; must fail loudly |
 | 6 | Level computation | **HIGH** | **correctness crux** — decides all ordering guarantees |
-| 7 | Cleanup-adapter synthesis | **MEDIUM-HIGH** | ADR-008: cleanup funcs are the *primary* teardown mechanism — wrong adapter position is data-integrity risk on par with Phases 3/6/8, scoped down only for narrowness of change |
+| 7 | Cleanup folding | **MEDIUM-HIGH** | ADR-008: cleanup funcs are the *primary* teardown mechanism — wrong position is data-integrity risk on par with Phases 3/6/8, scoped down only for narrowness of change |
 | 8 | Code emission | **HIGH** | constructor cleanup-discard (double-teardown/stranded-cleanup risk); naming stability |
 | 9 | Generation driver | MEDIUM | user-facing CLI; clean failure modes |
 | 10 | Drift check + integration | LOW-MED | flaky-drift hazard across environments |

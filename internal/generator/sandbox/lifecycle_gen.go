@@ -27,16 +27,18 @@ package sandbox
 //     the injector returns only the roots, and the lifecycle needs base1/base2/
 //     base3/mid2, which are injector-locals). Every value stays in scope, and the
 //     tail is swapped: instead of returning Wire's aggregated cleanup, each
-//     provider cleanup is paired with the value it cleans up, via
-//     WithComponentAndCleanup, at that value's own DAG slot.
+//     provider cleanup is placed at its own value's DAG slot — via WithCleanup
+//     when that value implements no capability, WithCleanableComponent when it
+//     does.
 //   - Boundary components carry no providers; they are supplied at the call site
 //     through WithBeginComponents/WithEndComponents and never appear in this
 //     file, which adds only the graph's own levels.
 //
-// Dependency levels over lifecycle-capable components (transitively through the
-// non-lifecycle Mid1/Root1/ConsoleLogger):
+// Levels over the components that occupy one — every lifecycle-capable component,
+// plus base2, which is dependency-only but carries a cleanup — ordered
+// transitively through Mid1/Root1/ConsoleLogger, which occupy none:
 //
-//	level 0: base3, base1, base2-cleanup, base3-cleanup
+//	level 0: base1, base2 (cleanup only), base3
 //	level 1: mid2, root2
 //	level 2: root3
 
@@ -82,8 +84,8 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	b := rt.NewLifecycleBuilder(opts...)
 	b.NextLevel().
 		WithComponents(base1).
-		WithComponentAndCleanup(base2, base2Cleanup).
-		WithComponentAndCleanup(base3, base3Cleanup).
+		WithCleanup(base2Cleanup).
+		WithCleanableComponent(base3, base3Cleanup).
 		Add()
 	b.NextLevel().
 		WithComponents(mid2).
@@ -129,8 +131,8 @@ func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecy
 	b := rt.NewLifecycleBuilder(opts...)
 	b.NextLevel().
 		WithComponents(base1).
-		WithComponentAndCleanup(base2, base2Cleanup).
-		WithComponentAndCleanup(base3, base3Cleanup).
+		WithCleanup(base2Cleanup).
+		WithCleanableComponent(base3, base3Cleanup).
 		Add()
 	b.NextLevel().
 		WithComponents(mid2).
