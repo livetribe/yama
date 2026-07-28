@@ -14,7 +14,10 @@
 
 package generator
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 // Capabilities is the set of lifecycle capability interfaces a component's type
 // implements, decided by static type analysis of the generated package.
@@ -56,6 +59,38 @@ func (c Capabilities) String() string {
 	return strings.Join(names, " ")
 }
 
+// MemberKind is how a level member is handed to the runtime's level builder. A
+// Google Wire cleanup function is not a member of its own: it is folded into the
+// member that carries the value it cleans up, which is what these three kinds
+// distinguish.
+type MemberKind int
+
+const (
+	// MemberComponent is the value alone, added with WithComponents. Its provider
+	// returned no cleanup.
+	MemberComponent MemberKind = iota
+	// MemberCleanableComponent is the value paired with the cleanup its provider
+	// returned, added with WithCleanableComponent. The cleanup runs ahead of the
+	// value's own Stop, and the pair is one teardown participant rather than two.
+	MemberCleanableComponent
+	// MemberCleanup is the cleanup alone, added with WithCleanup. It is the whole
+	// teardown of a value that implements no lifecycle capability.
+	MemberCleanup
+)
+
+func (k MemberKind) String() string {
+	switch k {
+	case MemberComponent:
+		return "component"
+	case MemberCleanableComponent:
+		return "cleanableComponent"
+	case MemberCleanup:
+		return "cleanup"
+	default:
+		return fmt.Sprintf("MemberKind(%d)", int(k))
+	}
+}
+
 // Member is one component's place in a level: the component together with the
 // capabilities its type implements. A member joins only the passes whose
 // capability it has; one with no capability at all occupies its level for its
@@ -63,6 +98,30 @@ func (c Capabilities) String() string {
 type Member struct {
 	Component    *Component
 	Capabilities Capabilities
+}
+
+// Kind reports how the member is handed to the level builder. A value whose
+// provider returned no cleanup is added as a component; one that did is added as
+// a cleanable component, or as the cleanup alone when the value implements no
+// capability of its own.
+//
+// Every member falls in one of the three: a component occupies a level only for
+// its capabilities, its cleanup, or both. Kind panics on the zero Member: a
+// caller must check InjectorAnalysis.Member's ok result before calling it.
+func (m Member) Kind() MemberKind {
+	if m.Component == nil {
+		panic("generator: Kind called on a Member with no Component")
+	}
+
+	if m.Component.Cleanup == nil {
+		return MemberComponent
+	}
+
+	if m.Capabilities == None {
+		return MemberCleanup
+	}
+
+	return MemberCleanableComponent
 }
 
 // Level is one group of components that have no lifecycle ordering constraint

@@ -741,17 +741,23 @@ file handles, connections) runs through. Kept a separate phase to hold the clean
 semantics and the both-a-`Stopper`-and-a-cleanup case in one place. Background:
 ADR-008 §"Cleanup functions".
 
-**Files/modules touched.** `internal/generator/cleanup*.go`, the cleanup-folding
-helper (location/visibility per ADR-010), fixtures covering plain-cleanup and
-both-a-`Stopper`-and-a-cleanup values.
+**Files/modules touched.** `internal/generator/levels.go` (the member-kind
+classification, alongside `Member`/`Capabilities`) and its tests, fixtures
+covering plain-cleanup and both-a-`Stopper`-and-a-cleanup values, and the Phase 3
+ordering suite (fixtures proving folded-cleanup teardown position). The folding
+mechanism itself — `WithCleanup`/`WithCleanableComponent` — is `rt`-owned
+(ADR-010, built in Phase 4); this phase decides which one applies to a given
+value, it does not build the mechanism.
 
 **Dependencies.** Phases 5–6.
 
-**Risk.** **MEDIUM-HIGH** — a wrong adapter position reintroduces the ordering bug
-the project exists to prevent, in what ADR-008 calls the *primary* teardown
+**Risk.** **MEDIUM-HIGH** — a wrong teardown-form classification, or a folded
+cleanup misplaced within its value's level, reintroduces the ordering bug the
+project exists to prevent, in what ADR-008 calls the *primary* teardown
 mechanism. Same data-integrity class as Phases 3/6/8, scoped down only because the
-change is narrow and mechanical (adapter positioning, not level computation or
-constructor semantics). The DoD below is held to that standard.
+change is narrow and mechanical (classifying an existing component's teardown
+form, not level computation or constructor semantics). The DoD below is held to
+that standard.
 
 **Definition of Done.**
 - *Process:*
@@ -785,7 +791,7 @@ constructor semantics). The DoD below is held to that standard.
 
 **Regression note.** See Phase 6 note — this phase is the reason Phase 6's tests
 must be re-run. Also re-run Phase 3 ordering tests against a fixture whose ordering
-depends on an adapter's position, and against a both-a-`Stopper`-and-a-cleanup
+depends on a folded cleanup's position, and against a both-a-`Stopper`-and-a-cleanup
 fixture (two teardown components, same level).
 
 ---
@@ -1020,11 +1026,14 @@ change isn't mistaken for accidental drift, and vice-versa.
 
 **Key regression chains (re-verify the earlier phase when the later one lands):**
 
-- **Phase 7 → Phase 6:** adapters inject synthetic `Stopper`s into level
-  computation — re-run all level tests **and re-run the generated behavioral tests
+- **Phase 7 → Phase 6:** Phase 6's `occupiesLevel` already gives a cleanup-only
+  value a level of its own; Phase 7 classifies the teardown form for every
+  occupant (component, cleanup, or both) without adding or repositioning
+  anything — re-run all level tests **and re-run the generated behavioral tests
   + goldens** (drift alone does not prove behavioral correctness of wrong output).
-- **Phase 7 → Phase 3:** adapters change teardown ordering — re-run all ordering
-  invariants against an adapter-dependent fixture.
+- **Phase 7 → Phase 3:** a folded cleanup changes teardown ordering — re-run all
+  ordering invariants against a fixture whose ordering depends on a folded
+  cleanup's position.
 - **Phase 5/6 change → generated behavior:** a parser/analysis change can commit
   *wrong* generated output that still passes drift (drift only proves "matches the
   committed copy"). Always **re-run the Phase 8 golden tests and the Phase 10

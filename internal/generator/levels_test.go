@@ -323,6 +323,68 @@ func TestCapabilitiesString(t *testing.T) {
 	}
 }
 
+// TestMemberKind asserts each combination of capabilities and cleanup produces
+// the member the generated code must add for it. A cleanup pairs with the value
+// whenever that value carries a capability of its own, whether or not the
+// capability is Stop; it stands alone only when there is nothing to pair with.
+func TestMemberKind(t *testing.T) {
+	cases := []struct {
+		name    string
+		caps    Capabilities
+		cleanup bool
+		want    MemberKind
+	}{
+		{name: "a Stopper with no cleanup", caps: CanStop, want: MemberComponent},
+		{name: "an all-capable value with no cleanup", caps: allCaps, want: MemberComponent},
+		{name: "a cleanup on a value with no capability", cleanup: true, want: MemberCleanup},
+		{name: "a cleanup on a Stopper", caps: CanStop, cleanup: true, want: MemberCleanableComponent},
+		{name: "a cleanup on a Starter", caps: CanStart, cleanup: true, want: MemberCleanableComponent},
+		{name: "a cleanup on a Quiescer", caps: CanQuiesce, cleanup: true, want: MemberCleanableComponent},
+		{name: "a cleanup on an all-capable value", caps: allCaps, cleanup: true, want: MemberCleanableComponent},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Component{Name: "c"}
+			if tc.cleanup {
+				c.Cleanup = &Cleanup{Name: "cCleanup"}
+			}
+
+			m := Member{Component: c, Capabilities: tc.caps}
+			assert.Equal(t, tc.want, m.Kind())
+		})
+	}
+}
+
+// TestMemberKindPanicsOnTheZeroMember asserts Kind panics on the zero Member
+// InjectorAnalysis.Member returns for a non-occupying component, rather than
+// reading its nil Component as if it were a real answer.
+func TestMemberKindPanicsOnTheZeroMember(t *testing.T) {
+	assert.Panics(t, func() {
+		Member{}.Kind()
+	})
+}
+
+// TestMemberKindString asserts each kind renders as the name it is known by, and
+// that an unnamed value renders as itself rather than as one of the three.
+func TestMemberKindString(t *testing.T) {
+	cases := []struct {
+		kind MemberKind
+		want string
+	}{
+		{kind: MemberComponent, want: "component"},
+		{kind: MemberCleanableComponent, want: "cleanableComponent"},
+		{kind: MemberCleanup, want: "cleanup"},
+		{kind: MemberKind(7), want: "MemberKind(7)"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.want, func(t *testing.T) {
+			assert.Equal(t, tc.want, tc.kind.String())
+		})
+	}
+}
+
 // TestComputeLevelsIsDeterministic asserts repeated runs over one graph produce
 // the identical level assignment, which is what makes emitted output stable.
 func TestComputeLevelsIsDeterministic(t *testing.T) {

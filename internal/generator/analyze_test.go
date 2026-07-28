@@ -16,6 +16,7 @@ package generator
 
 import (
 	"context"
+	"go/types"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -111,6 +112,19 @@ func capabilitiesByName(ia *InjectorAnalysis) map[string]Capabilities {
 	return caps
 }
 
+// kindsByName projects an injector's levels to the kind of member each component
+// that occupies one produced.
+func kindsByName(ia *InjectorAnalysis) map[string]MemberKind {
+	kinds := map[string]MemberKind{}
+	for _, level := range ia.Levels {
+		for _, m := range level {
+			kinds[m.Component.Name] = m.Kind()
+		}
+	}
+
+	return kinds
+}
+
 // assertOccupiesNoLevel asserts the injector created the named component and that
 // the analysis placed it in no level, so the absence is a decision about a
 // component that exists rather than one the parser never saw.
@@ -173,6 +187,26 @@ func TestAnalyzeSandboxCapabilities(t *testing.T) {
 	}
 
 	assert.Equal(t, want, capabilitiesByName(ia))
+}
+
+// TestFoldSandboxCleanups asserts the kinds computed for the sandbox are the ones
+// its hand-authored lifecycle_gen.go exemplar pins: base1 is added with
+// WithComponents, base2 with WithCleanup, and base3 with WithCleanableComponent.
+func TestFoldSandboxCleanups(t *testing.T) {
+	analysis := analyzeSandbox(t)
+
+	want := map[string]MemberKind{
+		"base1": MemberComponent,
+		"base2": MemberCleanup,
+		"base3": MemberCleanableComponent,
+		"mid2":  MemberComponent,
+		"root2": MemberComponent,
+		"root3": MemberComponent,
+	}
+	for _, name := range []string{"InitializeApp", "InitializeAppWithWriter"} {
+		ia := injectorAnalysis(t, analysis, name)
+		assert.Equal(t, want, kindsByName(ia))
+	}
 }
 
 // TestAnalyzeCapabilityCombinations asserts every capability combination is
@@ -257,6 +291,89 @@ func TestAnalyzeCleanupOnlyComponent(t *testing.T) {
 	assertLevels(t, [][]string{{"b"}}, ia)
 	assert.Equal(t, None, ia.Levels[0][0].Capabilities)
 	assert.NotNil(t, ia.Levels[0][0].Component.Cleanup)
+}
+
+// TestFoldCleanupsAtTheirValuesPosition asserts every cleanup in the fixture is
+// folded into the teardown of the value it cleans up, at that value's own place
+// in the level list, and that the four in one injector each land at their own
+// position without shifting anything else.
+//
+// pool reaches conn only through plain, which occupies no level, so conn's
+// folded cleanup lands where ordering transmitted through a component that
+// receives no callback puts it. app is the graph's root: a cleanup its own
+// provider returned folds at the root's position like any other.
+func TestFoldCleanupsAtTheirValuesPosition(t *testing.T) {
+	dir := filepath.Join("testdata", "cleanup")
+
+	analysis := analyzeDir(t, dir)
+	ia := injectorAnalysis(t, analysis, "InitApp")
+
+	assertLevels(t, [][]string{
+		{"pool", "worker"},
+		{"conn"},
+		{"cache"},
+		{"app"},
+	}, ia)
+
+	want := map[string]MemberKind{
+		"pool":   MemberCleanup,
+		"worker": MemberComponent,
+		"conn":   MemberCleanableComponent,
+		"cache":  MemberCleanableComponent,
+		"app":    MemberCleanableComponent,
+	}
+	assert.Equal(t, want, kindsByName(ia))
+
+	assertOccupiesNoLevel(t, ia, "plain")
+}
+
+// TestFoldingLeavesTheTypeGraphUnmodified asserts folding decides ordering and
+// nothing else. A cleanup never becomes a component of its own and never becomes
+// a dependency edge, and every component stays bound to the type the
+// application's own provider declared.
+func TestFoldingLeavesTheTypeGraphUnmodified(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "cleanup")
+	pkg, err := NewGenerator(Options{}).Generate(context.Background(), dir)
+	require.NoError(t, err)
+
+	analysis := analyzePackage(t, pkg)
+	ia := injectorAnalysis(t, analysis, "InitApp")
+
+	cleanups := map[string]bool{}
+	for _, c := range ia.Injector.Components {
+		if c.Cleanup != nil {
+			cleanups[c.Cleanup.Name] = true
+		}
+	}
+	require.Len(t, cleanups, 4, "the fixture's four cleanups are all detected")
+
+	for _, c := range ia.Injector.Components {
+		assert.Falsef(t, cleanups[c.Name], "cleanup %s became a component of its own", c.Name)
+
+		for _, d := range c.Deps {
+			assert.Falsef(t, cleanups[d.Name], "%s depends on cleanup %s", c.Name, d.Name)
+		}
+	}
+
+	qualifier := types.RelativeTo(pkg.Package.Types)
+	got := map[string]string{}
+	for _, c := range ia.Injector.Components {
+		typ, err := componentType(pkg, ia.Injector.Name, c)
+		require.NoError(t, err)
+		got[c.Name] = types.TypeString(typ, qualifier)
+	}
+
+	want := map[string]string{
+		"pool":   "*Pool",
+		"plain":  "*Plain",
+		"conn":   "*Conn",
+		"cache":  "*Cache",
+		"worker": "*Worker",
+		"app":    "*App",
+	}
+	assert.Equal(t, want, got)
 }
 
 // TestAnalyzeNoLifecycleComponents asserts a graph with nothing to run is not an

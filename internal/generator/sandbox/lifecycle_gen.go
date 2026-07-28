@@ -53,8 +53,9 @@ import (
 // NewLifecycle re-emits InitializeApp's construction, wraps every lifecycle
 // component through the interceptor chains, and returns the application beside
 // its Lifecycle. On construction failure it returns nil, nil, err; on success it
-// routes each Wire cleanup through Stop via a cleanupAdapter, so teardown runs
-// only through Lifecycle.Stop.
+// routes each Wire cleanup through Stop — via WithCleanup when the value
+// implements no capability, WithCleanableComponent when it does — so teardown
+// runs only through Lifecycle.Stop.
 func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	// --- re-emitted from wire_gen.go: InitializeApp, minus its final return ---
 	// Value/InterfaceValue providers are reproduced as their own expressions, not

@@ -158,6 +158,143 @@ var _ = Describe("the rt lifecycle contract", func() {
 			lc.Stop(context.Background())
 		})
 
+		It("tears down a folded cleanup at its own value's position, dependents first", func() {
+			var events []string
+
+			base := execmocks.NewMockCompleteLifecycle(ctrl)
+			mid := execmocks.NewMockCompleteLifecycle(ctrl)
+			top := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			record := func(name string, c *execmocks.MockCompleteLifecycle) {
+				c.EXPECT().Start(gomock.Any())
+				c.EXPECT().Quiesce(gomock.Any())
+				c.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+					events = append(events, name+".Stop")
+				})
+			}
+			record("base", base)
+			record("mid", mid)
+			record("top", top)
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().WithCleanableComponent(base, func() {
+				events = append(events, "base.cleanup")
+			}).Add()
+			b.NextLevel().WithComponents(mid).Add()
+			b.NextLevel().WithCleanableComponent(top, func() {
+				events = append(events, "top.cleanup")
+			}).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(context.Background())).To(Succeed())
+			lc.Stop(context.Background())
+
+			// The deepest cleanup runs last of all, not first: a cleanup inherits
+			// the ordering of the value it cleans up rather than Wire's own
+			// aggregated teardown order.
+			Expect(events).To(Equal([]string{
+				"top.cleanup", "top.Stop",
+				"mid.Stop",
+				"base.cleanup", "base.Stop",
+			}))
+		})
+
+		It("tears down a level's plain and cleanup-bearing members together", func() {
+			var mu sync.Mutex
+			var events []string
+
+			record := func(s string) {
+				mu.Lock()
+				defer mu.Unlock()
+				events = append(events, s)
+			}
+
+			worker := execmocks.NewMockCompleteLifecycle(ctrl)
+			conn := execmocks.NewMockCompleteLifecycle(ctrl)
+			top := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			for _, c := range []*execmocks.MockCompleteLifecycle{worker, conn, top} {
+				c.EXPECT().Start(gomock.Any())
+				c.EXPECT().Quiesce(gomock.Any())
+			}
+
+			cleaned := false
+			connStopSawCleanup := false
+			worker.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+				record("worker.Stop")
+			})
+			conn.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+				connStopSawCleanup = cleaned
+				record("conn.Stop")
+			})
+			top.EXPECT().Stop(gomock.Any()).Do(func(context.Context) {
+				record("top.Stop")
+			})
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().
+				WithComponents(worker).
+				WithCleanableComponent(conn, func() {
+					cleaned = true
+					record("conn.cleanup")
+				}).
+				Add()
+			b.NextLevel().WithComponents(top).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(context.Background())).To(Succeed())
+			lc.Stop(context.Background())
+
+			// Two teardown participants share the level, so the order between them
+			// is unconstrained; both still follow the level that depends on them.
+			Expect(events).To(HaveLen(4))
+			Expect(events[0]).To(Equal("top.Stop"))
+			Expect(events[1:]).To(ConsistOf("worker.Stop", "conn.cleanup", "conn.Stop"))
+			Expect(connStopSawCleanup).To(BeTrue(), "the cleanup must run before its own component's Stop")
+		})
+
+		It("completes every quiesce before any folded cleanup runs", func() {
+			quiesced := 0
+			standaloneRuns, standaloneSaw := 0, -1
+			pairedRuns, pairedSaw := 0, -1
+
+			conn := execmocks.NewMockCompleteLifecycle(ctrl)
+			top := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			for _, c := range []*execmocks.MockCompleteLifecycle{conn, top} {
+				c.EXPECT().Start(gomock.Any())
+				c.EXPECT().Quiesce(gomock.Any()).Do(func(context.Context) {
+					quiesced++
+				})
+				c.EXPECT().Stop(gomock.Any())
+			}
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().
+				WithCleanup(func() {
+					standaloneRuns++
+					standaloneSaw = quiesced
+				}).
+				WithCleanableComponent(conn, func() {
+					pairedRuns++
+					pairedSaw = quiesced
+				}).
+				Add()
+			b.NextLevel().WithComponents(top).Add()
+			lc := b.Build()
+
+			Expect(lc.Start(context.Background())).To(Succeed())
+			lc.Stop(context.Background())
+
+			// A cleanup releases what a still-quiescing component may need, so it
+			// belongs wholly inside the teardown pass in either of its forms: it
+			// runs once, and only after both components have quiesced.
+			Expect(standaloneRuns).To(Equal(1))
+			Expect(pairedRuns).To(Equal(1))
+			Expect(standaloneSaw).To(Equal(2))
+			Expect(pairedSaw).To(Equal(2))
+		})
+
 		It("starts a level's members at once", func() {
 			verifyNoLeaks()
 
