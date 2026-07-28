@@ -108,6 +108,8 @@ Yama does not expose the extracted graph publicly. The graph exists only inside 
 
 Lifecycle analysis occurs entirely during generation.
 
+Yama checks the type of each component the injector creates: the component is capable if the type implements a lifecycle interface.
+
 Yama computes one dependency-ordered level list over every component that occupies a level — every lifecycle-capable component, and every dependency-only component with cleanup. A component with neither trait is traversed when deriving ordering but occupies no level of its own. If lifecycle-capable component A depends on such a component B, and B depends on lifecycle-capable component C, A is ordered after C even though B occupies no level. Components in the same level have no ordering dependency between them and may run concurrently.
 
 Startup runs that list forward. Quiesce and shutdown run it back, so dependents quiesce and stop before the dependencies they rely on, because a dependency must not quiesce while a dependent might still call into it. A component takes no part in a pass whose capability interface it does not implement, and ordering still holds transitively through the ones it lacks.
