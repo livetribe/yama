@@ -31,8 +31,9 @@ This approach introduces:
 
 * Runtime orchestration engines.
 * Runtime plan interpreters.
-* Runtime execution metadata.
-* Runtime lifecycle state.
+* Runtime execution metadata — a description of the graph, separate from the
+  code that acts on it.
+* Runtime lifecycle state derived from that description.
 * Indirection between generated artifacts and execution behavior.
 
 The project follows the same philosophy as Google Wire:
@@ -59,7 +60,7 @@ The framework shall not generate:
 
 * Runtime lifecycle plans.
 * Runtime lifecycle graphs.
-* Runtime execution metadata.
+* Runtime execution metadata describing the graph.
 * Runtime lifecycle interpreters.
 * Runtime orchestration engines.
 
@@ -100,6 +101,55 @@ Runtime Interpreter
     ↓
 Execution
 ```
+
+### The Ordered Level List
+
+Generated code declares its levels, in dependency order, one call per level.
+Something must hold those levels between the constructor that declares them and
+the `Start` that runs them, so the lifecycle value holds them in an ordered list
+and walks it forward to start and backward for the quiesce and teardown passes.
+
+A list of levels held at runtime resembles the `Plan` above closely enough that
+the difference is worth stating rather than assuming. What this decision rejects
+is a *plan*: a description of execution, separate from the code that performs it,
+that an engine reads. Three properties separate the two.
+
+* **Nothing describes the execution apart from the code that performs it.** There
+  is no serialized form, no schema, no plan type an application can hold or hand
+  to an engine, and no representation of the graph — a level holds the callables
+  it will invoke, not a description of them. The list is the direct in-memory
+  consequence of running explicit declaration calls, in the order they appear in
+  their source. A plan is *interpreted*; this list is only ever walked.
+* **No lifecycle analysis happens at runtime.** Nothing sorts, traverses a graph,
+  computes a topological order, or plans execution. Ordering is not derived from
+  anything at runtime — it is the order the declaration calls arrived in. What
+  classification remains is type assertion: each component and each supplied
+  interceptor is asserted against the relevant interfaces once, at construction.
+  That is Go's own mechanism for the question "does this value implement this
+  interface," not a discovery pass over a graph.
+* **Nothing can reorder a declared level.** The list is append-only, and position
+  is fixed at the moment of declaration. No input to the runtime — no
+  configuration, no registration, no data — moves a level relative to another.
+  Changing the graph's execution order requires regenerating the constructor that
+  declares it.
+
+The graph's own levels come only from generated statements. Two levels do not:
+the boundary sets registered through `WithBeginComponents` and
+`WithEndComponents` (ADR-009) are declared by the runtime-support package as the
+first and last levels. That is a call-site input, and it is worth being precise
+about what it can and cannot do. It changes *what is in* the two extreme levels;
+it cannot change where those levels sit, cannot reach the graph's levels, and
+cannot reorder anything. A boundary component's position is granted by which
+option registered it, not computed from it — which is the whole of ADR-009's
+mechanism, and is why a boundary registration is a declaration in the same sense
+a generated `NextLevel` call is.
+
+The permission extends to an ordered list of declared levels and nothing further.
+It does not extend to any runtime introspection API over that list, to computing
+or amending ordering at runtime, or to a plan artifact in any form an
+application, a tool, or a later run could read, write, or supply. A change that
+would let two runs execute the same declarations in different orders crosses this
+line and needs its own decision.
 
 ## Rationale
 
@@ -160,29 +210,12 @@ No lifecycle analysis occurs at runtime.
 
 ### Internal Concurrency
 
-Generated lifecycle levels may execute their member components concurrently.
+A lifecycle level may execute its member components concurrently, because
+generation determined that no lifecycle ordering edge exists between them.
 
-Example:
-
-```go
-func (lvl *yamaLvl001) Start(ctx context.Context) error {
-    var g errgroup.Group
-
-    g.Go(func() error {
-        return lvl.rateLimiter.Start(ctx)
-    })
-
-    g.Go(func() error {
-        return lvl.auditLog.Start(ctx)
-    })
-
-    return g.Wait()
-}
-```
-
-The exact implementation is an architecture concern.
-
-The architectural requirement is that concurrency remains encapsulated inside generated lifecycle components rather than exposed through runtime lifecycle plans.
+The exact implementation is an architecture concern. The architectural
+requirement is that a level's concurrency is an implementation detail of that
+level — never something a plan exposes or a caller schedules or configures.
 
 ## Runtime Visibility
 
@@ -219,6 +252,12 @@ Applications inspect generated code rather than query runtime lifecycle metadata
 * Large dependency graphs may generate large artifacts.
 * Lifecycle structure is visible in generated code.
 * Changes to orchestration require regeneration.
+* Ordering is read from the generated constructor's sequence of level
+  declarations, and the walk over those levels is shared code rather than
+  generated code. The debuggability above is satisfied by orchestration being
+  readable and steppable in ordinary tooling without special lifecycle tools; it
+  does not extend to every structural element of the ordering owning a generated
+  stack frame of its own.
 
 ### Accepted Trade-Off
 

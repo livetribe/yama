@@ -109,7 +109,11 @@ timing. This guarantee applies regardless of the reason shutdown was initiated.
 
 All components in the Wire dependency graph participate in dependency analysis.
 
-Only components implementing one or more lifecycle capability interfaces participate in lifecycle execution.
+A component takes a place in lifecycle execution when it implements one or more
+lifecycle capability interfaces, or when its provider returned a Google Wire
+cleanup function. The second case is what gives a cleanup its position in the
+ordering (ADR-008); such a component receives no lifecycle callback, because it
+implements no capability to call — only its cleanup runs.
 
 Example:
 
@@ -134,9 +138,11 @@ KafkaConsumer    Starter, Quiescer, Stopper
 Router           Starter, Stopper
 ```
 
-Only lifecycle components appear in generated execution code.
+A component with neither a capability nor a cleanup appears in no level. It still
+influences ordering: a component that reaches another only through it is still
+ordered after that one.
 
-Dependency-only components influence ordering but do not receive lifecycle callbacks.
+Dependency-only components receive no lifecycle callbacks.
 
 ## Startup Semantics
 
@@ -192,7 +198,7 @@ The lifecycle manager waits for in-flight startup operations in the active start
 Once the active startup level has settled, the lifecycle manager determines which components successfully started.
 
 A component that implements `Starter` counts as started only if its `Start` returned
-without error or panic. A component doesn't implement `Starter` has no start to succeed
+without error or panic. A component that does not implement `Starter` has no start to succeed
 or fail; it counts as started if, and only if, its level was reached during startup — the
 traversal advanced to it before failing. Reaching a component's level is that component's
 start. Consequently, a non-`Starter` in a level the failed startup never reached is not
@@ -270,8 +276,8 @@ transitively through them. If a `Quiescer` depends on a non-`Quiescer` that
 depends on another `Quiescer`, the two quiescing components remain ordered relative to
 each other.
 
-This reverses the earlier concurrent, order-independent model: quiesce is now
-ordered along dependency edges rather than run all at once.
+Quiesce is ordered along dependency edges rather than run all at once; the
+order-independent alternative is rejected below.
 
 ### Quiesce Completion
 
@@ -322,9 +328,10 @@ to `Stop`. The quiesce pass and the teardown pass share that one context, and th
 framework never lengthens it. A component that wants a per-component timeout wraps its
 own `Quiesce` or `Stop`.
 
-The caller's deadline is observational. When it fires, the framework records that
-the component exceeded its window but does not return early. It continues waiting
-for the component's operation to actually complete.
+The caller's deadline is observational. The framework does not return early when
+it expires: it continues waiting for the component's operation to actually
+complete, and records that the component exceeded its window once the operation
+returns. A component that never returns is never recorded.
 
 Returning early would let the traversal proceed to a component's dependencies
 while that component might still be using them, violating the reverse-topological

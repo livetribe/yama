@@ -229,7 +229,8 @@ Startup shall fail fast.
 
 Startup failure shall:
 
-1. Cancel startup execution.
+1. Stop scheduling startup levels. In-flight operations in the active level are
+   not canceled and are awaited.
 2. Initiate shutdown cleanup.
 3. Return a lifecycle startup failure.
 
@@ -263,15 +264,16 @@ A dependent shall stop before the dependency it relies upon.
 Independent branches shall stop concurrently.
 
 Shutdown shall run to completion in dependency order. The caller's context
-deadline is observational: when it fires the framework logs per-component overrun but
-does not return early, so a hung component stalls everything after it until
-SIGKILL. Preserving ordering is chosen over liveness.
+deadline is observational: the framework does not return early when it expires,
+and logs a per-component overrun once that component's operation returns. A hung
+component stalls everything after it until SIGKILL, and is never itself reported.
+Preserving ordering is chosen over liveness.
 
 ---
 
 ## 6.5 Startup Failure Cleanup
 
-If startup fails after one or more components have started:
+If startup fails once the levels are running:
 
 ```text
 Start
@@ -292,8 +294,9 @@ The framework shall generate no lifecycle configuration.
 There is no generated configuration structure and no start or shutdown deadline
 field. The only deadline is the one carried by the context the caller passes to
 `Start` and `Stop`. The framework threads that context through the traversal and
-never lengthens its deadline. The deadline is observational: exceeding it is
-logged, not enforced, and the traversal continues to completion.
+never lengthens its deadline. The deadline is observational: it is not enforced,
+the traversal continues to completion, and a component that exceeded it is logged
+once its operation returns.
 
 A component that wants a per-component timeout wraps its own `Start`, `Quiesce`, or
 `Stop`. This is ordinary Go, not a framework mechanism. Slow-operation and overrun

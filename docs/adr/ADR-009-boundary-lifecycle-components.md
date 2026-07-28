@@ -154,9 +154,9 @@ Quiesce, and Stop passes and preserve the fixed three-phase model of ADR-003.
 
 ### Best-Effort Boundary Failure, Isolated From the Pass
 
-An earlier version of this ADR made boundary-component failure best-effort: a failing
-or panicking begin or end component would not fail the pass, and its failure would be
-invisible to the caller. Rejected in favor of one uniform failure model. A second,
+Boundary-component failure could be made best-effort: a failing or panicking begin
+or end component would not fail the pass, and its failure would be invisible to the
+caller. Rejected in favor of one uniform failure model. A second,
 boundary-only failure policy is exactly the kind of special case the "boundary
 components are peers" principle argues against, and it takes away control from the
 caller who might actually want a boundary component's failure to matter. A caller that

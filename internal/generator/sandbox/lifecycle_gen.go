@@ -23,16 +23,19 @@ package sandbox
 //
 // Two things this file demonstrates:
 //
-//   - NewLifecycle RE-EMITS wire_gen.go's InitializeApp body (it cannot call it —
-//     the injector returns only the roots, and the lifecycle needs base1/base2/
-//     base3/mid2, which are injector-locals). Every value stays in scope, and the
-//     tail is swapped: instead of returning Wire's aggregated cleanup, each
-//     provider cleanup is placed at its own value's DAG slot — via WithCleanup
-//     when that value implements no capability, WithCleanableComponent when it
-//     does.
+//   - NewLifecycle RE-EMITS wire_gen.go's InitializeApp body rather than calling
+//     it. Every value it builds stays in scope, injector-locals included:
+//     base1/base2/base3/mid2 reach no injector signature. Only the tail is
+//     swapped — instead of returning Wire's aggregated cleanup, each provider
+//     cleanup is placed at its own value's DAG slot, via WithCleanup when that
+//     value implements no capability and WithCleanableComponent when it does.
+//     See docs/adr/ADR-008.
 //   - Boundary components carry no providers; they are supplied at the call site
 //     through WithBeginComponents/WithEndComponents and never appear in this
 //     file, which adds only the graph's own levels.
+//
+// The file emits no types and no methods: level membership and level order are
+// the builder call chain below, and nothing else. See docs/adr/ADR-010.
 //
 // Levels over the components that occupy one — every lifecycle-capable component,
 // plus base2, which is dependency-only but carries a cleanup — ordered
@@ -52,10 +55,10 @@ import (
 
 // NewLifecycle re-emits InitializeApp's construction, wraps every lifecycle
 // component through the interceptor chains, and returns the application beside
-// its Lifecycle. On construction failure it returns nil, nil, err; on success it
-// routes each Wire cleanup through Stop — via WithCleanup when the value
-// implements no capability, WithCleanableComponent when it does — so teardown
-// runs only through Lifecycle.Stop.
+// its Lifecycle. On construction failure it returns nil, nil, err. On success
+// every Wire cleanup runs as part of Lifecycle.Stop and nowhere else, added with
+// WithCleanup when its value implements no capability and WithCleanableComponent
+// when it does.
 func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	// --- re-emitted from wire_gen.go: InitializeApp, minus its final return ---
 	// Value/InterfaceValue providers are reproduced as their own expressions, not
@@ -101,11 +104,11 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 }
 
 // NewLifecycleWithWriter is the constructor for the InitializeAppWithWriter
-// injector — one generated constructor per injector, each mirroring its own
-// injector's signature, so w is threaded through the re-emitted body in place of
-// the os.Stdout interface value. Both injectors here build the same graph, so
-// they share the level types; where two injectors' graphs differ, the generator
-// namespaces the level types per injector.
+// injector. There is one constructor per stub in lifecycle.go, each carrying its
+// own injector's parameters ahead of opts: w is threaded through the re-emitted
+// body in place of the os.Stdout interface value. Each constructor declares its
+// own levels inline and shares nothing with the others, whether or not their
+// graphs match.
 func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	// --- re-emitted from wire_gen.go: InitializeAppWithWriter, minus its return ---
 	config := Config{Env: Prod, LogPrefix: "[sandbox] "}

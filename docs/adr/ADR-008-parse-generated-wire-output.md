@@ -50,6 +50,45 @@ The two run in sequence rather than concurrently, because they touch the same re
 
 Cleanup functions do not pass through interceptor chains. A cleanup is a plain `func()`: it takes no context, so it cannot observe a deadline, and it carries no component identity to attribute an observation to. Interception applies to components that participate through the lifecycle interfaces.
 
+### Re-emitting the injector body
+
+The generated lifecycle constructor **re-emits** the injector's construction body
+rather than calling the injector. This is forced, not stylistic. An injector's
+signature returns only the graph's roots, and lifecycle orchestration needs every
+value that occupies a level — including values that are injector-locals and reach
+no root's signature. Calling the injector would surrender them. Re-emitting keeps
+every value in scope, and the constructor swaps only the tail: instead of
+returning Google Wire's aggregated cleanup, each provider's cleanup is placed at
+its own value's position in the ordering.
+
+Re-emission is also what makes `wire_gen.go` disposable. Because the constructor
+reproduces the construction, nothing at runtime calls Wire's injector, so the
+injector need not survive generation.
+
+Re-emission is faithful on the error path as well as the success path. When a
+provider returns an error, Google Wire's injector calls the cleanups of the
+values already built before returning, so that a failed construction leaks
+nothing. The re-emitted body reproduces that unwinding as Wire emitted it. This
+matters because the constructor's own tail is the only part that changes: the
+lifecycle takes ownership of teardown for a construction that *succeeded*, and a
+construction that failed never produces a `Lifecycle` for anything to take
+ownership through.
+
+A re-emitted `wire.Value` or `wire.InterfaceValue` is reproduced as its own value
+expression, not as a reference to the package-level `_wire…Value` variable Wire
+declared. That variable lives in `wire_gen.go`, which is removed; the resolved
+initializer is read out of that file during parsing and emitted in place.
+
+Component locals keep the names Wire gave them. Cleanup locals do not: Wire names
+them positionally — `cleanup`, `cleanup2`, `cleanup3` — which is adequate inside
+an injector that immediately aggregates them all into one closure, and misleading
+in a constructor that keeps each one in scope and hands it to a different level.
+Each cleanup is therefore rebound to a name derived from the value it releases.
+That derivation is the only identifier Yama invents in the generated file, and it
+carries the same obligations as any generated identifier: deterministic across
+equivalent inputs, stable enough to review across regenerations, and unique within
+the generated package.
+
 ### Generation and drift
 
 Generation is one `go:generate` directive that invokes Yama, which runs Google Wire, parses the generated injector, and emits the lifecycle file. The lifecycle file is the sole committed output and carries a provenance header:

@@ -126,9 +126,11 @@ and no framework-visible failure mode. There is no `ErrQuiesceFailed` and no
 
 There are no timeout errors.
 
-The shutdown deadline is observational. When it fires, the framework logs that a
-component exceeded its window and continues waiting for the operation to
-complete; it does not return a timeout error and does not abandon the traversal.
+The shutdown deadline is observational. The framework does not abandon the
+traversal when it expires, and returns no timeout error; it keeps waiting for the
+operation to complete, and reports the overrun once the operation returns
+(ADR-005). A component that never returns is never reported, because nothing
+observes the deadline while the wait is in progress.
 
 A start that exceeds its deadline is handled as an ordinary start failure and
 surfaces as `ErrStartFailed`. The lifecycle manager does not distinguish a start
@@ -149,12 +151,20 @@ dependency order to completion. Shutdown returns nothing, so a recovered shutdow
 panic changes no return value and the pass is never abandoned.
 
 This holds uniformly for graph components and boundary components. The panicking
-component's identity and panic value are diagnostics, available only through
-interceptors and observability, never through a lifecycle return value.
+component's identity and panic value are diagnostics, never a lifecycle return
+value.
+
+Interceptors are not a sufficient home for that diagnostic, because a panic
+unwinds past them: recovery happens above the whole chain, an interceptor
+observes a panic only if it defers a recover of its own, and a sibling's
+interceptors never see it at all. A recovered panic is therefore reported
+directly, as one record through `log/slog`'s package-level default logger at
+Error level, carrying the panic value and the stack. It shares the channel and
+the reasoning for it with the other records Yama emits (ADR-005).
 
 ## Startup Failure Cleanup
 
-If startup fails after one or more components have successfully started:
+If startup fails once the levels are running:
 
 ```text
 Start
@@ -167,7 +177,8 @@ ErrStartFailed
 ```
 
 The lifecycle manager runs the same internal shutdown sequence `Stop` performs,
-scoped to the successfully started components.
+scoped to the levels the traversal reached and, within them, to the components
+that came up. It runs whether or not any component came up.
 
 Shutdown produces no error, so it does not alter the public error returned.
 
@@ -181,17 +192,39 @@ because the lifecycle operation that failed was startup.
 
 Detailed cleanup diagnostics belong in observability systems.
 
-## Canceled Start Context
+## Lifecycle Call States
 
-Before it runs any component, `Start` observes the caller's context. A context
-already canceled or past its deadline returns `ErrStartFailed` with no component
-started.
+Before it runs any level, `Start` observes the caller's context. A context already
+canceled or past its deadline returns `ErrStartFailed` having started and torn
+down nothing.
 
-A `Start` that started no component leaves the lifecycle unchanged and may be
-started again under a live context. A `Start` that started at least one component
-and then failed has already run startup-failure cleanup over the components that
-came up; it is spent, and a later `Start` returns `ErrStartFailed` without
-re-running.
+That pre-flight rejection is the only failure that leaves a lifecycle re-startable.
+Any failure once the levels are running has already run startup-failure cleanup
+over everything the traversal reached, so the lifecycle is spent — including when
+the failing level was the first and no component came up, because the cleanup pass
+ran either way. Re-running such a start would be starting on top of a torn-down
+graph.
+
+A `Lifecycle` is therefore in one of three states. `Start` and `Stop` are
+serialized against each other, so a `Stop` issued while a `Start` is in flight
+waits for that `Start` to finish rather than interleaving with it.
+
+| State | `Start` | `Stop` |
+| --- | --- | --- |
+| Stopped — never started, or fully stopped | runs the levels | no-op |
+| Started | no-op, returns nil | runs both shutdown passes |
+| Spent — a level failed during a start | returns `ErrStartFailed` without re-running | no-op; cleanup already ran |
+
+Both operations are idempotent in the same sense: a second call in a state where
+the work is already done or already spent does that work no second time and
+reports the same outcome as the first. This is what lets `Stop` be called
+unconditionally after a failed `Start` — the caller is not required to know
+whether startup-failure cleanup already ran, which *Startup Failure Cleanup* above
+depends on.
+
+`Start` after a completed `Stop` runs the levels again, which is the restart
+behavior ADR-003's Non-Goals describes: permitted, unpromised, and the caller's
+to judge.
 
 ## Shutdown Always Completes
 

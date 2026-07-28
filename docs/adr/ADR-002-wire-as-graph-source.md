@@ -12,7 +12,6 @@ The lifecycle framework requires a dependency graph in order to derive:
 * Shutdown ordering.
 * Parallel execution groups.
 * Dependency relationships.
-* Critical path analysis.
 
 A central architectural question is where this dependency graph originates.
 
@@ -87,7 +86,7 @@ Restricting the framework to Google Wire keeps the public API small and focused.
 
 Google Wire already performs compile-time graph validation.
 
-By deriving lifecycle plans from the same graph, lifecycle behavior inherits the same deterministic structure.
+By deriving lifecycle orchestration from the same graph, lifecycle behavior inherits the same deterministic structure.
 
 ### Alignment with Project Philosophy
 

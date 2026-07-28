@@ -20,6 +20,7 @@ are intended to preserve design rationale for future maintainers and reviewers.
 | [ADR-008](ADR-008-parse-generated-wire-output.md) | Derive Lifecycle Ordering by Parsing Wire's Generated Injector | Accepted |
 | [ADR-009](ADR-009-boundary-lifecycle-components.md) | Boundary Lifecycle Components | Accepted |
 | [ADR-010](ADR-010-runtime-support-package.md) | Runtime-Support Package and the Generated/Shared Split | Accepted |
+| [ADR-011](ADR-011-lifecycle-constructor-stubs.md) | Lifecycle Constructor Stubs Declare the Generated Surface | Accepted |
 
 ## Conventions
 
@@ -29,7 +30,17 @@ New ADRs should:
 * Use a monotonically increasing three-digit number.
 * Include a status section near the top of the document.
 * Record the decision, rationale, consequences, and rejected alternatives.
-* Prefer amending or superseding an existing ADR over rewriting history.
 
 Accepted ADRs represent the current architectural direction unless a later ADR
 explicitly supersedes them.
+
+An ADR here describes the decision as it currently stands, not the sequence of
+revisions that produced it. When a decision changes, its ADR is rewritten to
+state the new decision and the reasoning for it, and the superseded design moves
+to that ADR's Rejected Alternatives if the reasoning against it is worth keeping.
+There are no amendment sections and no change logs; `git log` is the history.
+
+This holds while the project is pre-1.0 and has no external consumers relying on
+a decision's stability. Once one does, a change that breaks them wants a new ADR
+that supersedes the old one by number, so the old decision stays readable at the
+version it applied to.

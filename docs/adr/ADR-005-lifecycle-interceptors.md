@@ -64,19 +64,19 @@ An interceptor's signature matches the error semantics of the phase it wraps.
 return nothing actionable, so their interceptors do not propagate an error. The
 interceptor interfaces are therefore intentionally not uniform.
 
-```go id="4v76xe"
+```go
 type StartInterceptor interface {
     Start(ctx context.Context, next Starter) error
 }
 ```
 
-```go id="7nxt0o"
+```go
 type QuiesceInterceptor interface {
     Quiesce(ctx context.Context, next Quiescer)
 }
 ```
 
-```go id="e1el5z"
+```go
 type StopInterceptor interface {
     Stop(ctx context.Context, next Stopper)
 }
@@ -92,7 +92,7 @@ The architectural requirement is that lifecycle operations remain strongly typed
 
 The lifecycle manager maintains independent interceptor chains for:
 
-```text id="o5qh6z"
+```text
 Start
 Quiesce
 Stop
@@ -114,13 +114,13 @@ Interceptor participation is determined by implemented interfaces.
 
 Example:
 
-```go id="4rtjlwm"
+```go
 type LoggingInterceptor struct {}
 ```
 
 may implement:
 
-```text id="glvq9x"
+```text
 StartInterceptor
 QuiesceInterceptor
 StopInterceptor
@@ -128,13 +128,13 @@ StopInterceptor
 
 while:
 
-```go id="m7zzc5"
+```go
 type OptionalInterceptor struct {}
 ```
 
 may implement:
 
-```text id="8q2z0u"
+```text
 StartInterceptor
 ```
 
@@ -172,7 +172,7 @@ shape.
 
 This allows applications to apply:
 
-```text id="s90l5q"
+```text
 Telemetry
 Metrics
 Tracing
@@ -190,7 +190,7 @@ Interceptor execution order is determined by registration order.
 
 Example:
 
-```text id="jbyey8"
+```text
 Telemetry
 Metrics
 Logging
@@ -198,7 +198,7 @@ Logging
 
 results in:
 
-```text id="g90n9w"
+```text
 Telemetry
   ↓
 Metrics
@@ -212,19 +212,74 @@ The lifecycle manager performs no interceptor prioritization.
 
 The lifecycle manager performs no interceptor reordering.
 
+### Yama's Own Links
+
+A built chain also carries **two Yama-authored links**, which the application
+neither writes nor registers. Their positions are part of this decision because
+they are observable: they change what a registered interceptor sees.
+
+Reading outermost to innermost:
+
+```text
+[start]                    interceptors (registration order) → overrun → component
+[quiesce]  started-gate  → interceptors (registration order) → overrun → component
+[stop]     started-gate  → interceptors (registration order) → overrun → component
+```
+
+**The started-gate is outermost, on the two shutdown chains.** A component whose
+`Start` failed takes no part in the quiesce or teardown pass (ADR-003). That
+exclusion is the outermost link of each shutdown chain, so a gated component
+reaches neither the application's interceptors nor its own `Quiesce`/`Stop`.
+
+Outermost is the position that makes the gate mean what ADR-003 asks for — the
+component takes no part in the pass. Placing it inside the application's
+interceptors would instead mean the component participates and is suppressed at
+the last moment, and every interceptor would run — starting spans, opening
+timers, emitting metrics — for a component that then does nothing. The
+consequence is that a registered interceptor does not observe a skip; the gate
+emits one record naming the component, and that record is the only signal.
+
+**The overrun interceptor is innermost.** The built-in overrun interceptor (see
+*Universal Wrapping*) sits directly around the component's own method, inside
+every registered interceptor. It does not time the operation. It compares the
+deadline on the context it received against the clock at the instant the wrapped
+call returns, and when that deadline has already passed it emits one record
+naming the component and how far past the deadline the call ran.
+
+Innermost is the position that makes that check attribute the overrun to the
+component. Work an interceptor does *after* the component returns cannot push a
+within-deadline component over the line, and an interceptor that suppresses the
+call entirely produces no record for a component that never ran.
+
+Two things innermost does not buy, both following from the interceptors sitting
+outside it. An interceptor that blocks ahead of `next` delays the component's own
+return, and so can both trigger the record and widen the amount it reports. And
+because an interceptor may replace the context before calling `next`, the
+deadline compared against is whatever the innermost link was handed — an
+interceptor that derives a shorter or longer one substitutes it for the caller's,
+for this component only.
+
+**Both links report through `log/slog`'s package default.** Neither returns
+anything, so what they observe is emitted as a log record through `log/slog`'s
+package-level default logger — the gate's skip at Warn, an overrun at Warn. This
+is the framework's only output channel besides the public error, and it is
+deliberately not configurable: ADR-007 rejects a `SetLogger` API, and `slog`'s
+default is the standard-library seam an application already controls without Yama
+exposing one.
+
 ## Context Propagation
 
 Interceptors may modify context before invoking the next lifecycle component.
 
 Example:
 
-```go id="6j6jmr"
+```go
 ctx = context.WithValue(...)
 ```
 
 and then:
 
-```go id="5ryogc"
+```go
 return next.Start(ctx)
 ```
 
@@ -234,7 +289,7 @@ Context modification is a primary mechanism for propagating lifecycle metadata.
 
 The lifecycle manager shall populate the lifecycle component into context before interceptor execution.
 
-```text id="sd9bdk"
+```text
 The component itself
 ```
 
@@ -266,7 +321,7 @@ Examples include:
 
 Example:
 
-```go id="7k4kfu"
+```go
 if !enabled {
     return nil
 }
@@ -282,7 +337,7 @@ Optional lifecycle participation is implemented through interceptors.
 
 The lifecycle manager does not provide:
 
-```text id="q12m4z"
+```text
 Optional components
 Conditional startup
 Feature flags
@@ -310,7 +365,7 @@ interceptor is attached to it. Wrapping is not opt-in.
 The observational deadline carried by the caller's context relies on this same
 universal wrapping. A built-in, Yama-authored overrun interceptor — attached to
 every component's chain, never supplied or registered by the application — is
-what detects and logs a per-component overrun when the deadline fires; universal
+what reports a per-component overrun once the wrapped call returns; universal
 wrapping is what gives that mechanism per-component attribution.
 
 ## Observability
@@ -386,7 +441,7 @@ The project prefers a small orchestration core with explicit extension points ov
 
 Example:
 
-```go id="xlj67e"
+```go
 type Interceptor interface {
     Intercept(...)
 }

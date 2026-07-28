@@ -35,15 +35,16 @@ The framework shall expose a deliberately small public API.
 
 The public API consists of:
 
-* The `Lifecycle` type and its `NewLifecycle` constructor.
+* The `Lifecycle` type. Its constructor is generated into the application's own
+  package and named by the application (ADR-011), so it is not a framework symbol.
 * Lifecycle capability interfaces.
 * Lifecycle interceptor interfaces.
 * The lifecycle-level error.
-* A small set of lifecycle helpers.
+* A small set of lifecycle helpers, and the `Option` type they construct.
 
 All graph analysis, orchestration implementation, generated lifecycle structures, and generated helper types remain implementation details.
 
-The listings below illustrate this decision as accepted. They are not the continuously updated catalog of the current public surface — that lives in the Architecture document's Public API Reference, which is the document to consult and update as the surface evolves.
+The listings below show the shape of each part of that surface and the reasoning for it. They are not the catalog of it: the authoritative enumeration is the Architecture document's Public API Reference, which is the document to consult and to update when the surface changes.
 
 ## Public Lifecycle Type
 
@@ -78,27 +79,27 @@ sections below reject runtime graph, observability, and configuration APIs. Ther
 is nothing left to add.
 
 `Lifecycle` is named without a `-Container` suffix. The type is the application's
-lifecycle, not a dependency-injection container, and the name pairs with the
-`NewLifecycle` constructor.
+lifecycle, not a dependency-injection container.
 
-The generated injector constructs the application and its `Lifecycle` together and
+The generated constructor builds the application and its `Lifecycle` together and
 returns them, mirroring Google Wire's `(T, func(), error)` convention:
 
 ```go
 app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginComponents(c1), WithEndComponents(c2))
 ```
 
-`NewLifecycle` takes no lifecycle configuration. Yama generates none. Any deadline
+The constructor takes no lifecycle configuration. Yama generates none. Any deadline
 comes from the context the caller passes to `Start` and `Stop`; per-component timeouts
 are component-authored wrappers. The only construction-time inputs are the
 `Option` values — interceptors and boundary-component registration — described
 under Public Helpers below.
 
 On construction failure it returns `nil, nil, err` — there is no partial
-`Lifecycle`, inheriting Google Wire's failure semantics (Google Wire unwinds
-partial construction through its own cleanup before returning). The generated code
-captures and discards Google Wire's raw cleanup function so that teardown runs
-only through `Lifecycle.Stop`, never twice.
+`Lifecycle`, inheriting Google Wire's failure semantics. There is no cleanup
+function for the caller to hold either: the constructor re-emits the injector's
+construction rather than calling it (ADR-008), so Google Wire never aggregates one,
+and each provider's cleanup is routed to its own position in the teardown ordering.
+Teardown runs through `Lifecycle.Stop` and nowhere else.
 
 This is the primary lifecycle abstraction exposed by the framework.
 
@@ -228,10 +229,10 @@ The framework does not expose component-level failure information through the pu
 The framework provides a small set of helpers for common lifecycle patterns:
 
 ```go
-func RunUntilSignal(Lifecycle, ...) error // Start, wait for a signal, then Stop
-func WithBeginComponents(...) // base-extreme: start before the graph, tear down after it
-func WithEndComponents(...)   // top-extreme: start after the graph, tear down before it
-func WithInterceptors(interceptors ...any) Option // attach interceptors globally
+func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
+func WithBeginComponents(components ...any) Option // base-extreme: start before the graph, tear down after it
+func WithEndComponents(components ...any) Option   // top-extreme: start after the graph, tear down before it
+func WithInterceptors(interceptors ...any) Option  // attach interceptors globally
 ```
 
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
@@ -255,15 +256,18 @@ once-only "stop accepting new work" step use ordinary `sync.Once`.
 
 Generated artifacts are not part of the framework's public API.
 
-Examples include:
+The generated file emits no types (ADR-010). Its only symbol is the lifecycle
+constructor, and that one is application-facing by design: the application
+declares its name and signature itself (ADR-011) and calls it directly.
 
 ```go
-type yamaLifecycle struct {}
-type yamaLvl001 struct {}
-type yamaLvl002 struct {}
+app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2))
 ```
 
-Generated types may change as generator implementation evolves.
+That constructor is part of the *application's* surface, not the framework's.
+Nothing else generated is reachable, and the shape of what is generated —
+including how the constructor's body declares its levels — may change as the
+generator evolves.
 
 Applications should not depend on generated implementation details.
 
@@ -275,7 +279,9 @@ generator does not emit inline. Such symbols are **not** part of the stable publ
 API defined by this ADR, and applications should not depend on them directly. The
 stable public surface remains only the types listed above: the capability
 interfaces, the interceptor interfaces, `FromContext`, `ErrStartFailed`,
-`Lifecycle`/`NewLifecycle`, and the small set of helpers.
+`Lifecycle`, `Option`, and the small set of helpers. The lifecycle constructor is
+not among them: it is generated into the application's own package under a name
+the application chose (ADR-011).
 
 ## Intentionally Omitted APIs
 
