@@ -30,6 +30,16 @@ New ADRs should:
 * Use a monotonically increasing three-digit number.
 * Include a status section near the top of the document.
 * Record the decision, rationale, consequences, and rejected alternatives.
+* Use shared terms as defined in `docs/adr/glossary.md` rather than restating a
+  definition in ADR prose; propose a new term there instead of coining one
+  locally.
+
+An ADR starts life as `Proposed`, not `Accepted`. It moves to `Accepted` once a
+prototype or spike has exercised the decision — a design that hasn't touched code
+yet is not settled, however confident the reasoning. A `Proposed` ADR is expected
+to change; an `Accepted` one is not, so promoting one before it has survived
+contact with an implementation invites the rewrite this pre-1.0 stability rule
+elsewhere presumes it avoided.
 
 Accepted ADRs represent the current architectural direction unless a later ADR
 explicitly supersedes them.

@@ -129,11 +129,28 @@ alike.
   accessor whose own name already says what it returns
   (`newParseError(fset, injector, s.Pos(), ...)`). Both stay as they are.
 
+## A phase that makes a design decision writes the ADR before the phase is done
+
+`implementation_plan_claude.md` plans a phase's scope; it does not record the
+decisions made while executing it. If a phase's work settles a question the
+plan left open — a naming choice, an ordering rule, a rejected alternative —
+write or update the ADR in the same phase, not later. A decision that reaches
+`master`/`v2` only in code and a commit message is undocumented, regardless of
+how clearly the commit message explains it: nothing keeps that reasoning
+findable once the commit scrolls out of recent `git log` output. Treat "does
+this phase's work need an ADR?" as part of that phase's Definition of Done,
+alongside its stated output checks.
+
 ## Canonical docs, and their roles
 
 - `docs/PRD.md` — product requirements.
 - `docs/adr/` — design decisions and the rationale for each.
-- `docs/Architecture.md` — the architecture derived from the ADRs.
+- `docs/adr/glossary.md` — shared terminology; ADR and Architecture prose uses
+  these terms rather than redefining them.
+- `docs/Architecture.md` — the architecture derived from the ADRs, at the
+  level of shapes and roles, not concrete identifiers. Run the
+  `architecture-doc-check` skill before treating an edit to this file as
+  done.
 - `implementation_plan_claude.md` — the phase-by-phase build plan: goal, files
   touched, risk, Definition of Done, and which ADRs/Architecture sections that
   phase must read first.
