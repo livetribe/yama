@@ -248,6 +248,9 @@ func wireReported(diagnostic string) bool {
 
 // Load type-checks the package in dir and parses Wire's output into the model. It
 // assumes that output already exists; use Generate to run Wire first.
+//
+// Syntax and type information are loaded for the package in dir alone; its
+// dependencies contribute types through export data.
 func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error) {
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
@@ -256,7 +259,7 @@ func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error
 		Fset:       fset,
 		BuildFlags: g.parseBuildFlags,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
-			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports | packages.NeedDeps,
+			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
 	}
 
 	pkgs, err := packages.Load(cfg, ".")
