@@ -21,6 +21,7 @@ are intended to preserve design rationale for future maintainers and reviewers.
 | [ADR-009](ADR-009-boundary-lifecycle-components.md) | Boundary Lifecycle Components | Accepted |
 | [ADR-010](ADR-010-runtime-support-package.md) | Runtime-Support Package and the Generated/Shared Split | Accepted |
 | [ADR-011](ADR-011-lifecycle-constructor-stubs.md) | Lifecycle Constructor Stubs Declare the Generated Surface | Accepted |
+| [ADR-012](ADR-012-wire-gen-cli-parity.md) | The Yama Command Mirrors `wire gen` | Proposed |
 
 ## Conventions
 
