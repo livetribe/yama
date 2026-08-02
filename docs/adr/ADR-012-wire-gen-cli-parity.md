@@ -15,10 +15,11 @@ deciding it settles, or what it costs. This ADR states that decision, and the
 rest of this Context section shows the evidence that it was never written down.
 
 One `go:generate` directive invokes Yama for generation. Yama then runs Google
-Wire internally (ADR-008). That directive stands where a line naming Wire's own
-command stands, whether it replaces one or is added beside one, so a project
-usually has such a line already to compare against. Wire writes this directive
-into every file it generates:
+Wire internally (ADR-008). An application that wants Yama to own generation
+replaces its existing directive naming Wire's command with this one, or adds
+it beside that directive if it keeps the directive naming Wire's command. A
+project usually has a directive naming Wire's command already, to compare
+against. Wire writes this directive into every file it generates:
 
 ```
 //go:generate go run -mod=mod github.com/google/wire/cmd/wire
@@ -162,7 +163,7 @@ happened to be working in. Sometimes it is not recorded anywhere at all.
 
 ### Accepted Trade-Off
 
-The project accepts two costs: command-line judgements it did not make, and a
+The project accepts two costs: command-line judgements that it did not make, and a
 dependency on Wire's observable behaviour that only tests can pin down. In
 exchange, it gets a genuine drop-in replacement and a mechanical answer to every
 question about the command.
