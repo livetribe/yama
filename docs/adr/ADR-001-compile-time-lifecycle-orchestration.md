@@ -31,12 +31,13 @@ The framework shall implement lifecycle orchestration through compile-time code 
 
 The generator shall consume dependency graph information and emit lifecycle orchestration code during the build process.
 
-Generated code shall contain:
+Generated code shall contain, for each injector the generator processes:
 
-* Startup orchestration.
-* Quiesce orchestration.
-* Shutdown orchestration.
-* Lifecycle implementation code.
+* The construction body of the injector.
+* The declaration of each level, in dependency order.
+* The components that occupy each level.
+
+The declared order fixes lifecycle ordering. Startup walks the levels forward. Quiesce and shutdown walk the levels backward.
 
 The generated code shall be ordinary Go code that can be read, debugged, stepped through, and reviewed by application developers.
 
@@ -82,7 +83,7 @@ Generated orchestration logic becomes part of the application binary.
 
 No runtime graph builder, registry, planner, dependency resolver, or lifecycle engine must execute during startup.
 
-Runtime behavior is reduced to executing generated code.
+Runtime behavior is reduced to walking the levels the generated code declares.
 
 ### Debuggability
 
@@ -171,23 +172,6 @@ The framework should orchestrate lifecycle behavior without owning the applicati
 
 Rejected because service locators obscure dependency relationships and move dependency validation from compile time to runtime.
 
-## Diagnostics and Error Reporting
-
-The framework reports lifecycle outcomes.
-
-Detailed diagnostics are intentionally separated from lifecycle orchestration.
-
-Examples of diagnostic information include:
-
-* Component identity.
-* Original component errors.
-* Timeout information.
-* Execution duration.
-
-Such information belongs in interceptors and observability integrations.
-
-The lifecycle manager itself exposes only lifecycle-level outcomes.
-
 ## Non-Goals
 
 This decision does not imply:
@@ -200,4 +184,4 @@ This decision does not imply:
 * Framework-managed backoff.
 * Generic workflow orchestration.
 
-The generated lifecycle implementation exists solely to orchestrate Start, Quiesce, and Stop operations derived from a dependency graph.
+The generated code exists solely to declare the Start, Quiesce, and Stop ordering derived from a dependency graph.
