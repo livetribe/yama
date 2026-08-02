@@ -797,54 +797,64 @@ fixture (two teardown components, same level).
 
 ## Phase 8 — Generator: code emission, naming, formatting
 
-**Goal.** Discover the package's lifecycle stubs, derive a Wire injector from
-each, and emit `lifecycle_gen.go`: the provenance header and one constructor per
-stub, each returning `(*App, Lifecycle, error)`, re-emitting its derived
-injector's body and then declaring each level and its members — gofmt-clean and
-deterministic. Per-component wrapping and interceptor-chain construction (fed by
-the public `WithInterceptors` option, not a generated input) happen inside the
-runtime-support package, not in emitted code.
+**Goal.** This phase discovers the package's lifecycle stubs. It derives one
+Wire injector from each stub. It emits `lifecycle_gen.go`: a provenance
+header, then one constructor per stub. Each constructor returns
+`(*App, Lifecycle, error)`. Each constructor re-emits its derived injector's
+body, then declares each level and its members. The emitted file is
+`gofmt`-clean and deterministic. Per-component wrapping and interceptor-chain
+construction happen inside the runtime-support package, not in emitted code.
+The public `WithInterceptors` option feeds the interceptor chain. The
+emitted code supplies no interceptor input of its own.
 
-**Stub discovery and injector derivation (ADR-011).** The constructor's name,
-signature, and provider set come from a hand-authored stub behind
-`//go:build yamainject`; nothing is derived from an application injector. This
-phase adds a third package-load mode alongside `discoveryBuildFlags` and
-`parseBuildFlags` (`internal/generator/wire.go`): load under `yamainject`,
-collect each function whose body is `panic(wire.Build(…))`, and derive one Wire
-injector per stub — name from the stub's in the `yama`-prefixed namespace,
-parameters minus the trailing `opts ...yama.Option`, results with `func()` in
-place of `yama.Lifecycle`, body copied unchanged. The derived injectors are
-written as a transient `wireinject`-tagged file and removed with `wire_gen.go`;
-`internal/generator/transient.go` already generalizes to a second filename.
-Wire diagnostics land on the derived file, so they must be mapped back to the
-stub before being reported.
+**Stub discovery and injector derivation (ADR-011).** A hand-authored stub
+behind `//go:build yamainject` supplies the constructor's name, signature,
+and provider set. No application injector supplies any of these. This phase
+adds a third package-load mode to `internal/generator/wire.go`, alongside the
+existing `discoveryBuildFlags` and `parseBuildFlags` modes. The new mode
+loads the package under the `yamainject` tag. It collects each function whose
+body is `panic(wire.Build(…))`. It derives one Wire injector per stub. Each
+derived injector takes its name from the stub's name, in the `yama`-prefixed
+namespace. Each derived injector's parameters are the stub's parameters,
+minus the trailing `opts ...yama.Option`. Each derived injector's results
+replace `yama.Lifecycle` with `func()`. Each derived injector's body is the
+stub's body, copied unchanged. The generator writes the derived injectors to
+a transient `wireinject`-tagged file. It removes that file together with
+`wire_gen.go`. `internal/generator/transient.go` already generalizes to a
+second transient filename, so this reuses that mechanism. Wire diagnostics
+land on the derived file, not the stub. Before the generator reports a
+diagnostic, it maps the diagnostic's position back to the stub.
 
-**Files/modules touched.** `internal/generator/emit*.go`, stub discovery and
-derivation (new file(s)), `internal/generator/transient.go` (second transient
-name), `internal/generator/templates` (or `go/ast`/`jennifer`-style builder —
-decide), fixture corpus `…/testdata/<case>/want/lifecycle_gen.go`.
+**Files/modules touched.** `internal/generator/emit*.go`; new file(s) for
+stub discovery and derivation; `internal/generator/transient.go` (adds the
+second transient name); `internal/generator/templates`, or a
+`go/ast`/`jennifer`-style builder (this phase decides which); the fixture
+corpus at `…/testdata/<case>/want/lifecycle_gen.go`.
 
 **Fixture corpus, not the sandbox.** Goldens follow Google Wire's own test
-layout: a self-contained fixture package per case with a `want/` directory
-holding the expected output, materialized and compared by the golden test, with
-an `-update` flag to record. `internal/generator/sandbox` is the hand-authored
-exemplar and is not a generation target; `internal/generator/testdata/sandbox`
-is the frozen parse/analysis fixture and is not one either.
+layout. Each case is a self-contained fixture package with a `want/`
+directory holding the expected output. The golden test materializes the
+actual output and compares it against `want/`. An `-update` flag records a
+new expected output. `internal/generator/sandbox` is the hand-authored
+exemplar. It is not a generation target. `internal/generator/testdata/sandbox`
+is the frozen parse/analysis fixture. It is not a generation target either.
 
-**Dependencies.** Phases 1–7 (needs the runtime contracts *and* the analysis).
+**Dependencies.** Phases 1–7. This phase needs both the runtime contracts
+and the analysis.
 
-**Risk.** **HIGH.** Phase 6 decides *ordering*, but this phase owns **constructor
-semantics that are themselves data-integrity sensitive**: capturing-and-discarding
-Wire's raw cleanup func so teardown runs only via `Stop` — a mistake here
-**double-tears-down or strands cleanup**. Naming stability and deterministic
-collision resolution also live here.
+**Risk.** **HIGH.** Phase 6 decides ordering. This phase owns constructor
+semantics, and those semantics are data-integrity sensitive: the constructor
+captures and discards Wire's raw cleanup function, so teardown runs only
+through `Stop`. A mistake here double-tears-down resources, or strands a
+cleanup so it never runs. Naming stability and deterministic collision
+resolution also live in this phase.
 
 **Definition of Done.**
 - *Process:*
-  - Read ADR-004, ADR-007, ADR-011, Architecture §8, §13, §14, and Appendix C
-    before emitting; keep every generated implementation symbol in the
-    `yama`-prefixed private namespace and keep the public surface exactly
-    matching Architecture's Appendix C (Public API Reference).
+  - Read ADR-004, ADR-007, ADR-011, and Architecture §8, §13, §14, and
+    Appendix C before emitting. Keep every generated implementation symbol
+    in the `yama`-prefixed private namespace. Keep the public surface
+    exactly matching Architecture's Appendix C (Public API Reference).
 - *Output checks:*
   - The emitted file starts with `// Code generated by Yama. DO NOT EDIT.`.
     The file is `gofmt`/`goimports`-clean:
@@ -891,142 +901,171 @@ collision resolution also live here.
   component whose name would collide with a Yama-reserved identifier,
   resolved by deterministic escaping.
 
-**Regression note.** Golden files are coupled to *both* the runtime API (Phases
-1–4) and analysis (Phases 5–7). Any change upstream regenerates goldens — a golden
-diff is expected and must be reviewed, not blindly accepted. Add a comment in the
-golden test explaining that a diff means "confirm the change was intended."
+**Regression note.** Golden files are coupled to *both* the runtime API
+(Phases 1–4) and analysis (Phases 5–7). Any change upstream regenerates
+goldens. A golden diff is expected. Review it deliberately. Do not accept
+it blindly. Add a comment in the golden test explaining that a diff means
+"confirm the change was intended."
 
 ---
 
 ## Phase 9 — Generation driver: one command, `go:generate`
 
-**Goal.** Wire the pieces into a single user-facing generation step: one
-`go:generate` directive and one command that runs `wire gen`, parses the
-result, and emits `lifecycle_gen.go` in the target package. `lifecycle_gen.go`
-is the only committed output; `wire_gen.go` is a transient intermediate Yama
-removes when it is done (see the non-destructive-generation DoD below).
+**Goal.** This phase wires the pieces into a single user-facing generation
+step: one `go:generate` directive, and one command. That command runs `wire
+gen`, parses the result, and emits `lifecycle_gen.go` in the target package.
+`lifecycle_gen.go` is the only committed output. `wire_gen.go` is a transient
+intermediate. Yama removes it when done (see the non-destructive-generation
+check below).
 
-**Files/modules touched.** `cmd/yama/main.go`, example app under `examples/…` with
-a `//go:generate` directive, README usage section. **The example app is its own
-separate Go module** (its own `go.mod`, requiring `l7e.io/yama/v2` as a normal
-external dependency), which makes "generated code living outside the Yama module" a
-fact of the build and the fixture the Orientation §0 external-module proof runs
-against. It must resolve against the checked-out tree, not a published/cached
-version: the example's `go.mod` carries `replace l7e.io/yama/v2 => ../..` (or a
-root-level `go.work` with `use . ./examples/…` — either, but one must be present)
-so CI cannot silently build a stale proxy version while the PR's changes go
-untested.
+**Files/modules touched.** `cmd/yama/main.go`, an example app under
+`examples/…` with a `//go:generate` directive, and the README usage section.
+The example app is its own separate Go module, with its own `go.mod`,
+requiring `l7e.io/yama/v2` as a normal external dependency. This makes
+"generated code living outside the Yama module" a fact of the build. It is
+the fixture the Orientation §0 external-module proof runs against. The
+example's `go.mod` must resolve against the checked-out tree, not a
+published or cached version. So the example's `go.mod` carries
+`replace l7e.io/yama/v2 => ../..`, or the repo root carries a `go.work` file
+with `use . ./examples/…`. At least one of the two must be present.
+Otherwise CI could silently build a stale proxy version while the PR's real
+changes go untested.
 
 **Dependencies.** Phases 5–8.
 
-**Risk.** MEDIUM — user-facing CLI/build ergonomics; must fail cleanly when the
-target package is malformed.
+**Risk.** MEDIUM. This is user-facing CLI and build ergonomics. It must fail
+cleanly when the target package is malformed.
 
 **Definition of Done.**
-- *Process:* read Architecture §4, §14 and ADR-008 §"Generation and drift".
+- *Process:* Read Architecture §4, §14 and ADR-008 §"Generation and drift".
 - *Output checks:*
-  - A single command run in a fixture app produces the committed
-    `lifecycle_gen.go`; running it twice is idempotent (second run yields no
-    diff).
-  - **Transient, non-destructive `wire_gen.go` handling (asserted):** Google Wire
-    writes `wire_gen.go` into the package dir and cannot redirect it, so the
-    driver generates it there, parses it, and removes it after emitting
-    `lifecycle_gen.go`. It removes only a `wire_gen.go` it created: if one already
-    exists it is moved aside first (to a leading-dot name such as
-    `.yama.wire_gen.go`, which the Go toolchain ignores as a source file) and
-    restored afterward, byte-for-byte, so generation never overwrites or deletes a
-    file Yama does not own. Cleanup (removal and restore) runs even when the Yama
-    step fails, so no `wire_gen.go` or stray backup is left behind. Tests cover
-    both the pre-existing and absent cases and the failure path.
-  - The `//go:generate` directive (invoking Yama, which runs `go tool wire`
-    internally) is documented and works via `go generate ./…` on the example app.
-  - Generation is atomic-ish: a failure in the Yama step does not leave a
-    half-written `lifecycle_gen.go` that would compile-break the package
-    (write-to-temp-then-rename or equivalent; asserted).
-  - **External-module compile proof (the Orientation §0 `internal/bridge`
-    boundary):** with the example app in its own `go.mod`, `go build ./...` and
-    `go vet ./...` succeed for it *as a standalone module*. The DoD includes proving
-    the build resolves the **local checkout**, not a stale published version (which
-    would "pass" while proving nothing): assert `go list -m l7e.io/yama/v2` (or `go
-    env GOWORK`) reflects the local directory, and add a change-detection check — a
-    deliberately broken signature in local `package yama`/runtime-support code must
-    break the example app's build. That is the real proof that generated code
-    compiled from an external module reaches `Lifecycle` only through the exported
-    APIs: an accidental `internal/bridge` reference would fail here with Go's own
-    `internal/` error, not a Yama-authored check.
-- *Edge/failure cases:* `wire` tool unresolvable (e.g. not pinned in `go.mod`) →
-  clear toolchain error, distinct from a Wire *input* error; target package with no
-  injector → silent no-op, exit 0, matching `wire gen` (measured: Wire skips such a
-  package whether it was named explicitly or matched by a wildcard, and exits 0
-  even when *no* named package holds an injector); a package pattern that resolves
-  to nothing → clear error, as `wire gen` also fails there; read-only output dir →
-  clear error.
+  - A single command, run in a fixture app, produces the committed
+    `lifecycle_gen.go`. Running it twice is idempotent: the second run
+    yields no diff.
+  - Transient, non-destructive `wire_gen.go` handling (asserted). Google
+    Wire writes `wire_gen.go` into the package directory, and cannot
+    redirect it elsewhere. So the driver generates `wire_gen.go` there,
+    parses it, and removes it after emitting `lifecycle_gen.go`. The
+    driver removes only a `wire_gen.go` it created itself. If a
+    `wire_gen.go` already exists, the driver first moves it aside, to a
+    leading-dot name such as `.yama.wire_gen.go` (a name the Go toolchain
+    ignores as a source file). The driver restores that file afterward,
+    byte-for-byte. This way, generation never overwrites or deletes a file
+    Yama does not own. Cleanup (the removal and the restore) runs even
+    when the Yama step fails. So no `wire_gen.go` and no stray backup is
+    left behind. Tests cover three cases: `wire_gen.go` pre-existing,
+    `wire_gen.go` absent, and the failure path.
+  - The `//go:generate` directive invokes Yama, which runs `go tool wire`
+    internally. This directive is documented, and it works via `go
+    generate ./…` on the example app.
+  - Generation is atomic, or close to it. A failure in the Yama step does
+    not leave a half-written `lifecycle_gen.go` that would break the
+    package's compile. Assert this via a write-to-temp-then-rename
+    approach or equivalent.
+  - External-module compile proof (the Orientation §0 `internal/bridge`
+    boundary). With the example app in its own `go.mod`, `go build ./...`
+    and `go vet ./...` succeed for it as a standalone module. This check
+    must also prove the build resolves the local checkout, not a stale
+    published version. A stale version would "pass" while proving
+    nothing. So assert that `go list -m l7e.io/yama/v2` (or `go env
+    GOWORK`) reflects the local directory. Add a change-detection check
+    too: a deliberately broken signature in local `package yama` or
+    runtime-support code must break the example app's build. That break
+    is the real proof. It shows that generated code, compiled from an
+    external module, reaches `Lifecycle` only through the exported APIs.
+    An accidental `internal/bridge` reference would instead fail here with
+    Go's own `internal/` error, not a check Yama wrote.
+- *Edge/failure cases:* the `wire` tool is unresolvable, e.g. not pinned in
+  `go.mod` → a clear toolchain error, distinct from a Wire input error. The
+  target package has no injector → a silent no-op, exit 0, matching `wire
+  gen`'s own behavior (measured: Wire skips such a package whether named
+  explicitly or matched by a wildcard, and exits 0 even when no named
+  package holds an injector). A package pattern resolves to nothing → a
+  clear error, since `wire gen` also fails there. The output directory is
+  read-only → a clear error.
 
-**Regression note.** The example app becomes a living integration fixture reused by
-Phase 10. Keep it minimal but covering ≥2 capabilities, a dependency-only component, and
-one cleanup func.
+**Regression note.** The example app becomes a living integration fixture
+reused by Phase 10. Keep it minimal, but ensure it covers at least 2
+capabilities, one dependency-only component, and one cleanup function.
 
 ---
 
 ## Phase 10 — CI drift check, integration & golden coverage, docs
 
-**Goal.** Add the CI drift check (regenerate `lifecycle_gen.go`, diff against the
-committed copy, fail on divergence), an end-to-end integration test that builds
-and runs the example app's lifecycle, and finalize docs/README.
+**Goal.** This phase adds three things. First, the CI drift check: it
+regenerates `lifecycle_gen.go`, diffs it against the committed copy, and
+fails on any divergence. Second, an end-to-end integration test that builds
+and runs the example app's lifecycle. Third, it finalizes the docs and
+README.
 
 **Files/modules touched.** `.github/workflows/ci.yml`, `Makefile`/scripts,
 `examples/…` integration test, `README.md`, possibly `docs/`.
 
 **Dependencies.** Phases 1–9.
 
-**Risk.** LOW-MEDIUM — internal tooling and CI; the main hazard is a flaky or
-environment-sensitive drift check (Wire version, gofmt version, OS line endings).
+**Risk.** LOW-MEDIUM. This is internal tooling and CI. The main hazard is a
+flaky or environment-sensitive drift check: for example, a Wire version
+mismatch, a gofmt version mismatch, or OS line-ending differences.
 
 **Definition of Done.**
-- *Process:* read Architecture §24 (testing strategy) and ADR-008 §"Generation and
-  drift"; pin the Wire version used in CI and record it.
+- *Process:* Read Architecture §24 (testing strategy) and ADR-008
+  §"Generation and drift". Pin the Wire version used in CI, and record it.
 - *Output checks:*
-  - CI regenerates `lifecycle_gen.go` for the example app and **fails** if it
-    differs from the committed copy.
-  - The drift mechanism itself is verified by a **durable, committed self-test**
-    (script or `go test`), not a one-off manual tamper-and-revert: the test writes a
-    known perturbation to a *copy* of a generated file, runs the drift comparison,
-    asserts it reports a failure, and cleans up — so the guard is proven to actually
-    catch drift on every CI run, not just once during review.
-  - Drift check is stable across the CI matrix where it runs (pin OS/Go/Wire; run
-    the drift job on a single well-defined platform to avoid gofmt/line-ending
-    noise — do **not** run it across all three OSes unless proven stable).
-  - End-to-end: the example app starts (dependency order observed), receives a
-    signal / explicit `Stop`, quiesces-before-teardown, and shuts down in reverse
-    order — asserted via an interceptor-based observer, under `-race`.
-  - Public error contract: an integration-level test confirms callers receive only
-    `ErrStartFailed` from `Start`, `Stop` returns nothing, and component errors are
-    visible **only** through interceptors.
-  - README documents: the `go:generate` line, the `(app, lifecycle, err)` pattern,
-    `RunUntilSignal` as the typical `main`, and the boundary-component options.
-  - **Large-graph generation is exercised (PRD §9 "Generated Code Complexity").**
-    The example app used elsewhere in this phase is deliberately minimal, so it does
-    not exercise this named project risk. Add one additional, separate fixture (not
-    part of the example app or the drift check) with a wide/deep synthetic graph —
-    on the order of 100+ components — that runs through the full pipeline (`wire
-    generate` → Yama generation) and asserts: (a) generation completes in bounded
-    time (a generous CI-stable ceiling, not a tight benchmark), (b) the emitted file
-    still `gofmt`-cleanly compiles, (c) generated names stay unique/collision-free at
-    that scale. **Concrete, checkable placement (not "some cadence"):** this is a
-    named CI job (e.g. `large-graph` in `.github/workflows/ci.yml`) triggered on a
-    weekly schedule (`schedule:` cron trigger) plus manually via
-    `workflow_dispatch`, separate from the per-commit job so it never blocks normal
-    merges. Its DoD is satisfied when that job definition exists in the committed
-    workflow file and has been observed to pass at least once — not by an
-    undocumented expectation that someone runs it "sometime."
-- *Edge/failure cases:* drift check when `wire` version differs (documented,
-  version pinned); coverage job (existing Coveralls step) still runs against the
-  new packages.
+  - CI regenerates `lifecycle_gen.go` for the example app. CI fails if the
+    regenerated file differs from the committed copy.
+  - A durable, committed self-test verifies the drift mechanism itself.
+    This must be a script or `go test`, not a one-off manual
+    tamper-and-revert. The test writes a known perturbation to a copy of a
+    generated file. It runs the drift comparison. It asserts that the
+    comparison reports a failure. Then it cleans up. This proves the
+    guard actually catches drift on every CI run, not just once during
+    review.
+  - The drift check is stable across the CI matrix where it runs. Pin the
+    OS, Go version, and Wire version it runs under. Run the drift job on a
+    single well-defined platform, to avoid gofmt and line-ending noise. Do
+    not run it across all three OSes unless it is proven stable there.
+  - End-to-end test: the example app starts, in dependency order. It then
+    receives a signal, or an explicit `Stop` call. It quiesces before
+    teardown, and shuts down in reverse order. An interceptor-based
+    observer asserts all of this, under `-race`.
+  - Public error contract: an integration-level test confirms three
+    things. `Start` returns only `ErrStartFailed` to callers. `Stop`
+    returns nothing. Component errors are visible only through
+    interceptors.
+  - The README documents four things: the `go:generate` line; the `(app,
+    lifecycle, err)` pattern; `RunUntilSignal` as the typical `main`; and
+    the boundary-component options.
+  - Large-graph generation is exercised (PRD §9, "Generated Code
+    Complexity"). The example app used elsewhere in this phase is
+    deliberately minimal. It does not exercise this named project risk on
+    its own. So this phase adds one more fixture, separate from the
+    example app and the drift check. That fixture is a wide, deep
+    synthetic graph, on the order of 100 or more components. It runs
+    through the full pipeline: `wire generate`, then Yama generation.
+    Three things are asserted against it: (a) generation completes in
+    bounded time: a generous, CI-stable ceiling, not a tight benchmark;
+    (b) the emitted file still compiles and is `gofmt`-clean; (c)
+    generated names stay unique and collision-free at that scale.
 
-**Regression note.** This phase locks the whole system. Any later change to
-runtime API, analysis, or emission will trip the drift check — that is the intended
-behavior. Document the "regenerate + review the diff" workflow so a legitimate
-change isn't mistaken for accidental drift, and vice-versa.
+    This check needs a concrete, checkable placement, not just "some
+    cadence." It runs as a named CI job, for example `large-graph` in
+    `.github/workflows/ci.yml`. That job triggers on a weekly schedule (a
+    `schedule:` cron trigger), and also manually via `workflow_dispatch`.
+    It runs separately from the per-commit job, so it never blocks normal
+    merges. This check's Definition of Done is satisfied once that job
+    definition exists in the committed workflow file, and has been
+    observed to pass at least once. An undocumented expectation that
+    someone runs it "sometime" does not satisfy it.
+- *Edge/failure cases:* the drift check's behavior when the `wire` version
+  differs (documented; the version is pinned), and the coverage job (the
+  existing Coveralls step), which still runs against the new packages.
+
+**Regression note.** This phase locks the whole system. Any later change
+to the runtime API, the analysis, or the emission logic will trip the
+drift check. That is the intended behavior. Document the "regenerate, then
+review the diff" workflow, so a legitimate change isn't mistaken for
+accidental drift, and accidental drift isn't mistaken for a legitimate
+change.
 
 ---
 
@@ -1035,58 +1074,67 @@ change isn't mistaken for accidental drift, and vice-versa.
 | Phase | Area | Risk | Why |
 |------|------|------|-----|
 | 0 | Repo/module disposition | LOW | mechanical; removes v1 (green-field rewrite) |
-| 1 | Public API surface | **HIGH** | external-facing API — permanent compatibility commitment; freezes `Lifecycle`, helper/constructor/identity shapes |
+| 1 | Public API surface | **HIGH** | external-facing API, a permanent compatibility commitment; freezes `Lifecycle`, helper/constructor/identity shapes |
 | 2 | Interceptor chains + wrapper | HIGH | shared substrate, behavior-modifying, concurrency-adjacent |
 | 3 | Shared helpers + behavioral contract | **HIGH** | **data integrity** (wrong order tears down live deps) **+ architectural** (must not become a hand-written engine, ADR-004) |
 | 4 | `RunUntilSignal` | LOW-MEDIUM | concurrency + cross-platform signals; behavioral changes affect generated apps |
 | 5 | Wire AST parsing | HIGH | couples to Wire output shape; must fail loudly |
-| 6 | Level computation | **HIGH** | **correctness crux** — decides all ordering guarantees |
-| 7 | Cleanup folding | **MEDIUM-HIGH** | ADR-008: cleanup funcs are the *primary* teardown mechanism — wrong position is data-integrity risk on par with Phases 3/6/8, scoped down only for narrowness of change |
+| 6 | Level computation | **HIGH** | **correctness crux**: decides all ordering guarantees |
+| 7 | Cleanup folding | **MEDIUM-HIGH** | ADR-008: cleanup funcs are the *primary* teardown mechanism; wrong position is a data-integrity risk on par with Phases 3/6/8, scoped down only because the change itself is narrow |
 | 8 | Code emission | **HIGH** | constructor cleanup-discard (double-teardown/stranded-cleanup risk); naming stability |
 | 9 | Generation driver | MEDIUM | user-facing CLI; clean failure modes |
 | 10 | Drift check + integration | LOW-MED | flaky-drift hazard across environments |
 
-**Key regression chains (re-verify the earlier phase when the later one lands):**
+**Key regression chains (re-verify the earlier phase when the later one
+lands):**
 
-- **Phase 7 → Phase 6:** Phase 6's `occupiesLevel` already gives a cleanup-only
-  value a level of its own; Phase 7 classifies the teardown form for every
-  occupant (component, cleanup, or both) without adding or repositioning
-  anything — re-run all level tests **and re-run the generated behavioral tests
-  + goldens** (drift alone does not prove behavioral correctness of wrong output).
-- **Phase 7 → Phase 3:** a folded cleanup changes teardown ordering — re-run all
-  ordering invariants against a fixture whose ordering depends on a folded
-  cleanup's position.
-- **Phase 5/6 change → generated behavior:** a parser/analysis change can commit
-  *wrong* generated output that still passes drift (drift only proves "matches the
-  committed copy"). Always **re-run the Phase 8 golden tests and the Phase 10
-  end-to-end behavioral suite**, not just the drift diff.
-- **Phases 1–4 → Phase 8:** any runtime-contract change invalidates golden files —
-  regenerate and review diffs deliberately.
-- **Phase 4 behavioral change → generated apps:** `RunUntilSignal` semantics can
-  change without a signature change — re-run the Phase 10 end-to-end suite, not only
-  golden diffs.
-- **Phase 8/9 → Phase 1 API-surface golden:** after generated symbols exist,
-  re-run the **Phase 1** API-surface golden to confirm the framework surface gained
-  **no** new exports beyond the runtime-support package (ADR-010), and generated
-  code compiles against those frozen surfaces only.
-- **Metadata/observability across Phase 8:** re-verify that component identity
-  (`FromContext`) and operation identity (conveyed by the interceptor
-  method, ADR-007) and duration-measurability survive into generated output — an
-  integration check, so the metadata contract can't silently regress at the
-  generation boundary.
-- **Phase 8 → Phase 3:** generated code must satisfy Phase 3's behavioral suite —
-  run that suite against generated output, not just against hand-written fakes.
-- **Anything → Phase 10:** the drift check is the backstop; a diff there means
-  either an intended regeneration (review + commit) or accidental drift (fix).
+- **Phase 7 → Phase 6.** Phase 6's `occupiesLevel` already gives a
+  cleanup-only value a level of its own. Phase 7 only classifies the
+  teardown form for every occupant: component, cleanup, or both. It adds
+  or repositions nothing. Re-run all of Phase 6's level tests. Also
+  re-run the generated behavioral tests and the goldens. A passing drift
+  check alone does not prove the behavioral correctness of wrong output.
+- **Phase 7 → Phase 3.** A folded cleanup changes teardown ordering.
+  Re-run all ordering invariants against a fixture whose ordering depends
+  on a folded cleanup's position.
+- **Phase 5/6 change → generated behavior.** A parser or analysis change
+  can commit wrong generated output that still passes the drift check.
+  Drift only proves the output matches the committed copy. It does not
+  prove the copy is correct. Always re-run the Phase 8 golden tests and
+  the Phase 10 end-to-end behavioral suite. A passing drift diff alone is
+  not enough.
+- **Phases 1–4 → Phase 8.** Any runtime-contract change invalidates the
+  golden files. Regenerate them, and review the diffs deliberately.
+- **Phase 4 behavioral change → generated apps.** `RunUntilSignal`'s
+  semantics can change without its signature changing. Re-run the Phase
+  10 end-to-end suite, not only the golden diffs.
+- **Phase 8/9 → Phase 1 API-surface golden.** Once generated symbols
+  exist, re-run the Phase 1 API-surface golden. Confirm two things: the
+  framework surface gained no new exports beyond the runtime-support
+  package (ADR-010), and generated code compiles against those frozen
+  surfaces only.
+- **Metadata/observability across Phase 8.** Re-verify that three things
+  survive into generated output: component identity (`FromContext`),
+  operation identity (conveyed by the interceptor method, ADR-007), and
+  duration-measurability. Run this as an integration check, so the
+  metadata contract cannot silently regress at the generation boundary.
+- **Phase 8 → Phase 3.** Generated code must satisfy Phase 3's behavioral
+  suite. Run that suite against the generated output itself, not only
+  against hand-written fakes.
+- **Anything → Phase 10.** The drift check is the backstop. A diff there
+  means one of two things: an intended regeneration, which you review and
+  commit, or accidental drift, which you fix.
 
-**Open decisions:** none blocking. Most design decisions are recorded in the
-canonical docs (PRD, ADR-001…010, Architecture). A small number are plan-level
-defaults that fill a genuine gap in those docs rather than restate a documented
-decision — each is called out at its point of use so it isn't mistaken for ADR
-policy: the overrun log sink (Phase 2, now pinned to a concrete `slog` shape), the
-panic recovery point (Phase 2/3 — ADR-006 (Component Panics) fixes the policy for
-graph and boundary components alike; the plan-level choice is where recovery runs),
-and the `internal/bridge` package (Phase 1/2) that Go visibility rules require but
-no ADR names. The runtime-support-package
-sanity-check at Phase 3's generated-shape pin (ADR-010) remains a confirmed-in-flight
-default as before.
+**Open decisions:** none blocking. Most design decisions are recorded in
+the canonical docs: the PRD, ADR-001 through ADR-010, and the Architecture
+document. A small number are plan-level defaults instead. Each fills a
+genuine gap in those docs. None restates a documented decision. Each is
+called out at its point of use, so it isn't mistaken for ADR policy. Three
+defaults fall in this category. First, the overrun log sink (Phase 2), now
+pinned to a concrete `slog` shape. Second, the panic recovery point (Phase
+2/3). ADR-006 (Component Panics) fixes the recovery policy itself, for
+both graph and boundary components. This plan only adds where recovery
+runs. Third, the `internal/bridge` package (Phase 1/2), which Go's
+visibility rules require but no ADR names. Separately, the
+runtime-support-package sanity check at Phase 3's generated-shape pin
+(ADR-010) remains a confirmed-in-flight default, as before.
