@@ -112,7 +112,7 @@ All components in the Wire dependency graph participate in dependency analysis.
 A component takes a place in lifecycle execution when it implements one or more
 lifecycle capability interfaces, or when its provider returned a Google Wire
 cleanup function. The second case is what gives a cleanup its position in the
-ordering (ADR-008); such a component receives no lifecycle callback, because it
+ordering; such a component receives no lifecycle callback, because it
 implements no capability to call — only its cleanup runs.
 
 Example:
