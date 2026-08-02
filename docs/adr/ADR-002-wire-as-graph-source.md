@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-The lifecycle framework requires a dependency graph in order to derive:
+The lifecycle framework requires a dependency graph to derive:
 
 * Startup ordering.
 * Shutdown ordering.
@@ -24,13 +24,13 @@ Several possible approaches exist:
 * Runtime registration.
 * Existing compile-time dependency injection graphs.
 
-The project already assumes applications use Google Wire for dependency injection.
+The project already assumes that applications use Google Wire for dependency injection.
 
-Google Wire constructs a compile-time dependency graph from source-level provider declarations and generates initialization code (`wire_gen.go`) from that graph. By the time it emits that code, Google Wire has already resolved provider binding, interface bindings, and cycle detection.
+Google Wire constructs a compile-time dependency graph from source-level provider declarations and generates initialization code (`wire_gen.go`) from that graph. By the time Google Wire emits that code, it has already performed binding resolution, interface binding, and cycle detection.
 
 Introducing a second graph definition mechanism would require application developers to maintain dependency information in multiple locations.
 
-This would recreate the duplication the project is intended to eliminate.
+A second mechanism would recreate the duplication that the project intends to eliminate.
 
 ## Decision
 
@@ -46,11 +46,7 @@ The framework shall not introduce:
 * Runtime dependency graph construction.
 * Alternate dependency graph providers.
 
-Lifecycle orchestration shall be generated from the Google Wire injector produced for dependency construction, so both derive from one set of provider declarations.
-
-## Clarification
-
-References to Google Wire as the authoritative dependency graph mean that Google Wire provider declarations are the authoritative source inputs for dependency information. Yama does not introduce a second dependency declaration mechanism.
+Lifecycle orchestration shall be generated from the Google Wire injector produced for dependency construction. Dependency construction and lifecycle orchestration therefore derive from one set of provider declarations.
 
 ## Rationale
 
@@ -58,18 +54,18 @@ References to Google Wire as the authoritative dependency graph mean that Google
 
 Applications already describe dependencies in Google Wire.
 
-Creating a second graph for lifecycle purposes would duplicate information and create opportunities for drift.
+Creating a second graph for lifecycle purposes would duplicate information. The two graphs could then drift apart.
 
 The dependency graph should exist exactly once.
 
 ### Reduced Cognitive Load
 
-Developers should not need to learn or maintain:
+Developers should not need to learn or maintain two separate graphs:
 
 * A dependency injection graph.
 * A separate lifecycle graph.
 
-Instead, lifecycle behavior should emerge from the dependency graph already present in the application.
+Instead, the lifecycle framework should derive lifecycle behavior from the dependency graph that the application already has.
 
 ### Reduced Surface Area
 
@@ -86,7 +82,7 @@ Restricting the framework to Google Wire keeps the public API small and focused.
 
 Google Wire already performs compile-time graph validation.
 
-By deriving lifecycle orchestration from the same graph, lifecycle behavior inherits the same deterministic structure.
+The lifecycle framework derives lifecycle orchestration from the graph that Google Wire validates. Lifecycle behavior is therefore deterministic on the same terms.
 
 ### Alignment with Project Philosophy
 
@@ -114,14 +110,13 @@ This constraint removes significant complexity from the design.
 
 * Requires applications to use Google Wire.
 * Limits adoption by applications using other dependency injection approaches.
-* Depends on the shape of Google Wire's generated injector output, guarded by a CI drift check rather than by Google Wire's internal APIs.
 * Makes future support for alternate graph sources more difficult.
 
 ### Accepted Trade-Off
 
 The project prioritizes simplicity, determinism, and maintainability over broad ecosystem compatibility.
 
-Supporting multiple graph sources would increase flexibility but introduce substantial complexity that is not justified by the project's goals.
+Supporting multiple graph sources would increase flexibility. It would also introduce substantial complexity that the project's goals do not justify.
 
 ## Rejected Alternatives
 
@@ -136,7 +131,7 @@ var LifecycleGraph = lifecycle.Graph(
 )
 ```
 
-Rejected because it duplicates information already present in Google Wire.
+The project rejects a lifecycle graph DSL because it duplicates information that Google Wire already holds.
 
 ### Runtime Registration
 
@@ -148,7 +143,7 @@ func init() {
 }
 ```
 
-Rejected because it creates a second source of truth and moves validation from compile time to runtime.
+The project rejects runtime registration because it creates a second source of truth. Runtime registration also moves validation from compile time to runtime.
 
 ### Reflection-Based Discovery
 
@@ -158,7 +153,7 @@ Example:
 lifecycle.Scan(container)
 ```
 
-Rejected because it introduces reflection, implicit behavior, and runtime graph construction.
+The project rejects reflection-based discovery because it introduces reflection, implicit behavior, and runtime graph construction.
 
 ### Struct Tags or Annotations
 
@@ -170,7 +165,7 @@ type Router struct {
 }
 ```
 
-Rejected because dependency information already exists in Google Wire and should not be repeated.
+The project rejects struct tags and annotations because Google Wire already holds the dependency information. An application should not repeat it.
 
 ### Multiple Graph Providers
 
@@ -182,9 +177,9 @@ type GraphProvider interface {
 }
 ```
 
-Rejected because it introduces abstraction without a demonstrated need.
+The project rejects a graph provider interface because it introduces abstraction without a demonstrated need.
 
-The project is intentionally optimized for a single graph source.
+The project deliberately optimizes for a single graph source.
 
 ## Architectural Implications
 
@@ -192,7 +187,7 @@ The lifecycle framework may assume:
 
 * A complete dependency graph exists.
 * Dependency relationships are known at generation time.
-* Dependency cycles are validated by Google Wire's generator during `wire gen`.
+* Google Wire's generator validates dependency cycles during `wire gen`.
 * Dependency types are known at generation time.
 
 As a result, the lifecycle framework does not need to implement:
@@ -213,4 +208,4 @@ This decision does not imply:
 * Runtime dependency graph construction.
 * Migration tooling from non-Google Wire systems.
 
-The project is explicitly designed around the assumption that Google Wire provider declarations are the authoritative dependency source for the application.
+The project explicitly assumes that Google Wire provider declarations are the authoritative dependency source for the application.
