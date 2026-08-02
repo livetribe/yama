@@ -21,6 +21,12 @@ in the same commit that introduces it.
 - **Occupies a level** — a component is lifecycle-capable, or is
   dependency-only with a cleanup. A component with neither trait is
   traversed for ordering purposes but occupies no level of its own.
+- **Lifecycle stub** — a hand-authored declaration of a lifecycle
+  constructor, behind `//go:build yamainject`, stating the constructor's
+  name, its signature, and the graph's providers. See ADR-011.
+- **Derived injector** — the transient Google Wire injector Yama writes from
+  a lifecycle stub. Yama removes it after a run; it is never committed. See
+  ADR-011.
 - **Cleanup** — a Google Wire cleanup function returned by a provider. A
   compatibility mechanism, not a lifecycle capability in its own right; see
   ADR-008.

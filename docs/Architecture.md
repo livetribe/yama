@@ -59,22 +59,23 @@ The runtime lifecycle implementation does not discover components. It does not s
 
 The generation pipeline is:
 
-1. Read the package's lifecycle stub file to learn which injectors get a constructor, and under what name and signature (ADR-011).
-2. Run `wire gen` to produce `wire_gen.go`. Google Wire resolves binding, interface bindings, cycle detection, and construction ordering.
-3. Parse `wire_gen.go` and walk the AST of each injector function.
-4. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
-5. Treat each injector function as an independent graph; never merge them.
-6. Derive dependency edges from the arguments each creation event consumes.
-7. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
-8. Compute lifecycle execution structure:
+1. Read the package's lifecycle stub file to learn which constructors exist, under what name and signature, and which providers build each one's graph (ADR-011).
+2. Derive one Google Wire injector per stub, and write the derived injectors into the package directory as a transient, build-tagged file (ADR-011).
+3. Run `wire gen` to produce `wire_gen.go`. Google Wire resolves binding, interface bindings, cycle detection, and construction ordering.
+4. Parse `wire_gen.go` and walk the AST of the injector derived for each stub.
+5. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
+6. Treat each injector function as an independent graph; never merge them.
+7. Derive dependency edges from the arguments each creation event consumes.
+8. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
+9. Compute lifecycle execution structure:
    * one dependency-ordered level list,
    * each member's teardown form.
-9. Emit the lifecycle file, carrying a provenance header.
-10. Format generated Go code with standard Go formatting.
+10. Emit the lifecycle file, carrying a provenance header.
+11. Format generated Go code with standard Go formatting.
 
-Generation runs one command and produces one committed file, the lifecycle file. `wire_gen.go` is a transient intermediate that Yama removes after generation, preserving any pre-existing `wire_gen.go` it did not create. A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift.
+Generation runs one command and produces one committed file, the lifecycle file. The derived-injector file and `wire_gen.go` are both transient intermediates that Yama removes after generation, preserving any pre-existing file of either name that it did not create. A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift.
 
-Generation failures are build-time failures. Examples include Google Wire generation errors, a stub whose signature does not match its injector's, unsupported injector shapes, two injectors in one package whose result types share an unqualified name but denote different types, or invalid lifecycle analysis results.
+Generation failures are build-time failures. Examples include Google Wire generation errors, a stub whose `wire.Build` call states providers Google Wire cannot build the stub's result from, unsupported injector shapes, two injectors in one package whose result types share an unqualified name but denote different types, or invalid lifecycle analysis results.
 
 ## 5. Google Wire Integration
 
@@ -127,12 +128,12 @@ execution machinery** is identical in every application and lives in a Yama-owne
 **runtime-support package** that the generated file imports.
 
 The generated file emits **no types and no methods**. Its whole content is one
-constructor per opted-in injector (ADR-011), and each constructor does three
+constructor per lifecycle stub (ADR-011), and each constructor does three
 things:
 
-1. **re-emits its injector's construction body**, so every value the graph builds
-   is in scope — including the injector-locals Wire's own signature does not
-   return (ADR-008);
+1. **re-emits its derived injector's construction body**, so every value the
+   graph builds is in scope — including the injector-locals Wire's own signature
+   does not return (ADR-008);
 2. **declares the levels**, in dependency order, naming each level's members;
 3. **seals the declaration** and returns the application beside its `Lifecycle`.
 
@@ -308,6 +309,13 @@ Yama's to derive:
   re-emitted body rebinds each cleanup to a name derived from that value
   (ADR-008).
 
+Yama derives one further identifier that no committed file carries: the name of
+the injector it derives from each stub, which lives only in the transient
+derived-injector file and in Wire's transient output. That name is derived from
+the stub's, in a reserved namespace, so each stub maps to one injector in Wire's
+output and an application's own injectors are never mistaken for Yama's
+(ADR-011).
+
 A derived identifier must be:
 
 * deterministic across equivalent inputs,
@@ -331,22 +339,35 @@ public API (ADR-007, ADR-010).
 
 ## 14. Generated Artifact Layout
 
-Generation produces one committed file in the target application package: Yama's `lifecycle_gen.go`. One `go:generate` directive invokes Yama, which runs Google Wire, parses the generated injector, and emits the lifecycle file. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire gen`, so generation is reproducible and needs no assumption about `wire` being on `PATH`.
+Generation produces one committed file in the target application package: Yama's `lifecycle_gen.go`. One `go:generate` directive invokes Yama, which derives a Google Wire injector from each lifecycle stub, runs Google Wire over it, parses the generated injector, and emits the lifecycle file. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire gen`, so generation is reproducible and needs no assumption about `wire` being on `PATH`.
 
-The package carries two hand-authored, build-tagged declaration files that are
-excluded from every ordinary build and are the inputs generation reads:
+The package carries one hand-authored, build-tagged declaration file that
+generation reads: the lifecycle stub file, behind `//go:build yamainject`,
+declaring each constructor's name and signature and the providers that build its
+graph (ADR-011). An application may also carry a `wire.go` behind
+`//go:build wireinject` for injectors it wants for its own purposes; Yama neither
+reads nor requires one.
 
-* `wire.go`, behind `//go:build wireinject`, declaring Google Wire's injectors.
-* the lifecycle stub file, behind `//go:build yamainject`, declaring which
-  injectors get a lifecycle constructor and what each is called (ADR-011).
+Generation writes two transient files into the package directory and removes
+both: the derived-injector file, behind `//go:build wireinject`, and Google
+Wire's `wire_gen.go`. Neither is committed. Removal is non-destructive, so a file
+of either name that Yama did not create is preserved and restored (ADR-008,
+ADR-011).
 
-`lifecycle_gen.go` is built when neither tag is set, so it carries
-`//go:build !wireinject && !yamainject`.
+`lifecycle_gen.go` carries `//go:build !yamainject`, which keeps the emitted
+constructor out of the load that reads the stubs, since those declare the same
+function. It states no other tool's build condition (ADR-011).
 
-A stub whose signature does not match its injector's — a parameter list that is
-not the injector's followed by `opts ...yama.Option`, or a result list that is not
-the injector's first result followed by `yama.Lifecycle` and `error` — is a
-generation failure reported against the stub.
+A run also moves the committed `lifecycle_gen.go` aside, beside the two
+transient files, and puts it back afterward. Google Wire type-checks the whole
+package, and so does Yama's load of Wire's output. A committed file left stale
+by a provider rename would otherwise fail the step that produces its
+replacement (ADR-011).
+
+A stub Google Wire cannot build the declared result from — providers that do not
+reach it, or a dependency cycle among them — is a generation failure, reported
+against the stub rather than against the derived injector the application never
+sees.
 
 Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory; Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and restored afterward, so generation never overwrites or deletes a file Yama does not own. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
 
@@ -358,7 +379,7 @@ The lifecycle file contains:
 * the build constraint excluding it from the two injection builds,
 * package declaration,
 * imports required by generated lifecycle code, including the Yama runtime-support package,
-* one lifecycle constructor per stub, each re-emitting its injector's
+* one lifecycle constructor per stub, each re-emitting its derived injector's
   construction body and then declaring its levels through the builder.
 
 Nothing else is emitted. There are no generated types and no generated methods:

@@ -16,11 +16,9 @@
 
 package sandbox
 
-// Lifecycle constructor stubs, the counterpart to wire.go. Each stub fixes a
-// constructor's name and signature and names the Wire injector it is built from;
-// yama emits the bodies into lifecycle_gen.go. Declaring them here is what makes
-// lifecycle generation opt-in per injector, and what keeps constructor naming the
-// application's choice rather than the generator's.
+// Lifecycle constructor stubs. Each stub fixes a constructor's name and
+// signature and states the providers its graph is built from; yama derives a
+// Wire injector from each one and emits the bodies into lifecycle_gen.go.
 
 import (
 	"io"
@@ -30,13 +28,13 @@ import (
 	yama "l7e.io/yama/v2"
 )
 
-// NewLifecycle orchestrates the graph InitializeApp builds.
+// NewLifecycle orchestrates the graph AppSet builds, logging to os.Stdout.
 func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
-	panic(wire.Build(InitializeApp))
+	panic(wire.Build(AppSet))
 }
 
-// NewLifecycleWithWriter orchestrates the graph InitializeAppWithWriter builds,
-// mirroring that injector's io.Writer argument.
+// NewLifecycleWithWriter orchestrates the graph CoreSet builds, taking the log
+// destination as an argument.
 func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecycle, error) {
-	panic(wire.Build(InitializeAppWithWriter))
+	panic(wire.Build(CoreSet))
 }
