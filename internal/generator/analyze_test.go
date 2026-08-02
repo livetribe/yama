@@ -59,7 +59,7 @@ func analyzeDir(t *testing.T, dir string) *Analysis {
 // rather than generated: its wire_gen.go is hand-massaged and must not be
 // regenerated.
 var sandboxAnalysis = sync.OnceValues(func() (*Analysis, error) {
-	pkg, err := NewGenerator(Options{}).Load(context.Background(), "sandbox")
+	pkg, err := NewGenerator(Options{}).Load(context.Background(), filepath.Join("testdata", "sandbox"))
 	if err != nil {
 		return nil, err
 	}
@@ -399,7 +399,7 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 
 	var runs [][][]string
 	for range 2 {
-		pkg, err := g.Load(ctx, "sandbox")
+		pkg, err := g.Load(ctx, filepath.Join("testdata", "sandbox"))
 		require.NoError(t, err)
 
 		analysis := analyzePackage(t, pkg)
@@ -419,7 +419,7 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 func TestAnalyzeUnresolvedComponentType(t *testing.T) {
 	requireGo(t)
 
-	pkg, err := NewGenerator(Options{}).Load(context.Background(), "sandbox")
+	pkg, err := NewGenerator(Options{}).Load(context.Background(), filepath.Join("testdata", "sandbox"))
 	require.NoError(t, err)
 
 	inj := pkg.Injectors[0]

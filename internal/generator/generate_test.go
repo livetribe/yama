@@ -172,7 +172,7 @@ func TestLoadSelectsWireGenAmongGeneratedFiles(t *testing.T) {
 
 	ctx := context.Background()
 
-	pkg, err := NewGenerator(Options{}).Load(ctx, "sandbox")
+	pkg, err := NewGenerator(Options{}).Load(ctx, filepath.Join("testdata", "sandbox"))
 	require.NoError(t, err)
 
 	var names []string

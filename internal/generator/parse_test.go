@@ -19,6 +19,7 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func injectorByName(t *testing.T, parsed *ParsedFile, name string) *Injector {
 // the sandbox's real wire_gen.go, statement by statement: provider kinds, ordered
 // dependency edges, cleanup pairing, and the root.
 func TestParseSandboxOracle(t *testing.T) {
-	parsed := parseFile(t, "sandbox/wire_gen.go")
+	parsed := parseFile(t, filepath.Join("testdata", "sandbox", "wire_gen.go"))
 
 	require.Len(t, parsed.Injectors, 2, "two injectors, parsed independently")
 
@@ -140,7 +141,7 @@ func TestParseSandboxOracle(t *testing.T) {
 // TestParseIndependentGraphs asserts the two injectors are never merged: they
 // hold distinct component instances even for identically named locals.
 func TestParseIndependentGraphs(t *testing.T) {
-	parsed := parseFile(t, "sandbox/wire_gen.go")
+	parsed := parseFile(t, filepath.Join("testdata", "sandbox", "wire_gen.go"))
 
 	app := injectorByName(t, parsed, "InitializeApp")
 	withWriter := injectorByName(t, parsed, "InitializeAppWithWriter")
@@ -161,7 +162,7 @@ func TestParseIndependentGraphs(t *testing.T) {
 // initializer of its _wire*Value variable, for re-emission in place of the
 // private reference.
 func TestParseValueRematerialization(t *testing.T) {
-	parsed := parseFile(t, "sandbox/wire_gen.go")
+	parsed := parseFile(t, filepath.Join("testdata", "sandbox", "wire_gen.go"))
 	app := injectorByName(t, parsed, "InitializeApp")
 
 	byName := map[string]*Component{}

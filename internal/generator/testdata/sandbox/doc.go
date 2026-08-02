@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package sandbox is a self-contained Yama example: a small component graph
-// wired end to end, with the emitted lifecycle_gen.go checked in.
+// Package sandbox is the frozen fixture the parser and analysis tests read: a
+// component graph wired end to end, with Wire's wire_gen.go and a
+// lifecycle_gen.go checked in beside it.
 //
-// lifecycle.go declares one stub per constructor. Yama derives a Google Wire
-// injector from each stub, runs Wire, and emits lifecycle_gen.go. The derived
-// injector and Wire's wire_gen.go are transient and are not checked in.
+// wire_gen.go is hand-massaged. Tests Load this package rather than running
+// Wire over it, so regenerating wire_gen.go discards the massaging the parser
+// oracle asserts against. lifecycle_gen.go is present so a load has two
+// generated files to choose between.
 //
-// It exercises the breadth of Wire's feature set:
+// The fixture exercises the breadth of Wire's feature set:
 //
-//   - constructor arguments fed into the graph (NewLifecycleWithWriter takes an
-//     io.Writer in place of the os.Stdout interface value)
+//   - injectors (InitializeApp, InitializeAppWithWriter) and injector arguments
 //   - provider functions and composed provider sets (wire.NewSet)
 //   - interface binding (wire.Bind: Logger to *ConsoleLogger)
 //   - struct assembly (wire.Struct: App from its fields)
