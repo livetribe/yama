@@ -6,7 +6,7 @@
 
 Yama is a compile-time lifecycle orchestration framework for Go applications.
 
-Yama derives lifecycle orchestration directly from a Google Wire dependency graph and generates lifecycle execution code during build time.
+Yama derives lifecycle orchestration directly from a Google Wire dependency graph. It generates lifecycle execution code during build time.
 
 The project eliminates duplication between:
 
@@ -200,7 +200,7 @@ type Stopper interface {
 }
 ```
 
-`Start` returns an error; `Quiesce` and `Stop` do not. The signature of each
+`Start` returns an error. `Quiesce` and `Stop` do not. The signature of each
 interface matches the error semantics of the phase it represents.
 
 Components may implement:
@@ -213,7 +213,7 @@ Components may implement:
 
 All Wire graph components participate in dependency analysis.
 
-A component occupies a level in lifecycle execution when it is lifecycle-capable, or when its provider returned a Google Wire cleanup. A component receives a callback only for the capabilities it implements; a component that occupies a level solely on the strength of a cleanup receives none.
+A component occupies a level in lifecycle execution in two cases. First, the component is lifecycle-capable. Second, the component's provider returned a Google Wire cleanup. A component receives a callback only for the capabilities it implements. A component that occupies a level only because of a cleanup receives no callback.
 
 ---
 
@@ -229,8 +229,8 @@ Startup shall fail fast.
 
 Startup failure shall:
 
-1. Stop scheduling startup levels. In-flight operations in the active level are
-   not canceled and are awaited.
+1. Stop scheduling startup levels. The framework does not cancel in-flight
+   operations in the active level. It waits for them to finish.
 2. Initiate shutdown cleanup.
 3. Return a lifecycle startup failure.
 
@@ -239,7 +239,8 @@ Startup failure shall:
 ## 6.3 Quiesce Behavior
 
 Quiesce is the first pass of shutdown. A component that quiesces stops accepting
-new work and then blocks until its in-flight work completes, subject to context.
+new work. It then waits for its in-flight work to complete. This wait is
+subject to the context passed to Quiesce.
 
 Quiesce shall:
 
@@ -264,10 +265,11 @@ A dependent shall stop before the dependency it relies upon.
 Independent branches shall stop concurrently.
 
 Shutdown shall run to completion in dependency order. The caller's context
-deadline is observational: the framework does not return early when it expires,
-and logs a per-component overrun once that component's operation returns. A hung
-component stalls everything after it until SIGKILL, and is never itself reported.
-Preserving ordering is chosen over liveness.
+deadline is observational. The framework does not return early when the
+deadline expires. It logs a per-component overrun after that component's
+operation returns. A hung component stalls every component after it until
+something sends SIGKILL. The framework never reports the hung component
+itself. Yama chooses ordering over liveness.
 
 ---
 
@@ -283,7 +285,7 @@ Failure
 Stop (quiesce pass, then teardown)
 ```
 
-The same shutdown sequence used during normal operation shall be used during startup failure cleanup.
+Startup failure cleanup shall use the same shutdown sequence as normal operation.
 
 ---
 
@@ -292,11 +294,12 @@ The same shutdown sequence used during normal operation shall be used during sta
 The framework shall generate no lifecycle configuration.
 
 There is no generated configuration structure and no start or shutdown deadline
-field. The only deadline is the one carried by the context the caller passes to
-`Start` and `Stop`. The framework threads that context through the traversal and
-never lengthens its deadline. The deadline is observational: it is not enforced,
-the traversal continues to completion, and a component that exceeded it is logged
-once its operation returns.
+field. The only deadline is the one carried by the context that the caller
+passes to `Start` and `Stop`. The framework threads that context through the
+traversal and never lengthens its deadline. The deadline is observational. The
+framework does not enforce it. The traversal continues to completion. The
+framework logs a component that exceeded the deadline after that component's
+operation returns.
 
 A component that wants a per-component timeout wraps its own `Start`, `Quiesce`, or
 `Stop`. This is ordinary Go, not a framework mechanism. Slow-operation and overrun
@@ -316,8 +319,8 @@ Interceptors shall be:
 * Runtime objects.
 * Operation-specific.
 * Strongly typed.
-* Not uniform: each interceptor's signature matches the error semantics of the
-  phase it wraps (Start propagates an error; Quiesce and Stop do not).
+* Not uniform. Each interceptor's signature matches the error semantics of the
+  phase it wraps. Start propagates an error. Quiesce and Stop do not.
 
 Separate interceptor chains shall exist for:
 
@@ -333,8 +336,9 @@ Interceptors may:
 * Suppress execution.
 * Modify lifecycle outcomes.
 
-Interceptors attach globally: an interceptor joins the chain for every lifecycle
-component whose operation it intercepts. There is no per-component scoping.
+Interceptors attach globally. An interceptor joins the chain for every
+lifecycle component whose operation it intercepts. There is no per-component
+scoping.
 
 ---
 
@@ -353,14 +357,16 @@ Metadata shall include the lifecycle component identity being started, quiesced,
 
 The exact metadata representation is an implementation detail.
 
-Through interceptors, and remaining observability-tool agnostic, the framework shall support observation of start, quiesce, and stop execution, failures, deadline overruns, and durations.
+Through interceptors, the framework shall support observation of start,
+quiesce, and stop execution, failures, deadline overruns, and durations. The
+framework shall remain agnostic to any specific observability tool.
 
 ---
 
 ## 6.9 Error Handling
 
 The framework shall expose a single lifecycle-level error, `ErrStartFailed`.
-`Start` is the only lifecycle operation that returns an error; `Stop` returns
+`Start` is the only lifecycle operation that returns an error. `Stop` returns
 nothing.
 
 The framework shall not expose:
@@ -391,31 +397,34 @@ Generated code shall be executable Go code rather than runtime lifecycle plans.
 
 ## 6.11 Boundary Components
 
-The framework shall support boundary components: lifecycle-capable components
-registered to participate in every lifecycle pass while sitting outside the Wire
-dependency graph.
+The framework shall support boundary components. A boundary component is a
+lifecycle-capable component that sits outside the Wire dependency graph. The
+application registers it, and it then participates in every lifecycle pass.
 
 An application may register a component at the begin boundary or the end
-boundary, which model dependency extremes of the whole graph. A begin-boundary
-component behaves as a base dependency: it starts before every graph component
-and quiesces and stops after them. An end-boundary component behaves as a top
-dependent: it starts after every graph component and quiesces and stops before
-them. Shutdown is the exact reverse of startup. Within a boundary set, components
-have no ordering relative to one another.
+boundary. These two positions model the extremes of dependency order in the
+graph. A begin-boundary component behaves as a base dependency. It starts
+before every graph component. It quiesces and stops after every graph
+component. An end-boundary component behaves as a top dependent. It starts
+after every graph component. It quiesces and stops before every graph
+component. Shutdown is the exact reverse of startup. Within a boundary set,
+components have no order among themselves.
 
-Boundary components implement the same optional lifecycle capabilities as graph
-components and follow the same startup, quiesce, and shutdown semantics.
+Boundary components implement the same optional lifecycle capabilities as
+graph components. They follow the same startup, quiesce, and shutdown
+semantics.
 
 ---
 
 ## 6.12 Signal-Driven Run
 
-The framework shall provide a helper that runs a lifecycle until an operating-
-system signal is received: it starts the lifecycle, blocks until one of a
-caller-specified set of signals arrives, and then shuts the lifecycle down.
+The framework shall provide a helper that runs a lifecycle until it receives an
+operating-system signal. The helper starts the lifecycle. It then blocks until
+one of a caller-specified set of signals arrives. It then shuts the lifecycle
+down.
 
-When the caller specifies no signals, the helper shall run until an interrupt or
-termination signal.
+When the caller specifies no signals, the helper shall run until it receives an
+interrupt or termination signal.
 
 ---
 
