@@ -27,9 +27,9 @@ in the same commit that introduces it.
 - **Derived injector** — the transient Google Wire injector Yama writes from
   a lifecycle stub. Yama removes it after a run; it is never committed. See
   ADR-011.
-- **Cleanup** — a Google Wire cleanup function returned by a provider. A
-  compatibility mechanism, not a lifecycle capability in its own right; see
-  ADR-008.
+- **Cleanup** — a Google Wire cleanup function returned by a provider. Yama
+  supports one for backward compatibility; it is not a lifecycle capability in
+  its own right. See ADR-008.
 - **Plan** (rejected term) — a description of execution, separate from the
   code that performs it, that an engine would read. Yama's ordered level
   list is not a plan: see ADR-004.

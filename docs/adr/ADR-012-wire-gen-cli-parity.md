@@ -15,9 +15,10 @@ deciding it settles, or what it costs. This ADR states that decision, and the
 rest of this Context section shows the evidence that it was never written down.
 
 One `go:generate` directive invokes Yama for generation. Yama then runs Google
-Wire internally (ADR-008). Yama replaces a `go:generate` line that names Wire's
-own command, so a project usually has this line already. Wire writes this
-directive into every file it generates:
+Wire internally (ADR-008). That directive stands where a line naming Wire's own
+command stands, whether it replaces one or is added beside one, so a project
+usually has such a line already to compare against. Wire writes this directive
+into every file it generates:
 
 ```
 //go:generate go run -mod=mod github.com/google/wire/cmd/wire
@@ -134,8 +135,11 @@ happened to be working in. Sometimes it is not recorded anywhere at all.
 
 ### Positive
 
-* An existing `go:generate` directive naming Wire's command carries over. Only
-  the named tool changes.
+* An application that wants Yama to own generation points its existing
+  `go:generate` directive at Yama. Only the named tool changes, because the flags
+  and the package argument are the same. An application that keeps its own
+  directive naming Wire's command adds Yama's beside it, and writes the same
+  flags there.
 * A command-line question now has a decision procedure instead of a discussion,
   and that procedure gives the same answer to everyone who runs it.
 * A Definition of Done can state measured behaviour instead of assumed

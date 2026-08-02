@@ -63,10 +63,10 @@ The generation pipeline is:
 2. Derive one Google Wire injector per stub, and write the derived injectors into the package directory as a transient, build-tagged file (ADR-011).
 3. Run `wire gen` to produce `wire_gen.go`. Google Wire resolves binding, interface bindings, cycle detection, and construction ordering.
 4. Parse `wire_gen.go` and walk the AST of the injector derived for each stub.
-5. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, and `wire.Struct`/`FieldsOf` struct literals). Top-to-bottom order is a valid topological order.
+5. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, `wire.Struct` struct literals, and `FieldsOf` selector expressions). Top-to-bottom order is a valid topological order.
 6. Treat each injector function as an independent graph; never merge them.
 7. Derive dependency edges from the arguments each creation event consumes.
-8. Detect lifecycle capabilities for each component. A Google Wire cleanup function is a backward-compatibility mechanism, not a lifecycle capability: it is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
+8. Detect lifecycle capabilities for each component. Yama supports a Google Wire cleanup function for backward compatibility, and a cleanup is not a lifecycle capability. It is folded into the teardown of the value it cleans up, at that value's DAG position, running before that value's own `Stop`.
 9. Compute lifecycle execution structure:
    * one dependency-ordered level list,
    * each member's teardown form.
@@ -83,7 +83,7 @@ Google Wire provider declarations are the sole source inputs for dependency grap
 
 Yama obtains ordering by running Google Wire's generator and analyzing the generated injector. By the time `wire gen` emits an injector, Google Wire has resolved provider binding, interface bindings, values, struct and field providers, and cycle detection. The statement order of the generated injector body is a valid topological order, so Yama reuses Google Wire's resolved result rather than reconstructing it.
 
-Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event; `wire.Value` and `InterfaceValue` emit assignments, and `wire.Struct` and `FieldsOf` emit struct literals. Multiple injector functions are independent graphs and are never merged.
+Yama walks the injector AST rather than a private graph object. Any new variable declaration is a creation event. `wire.Value` and `InterfaceValue` emit assignments, `wire.Struct` emits a struct literal, and `FieldsOf` emits a selector expression reading the field from its parent value. Multiple injector functions are independent graphs and are never merged.
 
 Google Wire remains responsible for dependency construction semantics. Yama remains responsible for lifecycle orchestration semantics. Coupling to the shape of Google Wire's generated output is guarded by a CI check that regenerates the lifecycle file and diffs it against the committed copy, not by depending on Google Wire's internal APIs.
 
@@ -371,7 +371,7 @@ sees.
 
 Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory; Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and restored afterward, so generation never overwrites or deletes a file Yama does not own. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
 
-A CI check regenerates `lifecycle_gen.go` and diffs it against the committed copy to catch drift: a change in Google Wire's output shape changes the lifecycle file's content.
+A CI check regenerates `lifecycle_gen.go` and diffs it against the committed copy to catch drift. A change in Yama's parser, analysis, or emitter changes the lifecycle file's content.
 
 The lifecycle file contains:
 
@@ -677,7 +677,7 @@ Runtime lifecycle plans are rejected because generated executable Go code is the
 
 Runtime graph construction and runtime graph introspection are rejected because the dependency ordering is a generation-time artifact derived from Google Wire's generated injector.
 
-Adapting or forking Google Wire's generation internals is rejected because Google Wire's graph-construction and solver logic live under `internal/` packages that external code cannot import, and depending on them would require a fork that grows fragile as those internals change. Yama runs `wire gen` and walks the generated injector instead, coupling to Google Wire's output shape (guarded by a CI drift check) rather than to its internals.
+Adapting or forking Google Wire's generation internals is rejected because Google Wire's graph-construction and solver logic are declared in `internal/` packages that external code cannot import, and depending on them would require a fork to maintain. Yama runs `wire gen` and walks the generated injector instead, coupling to Google Wire's output shape rather than to its internals. Google Wire is archived, so that shape is fixed.
 
 Lifecycle registration APIs are rejected because they create a second source of truth beside Google Wire.
 

@@ -33,6 +33,6 @@
 // package, and the single dependency-ordered level list computed over them.
 //
 // The parser is coupled to the shape of Google Wire's generated output and is
-// validated against Google Wire v0.7.0, pinned in go.mod. A version bump can
-// change that shape; the drift check is the guard.
+// validated against Google Wire v0.7.0, pinned in go.mod. Google Wire is
+// archived, so that shape does not move.
 package generator
