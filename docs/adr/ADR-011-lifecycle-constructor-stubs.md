@@ -23,9 +23,10 @@ Deriving the name from an injector is possible. A rule such as `InitializeApp` t
 `NewLifecycle` reads well on the example that motivated it. It then has to answer
 for an injector named `Build`, for two injectors whose derived names collide, and
 for a package that does not use the `Initialize…` convention. A derivation rule
-must therefore ship with a collision rule. A collision rule disambiguates
-mechanically, and `NewLifecycle2` is deterministic, unique, and meaningless to the
-person who reads the call site. Derivation also makes generation all-or-nothing
+must therefore include a collision rule. A collision rule disambiguates
+mechanically. The name it produces, `NewLifecycle2`, is deterministic, unique,
+and meaningless to the person who reads the call site. Derivation also makes
+generation all-or-nothing
 over a package's injectors, because every injector that matches the rule produces
 a constructor.
 
@@ -87,21 +88,23 @@ mechanical:
 The derived injector file and Wire's `wire_gen.go` are both transient. Yama
 removes both. `lifecycle_gen.go` is the only committed output.
 
-### The emitted file carries two negative tags
+### The emitted file carries one negative tag
 
-Yama emits `lifecycle_gen.go` guarded by `//go:build !wireinject && !yamainject`.
-Each tag answers a different problem.
-
-`!yamainject` prevents a duplicate declaration. The stub declares the constructor
-under the `yamainject` tag, and the emitted file declares the same function. Yama
-loads the package under that tag to read the stubs, so the emitted file must be
+Yama emits `lifecycle_gen.go` guarded by `//go:build !yamainject`. That tag
+prevents a duplicate declaration. The stub declares the constructor under the
+`yamainject` tag, and the emitted file declares the same function. Yama loads
+the package under that tag to read the stubs, so the emitted file must be
 invisible to that load.
 
-`!wireinject` keeps Yama's own output out of Google Wire's input. Wire
-type-checks the whole package under the `wireinject` tag. A stale or broken
-`lifecycle_gen.go` would otherwise fail the Wire step for a reason that has
-nothing to do with Wire, and would block the regeneration that replaces it. Wire
-marks its own `wire_gen.go` as `!wireinject` for the same reason.
+The emitted file states Yama's own build condition and no other tool's. Google
+Wire's tag does not appear in it.
+
+A committed `lifecycle_gen.go` can also stop compiling on its own. A provider
+rename leaves it referring to a symbol that no longer exists. Google Wire
+type-checks the whole package, and so does Yama's own load of Wire's output, so
+a stale file would fail the step that produces its replacement. Yama scopes that
+file for the run instead. It moves the file aside before Wire runs, and puts it
+back afterward, on the same terms as the two transient files.
 
 ## Rationale
 
@@ -119,16 +122,16 @@ A stub that states its providers is self-sufficient. An application that wants a
 lifecycle constructor writes one declaration. It does not also write a Wire
 injector, and it does not keep two parameter lists in agreement across two files.
 
-### The naming problem is dissolved rather than solved
+### There is no naming problem left to solve
 
 There is no derivation rule to specify, no collision rule to specify, and no
 mechanical suffix to explain. Two stubs with the same name produce an ordinary Go
 redeclaration error, in a file the application wrote, reported at the site of the
 mistake. The application learns no Yama-specific diagnostic.
 
-This is the reasoning ADR-007 applies to component names. Where a person reads a
-name, the person who knows what it means chooses it. A framework-derived name is
-unique without being informative.
+This is the reasoning ADR-007 applies to component names. A name should come
+from the person who knows what it means, not from a rule. A framework-derived
+name is unique without being informative.
 
 ### Generation is opt-in per graph
 
@@ -194,9 +197,9 @@ new tag name, not a new file convention.
 
 ### Accepted Trade-Off
 
-The project accepts a second transient file, and the work of mapping Wire
-diagnostics back to the stub, in exchange for one declaration per orchestrated
-graph and a `wire.Build` call that keeps Wire's own meaning.
+The project accepts two costs: a second transient file, and the work of mapping
+Wire diagnostics back to the stub. In exchange, it gets one declaration per
+orchestrated graph and a `wire.Build` call that keeps Wire's own meaning.
 
 ## Rejected Alternatives
 
@@ -206,25 +209,25 @@ A stub could state `panic(wire.Build(InitializeApp))`, naming an injector alread
 declared in `wire.go`.
 
 Rejected for three reasons. Wire reads a function argument as a provider
-function, so that line already has a Wire meaning: it states that `InitializeApp`
-provides its own first result. That meaning is not the one the stub intends, so
-the form reads as Wire usage while asserting something else. The application also
+function. That line already has a Wire meaning: it states that `InitializeApp`
+provides its own first result. The stub intends a different meaning, so the form
+reads as Wire usage while asserting something else. The application also
 declares the graph twice, once as an injector and once as a stub, and must keep
 the two parameter lists in agreement. Finally, a stub of this form can only
-orchestrate a graph that already has an injector, so an application that wants a
-lifecycle constructor alone still writes a Wire injector it never calls.
+orchestrate a graph that already has an injector. An application that wants a
+lifecycle constructor alone still writes a Wire injector that it never calls.
 
 ### Derive the constructor name from the injector name
 
-Rejected because it needs a derivation rule that holds for injector names the
-project has not seen, and a collision rule whose output is unique and
-uninformative. It also forces generation on every injector the rule matches.
+Rejected for three reasons. It needs a derivation rule that holds for injector
+names the project has not seen. It needs a collision rule whose output is unique
+and uninformative. It also forces generation on every injector the rule matches.
 
 ### One constructor per package
 
 Rejected because a package with two graphs needs two constructors. The sandbox
-exemplar has exactly two. Choosing one graph as the package's lifecycle would put
-the other out of Yama's reach.
+exemplar has exactly two. Choosing one graph as the package's lifecycle would leave
+the other graph without a constructor.
 
 ### A generator flag or configuration file that lists graphs and names
 
@@ -232,6 +235,23 @@ Rejected because it puts application-facing names in a place that is neither the
 application's Go source nor the emitted output. It also adds a configuration
 format to a project that has none (ADR-007). The Go compiler checks a stub, and
 it does not check a name in a flag.
+
+### Guard the emitted file with `!wireinject` as well
+
+An earlier form of this decision gave the emitted file both tags. `!wireinject`
+kept a stale `lifecycle_gen.go` out of Google Wire's input, which is what Wire's
+own `wire_gen.go` uses that tag for.
+
+It buys one case that scoping cannot cover. An application may keep its own
+`wire.go` and its own directive naming Wire's command (ADR-008). A stale
+lifecycle file then fails that application's Wire run, which Yama is not
+executing and cannot scope around.
+
+The cost is a permanent line in every application's committed source. The tag
+names a third party's build condition, written there by Yama rather than by the
+application, to pay for a state that is already broken and that one command
+repairs. Scoping the file covers the same hazard for every run Yama does
+execute, and it leaves the emitted file stating one condition of Yama's own.
 
 ## Non-Goals
 
