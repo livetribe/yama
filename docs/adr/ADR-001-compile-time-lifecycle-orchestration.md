@@ -12,7 +12,7 @@ Dependency-injected Go applications frequently maintain the same dependency grap
 2. Startup ordering.
 3. Shutdown ordering.
 
-Dependency construction is often handled through compile-time dependency injection tools such as Google Wire. However, lifecycle orchestration is typically implemented separately using one or more of the following approaches:
+These applications often handle dependency construction with compile-time dependency injection tools such as Google Wire. However, they usually implement lifecycle orchestration separately, with one or more of the following approaches:
 
 * Hand-written startup and shutdown sequences.
 * Runtime registration systems.
@@ -23,7 +23,7 @@ These approaches introduce duplication between the dependency graph and the life
 
 As applications evolve, the dependency graph and lifecycle graph can drift apart. Components may be started in the wrong order, shut down in the wrong order, or omitted from lifecycle management entirely.
 
-The project requires a mechanism that derives lifecycle orchestration directly from the existing dependency graph while preserving Go's static typing and explicitness.
+The project requires a mechanism that derives lifecycle orchestration directly from the existing dependency graph. That mechanism must preserve Go's static typing and explicitness.
 
 ## Decision
 
@@ -31,21 +31,21 @@ The framework shall implement lifecycle orchestration through compile-time code 
 
 The generator shall consume dependency graph information and emit lifecycle orchestration code during the build process.
 
-Generated code shall contain, for each injector the generator processes:
+For each injector that the generator processes, generated code shall contain:
 
 * The construction body of the injector.
 * The declaration of each level, in dependency order.
 * The components that occupy each level.
 
-The declared order fixes lifecycle ordering. Startup walks the levels forward. Quiesce and shutdown walk the levels backward.
+Startup walks the levels forward. Quiesce and shutdown walk the levels backward.
 
-The generated code shall be ordinary Go code that can be read, debugged, stepped through, and reviewed by application developers.
+The generated code shall be ordinary Go code that application developers can read, debug, step through, and review.
 
 No lifecycle graph construction shall occur at runtime.
 
-No runtime registration shall be required.
+The framework shall not require runtime registration.
 
-No reflection shall be used for orchestration.
+Orchestration shall not use reflection.
 
 ## Rationale
 
@@ -55,7 +55,7 @@ The dependency graph already describes component relationships.
 
 A component that depends on another component cannot safely start before that dependency is available.
 
-Likewise, a component should generally stop before the dependencies it relies upon are removed.
+Likewise, a component should generally stop before the components that it depends on become unavailable.
 
 The dependency graph already contains the information required to derive lifecycle ordering.
 
@@ -81,9 +81,9 @@ The compiler remains the primary validation mechanism.
 
 Generated orchestration logic becomes part of the application binary.
 
-No runtime graph builder, registry, planner, dependency resolver, or lifecycle engine must execute during startup.
+No runtime graph builder, registry, planner, dependency resolver, or lifecycle engine executes during startup.
 
-Runtime behavior is reduced to walking the levels the generated code declares.
+At runtime, the framework only walks the levels that the generated code declares.
 
 ### Debuggability
 
@@ -105,7 +105,7 @@ This approach follows the philosophy established by Google Wire:
 * Minimal runtime machinery.
 * Readable generated code.
 
-Developers familiar with Wire should find the lifecycle framework conceptually consistent.
+Developers who know Wire should find the lifecycle framework consistent with Wire.
 
 ## Consequences
 
