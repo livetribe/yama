@@ -36,7 +36,7 @@ The framework shall expose a deliberately small public API.
 The public API consists of:
 
 * The `Lifecycle` type. Its constructor is generated into the application's own
-  package and named by the application (ADR-011), so it is not a framework symbol.
+  package and named by the application, so it is not a framework symbol.
 * Lifecycle capability interfaces.
 * Lifecycle interceptor interfaces.
 * The lifecycle-level error.
@@ -49,7 +49,7 @@ The listings below show the shape of each part of that surface and the reasoning
 ## Public Lifecycle Type
 
 Applications interact with lifecycle orchestration through `Lifecycle`, an
-interface composed of the capability interfaces its own components implement:
+interface composed of the capability interfaces that its own components implement:
 
 ```go
 type Lifecycle interface {
@@ -58,25 +58,25 @@ type Lifecycle interface {
 }
 ```
 
-`Start` returns an error; `Stop` returns nothing. `Quiesce` is not exposed —
+`Start` returns an error. `Stop` returns nothing. `Quiesce` is not exposed.
 `Stop` runs the quiesce pass internally as its first action.
 
-A `Lifecycle` starts and stops the whole graph, so it is the same kind of thing as
-the components inside it: a `Starter` and a `Stopper`. Expressing it as the
-composition of those two interfaces states that directly rather than restating
-their method signatures a second time.
+A `Lifecycle` starts and stops the whole graph. It is the same kind of thing as
+the components inside it: a `Starter` and a `Stopper`. Expressing `Lifecycle` as
+the composition of those two interfaces states that fact directly. It avoids
+restating their method signatures a second time.
 
 The implementation is private and owned by the runtime-support package.
-Applications receive a `Lifecycle`; they do not implement or construct one, and no
-public construction path exists.
+Applications receive a `Lifecycle`. They do not implement or construct one.
+No public construction path exists.
 
 An interface adds no compatibility commitment beyond the one already made.
-`Starter` and `Stopper` are public and frozen, so composing them introduces no
-method Yama was not already committed to. The freedom a concrete type would
-preserve — adding a method to `Lifecycle` later — is freedom this project has
-already renounced: ADR-003 Invariant 6 fixes the phase count at three, and the
-sections below reject runtime graph, observability, and configuration APIs. There
-is nothing left to add.
+`Starter` and `Stopper` are public and frozen. Composing them introduces no
+method Yama was not already committed to. A concrete type would preserve one
+freedom: the freedom to add a method to `Lifecycle` later. This project has
+already given up that freedom. ADR-003 Invariant 6 fixes the phase count at
+three. The sections below reject runtime graph, observability, and
+configuration APIs. There is nothing left to add.
 
 `Lifecycle` is named without a `-Container` suffix. The type is the application's
 lifecycle, not a dependency-injection container.
@@ -89,17 +89,18 @@ app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2), WithBeginComponent
 ```
 
 The constructor takes no lifecycle configuration. Yama generates none. Any deadline
-comes from the context the caller passes to `Start` and `Stop`; per-component timeouts
-are component-authored wrappers. The only construction-time inputs are the
-`Option` values — interceptors and boundary-component registration — described
-under Public Helpers below.
+comes from the context the caller passes to `Start` and `Stop`. Per-component
+timeouts are component-authored wrappers. The only construction-time inputs are
+the `Option` values: interceptors and boundary-component registration. Public
+Helpers, below, describes them.
 
-On construction failure it returns `nil, nil, err` — there is no partial
-`Lifecycle`, inheriting Google Wire's failure semantics. There is no cleanup
-function for the caller to hold either: the constructor re-emits the injector's
-construction rather than calling it (ADR-008), so Google Wire never aggregates one,
-and each provider's cleanup is routed to its own position in the teardown ordering.
-Teardown runs through `Lifecycle.Stop` and nowhere else.
+On construction failure, the constructor returns `nil, nil, err`. There is no
+partial `Lifecycle`. This inherits Google Wire's failure semantics. There is also
+no cleanup function for the caller to hold. The constructor re-emits the
+injector's construction instead of calling it. Google Wire therefore never
+aggregates a cleanup function. Each provider's cleanup is routed to its own
+position in the teardown ordering instead. Teardown runs through `Lifecycle.Stop`
+and nowhere else.
 
 This is the primary lifecycle abstraction exposed by the framework.
 
@@ -165,48 +166,50 @@ Operation-specific interceptor interfaces are part of the public API.
 
 ## Public Context Accessor
 
-Interceptors read the lifecycle component they are wrapping through a single
-accessor:
+Interceptors read the lifecycle component that they are wrapping through a
+single accessor:
 
 ```go
 func FromContext[T any](ctx context.Context) (T, bool)
 ```
 
 The lifecycle manager attaches the component itself to the context before the
-interceptor chain runs; an interceptor recovers it with `FromContext`.
+interceptor chain runs. An interceptor recovers it with `FromContext`.
 This is part of the public API.
 
-The accessor yields the component, not a framework-owned descriptor of it. An
-interceptor cannot obtain the component from its `next` argument — `next` is the
-rest of the chain, so only the final link ever holds the component — which is why
-the context carries it.
+The accessor yields the component itself, not a framework-owned descriptor of
+it. An interceptor cannot obtain the component from its `next` argument.
+`next` is the rest of the chain, so only the final link in the chain ever
+holds the component. This is why the context carries the component instead.
 
-`T` is the component's concrete type. Because interceptors attach globally
-(ADR-005), an interceptor uses `any` and type-switches to identify the
-component it is wrapping. `T` is unconstrained because Go cannot express
-"implements at least one of `Starter`, `Quiescer`, `Stopper`": a union may not
-contain method-bearing interfaces, and embedding them would require all three
-rather than any one. A base interface does not rescue this — an empty one
-constrains nothing, an unexported marker method would make the capability
-interfaces unimplementable outside `package yama`, and an exported marker would
-impose boilerplate on every component while still not proving the type
+`T` is the component's concrete type. Interceptors attach globally (ADR-005).
+An interceptor therefore uses `any` and type-switches to identify the
+component it is wrapping. `T` is unconstrained because Go cannot express the
+constraint "implements at least one of `Starter`, `Quiescer`, `Stopper`." A
+union may not contain method-bearing interfaces. Embedding all three
+interfaces would require a type to implement all three, not just one. A base
+interface does not rescue this. An empty base interface constrains nothing.
+An unexported marker method would make the capability interfaces
+unimplementable outside `package yama`. An exported marker would impose
+boilerplate on every component. It would still not prove the type
 participates in the lifecycle. This is the same limitation that makes
 `WithBeginComponents` take `any`.
 
 **Components are not named by the framework.** Yama derives no component name
 and exposes none. A component that wants a printable identity implements
-`fmt.Stringer`; otherwise `%T` yields its type. This is ordinary Go, and it is
-strictly better than a generated name: the framework could only derive a name from
-the shape of the Wire graph, and would have to disambiguate two same-typed
-components with a mechanical suffix — `sqlDB` and `sqlDB2` — which is unique but
-tells an operator nothing. A `String()` returning `"replica-db"` is chosen by the
-person who knows what it means. Every component implements a capability
-interface, so it is always a type the application owns and can extend.
+`fmt.Stringer`. Otherwise, `%T` yields its type. This is ordinary Go. It is
+also strictly better than a generated name. The framework could only derive a
+name from the shape of the Wire graph. It would then have to disambiguate two
+same-typed components with a mechanical suffix, such as `sqlDB` and `sqlDB2`.
+That suffix is unique, but it tells an operator nothing. The person who knows
+what a component means chooses a `String()` value such as `"replica-db"`
+instead. Every component implements a capability interface. It is therefore
+always a type the application owns and can extend.
 
 The operation being performed (Start, Quiesce, or Stop) is **not** carried as
-context metadata. Because those are separate interceptor methods, an interceptor
-already knows which operation it is handling from the method that was invoked, so
-no operation-identity accessor exists.
+context metadata. Start, Quiesce, and Stop are separate interceptor methods.
+An interceptor therefore already knows which operation it is handling, from
+the method that was invoked. No operation-identity accessor exists.
 
 The accessor exposes the component only. It does not expose graph APIs,
 generated implementation types, lifecycle plans, or component error details.
@@ -243,7 +246,7 @@ passed more than once; supplied values accumulate. For `WithInterceptors`,
 accumulation order is the interceptor chain's registration order (ADR-005). For
 `WithBeginComponents`/`WithEndComponents`, each boundary is a flat, unordered set — call
 order carries no ordering guarantee among components registered into the same
-boundary (Architecture §18). There is no generated, per-application variant of
+boundary (ADR-009). There is no generated, per-application variant of
 any of these helpers. Their exact signatures are defined by the framework.
 
 A `Start` that would otherwise block (for example `http.Server.ListenAndServe`)
@@ -256,9 +259,9 @@ once-only "stop accepting new work" step use ordinary `sync.Once`.
 
 Generated artifacts are not part of the framework's public API.
 
-The generated file emits no types (ADR-010). Its only symbol is the lifecycle
+The generated file emits no types. Its only symbol is the lifecycle
 constructor, and that one is application-facing by design: the application
-declares its name and signature itself (ADR-011) and calls it directly.
+declares its name and signature itself and calls it directly.
 
 ```go
 app, lifecycle, err := NewLifecycle(WithInterceptors(i1, i2))
@@ -281,7 +284,7 @@ stable public surface remains only the types listed above: the capability
 interfaces, the interceptor interfaces, `FromContext`, `ErrStartFailed`,
 `Lifecycle`, `Option`, and the small set of helpers. The lifecycle constructor is
 not among them: it is generated into the application's own package under a name
-the application chose (ADR-011).
+the application chose.
 
 ## Intentionally Omitted APIs
 
