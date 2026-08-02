@@ -6,7 +6,7 @@ Accepted
 
 ## Context
 
-Applications frequently require lifecycle-related behavior that is orthogonal to lifecycle orchestration.
+Applications frequently need lifecycle-related behavior that is a separate concern from lifecycle orchestration.
 
 Examples include:
 
@@ -34,7 +34,7 @@ The project requires an extension mechanism that allows applications to customiz
 
 ## Decision
 
-Lifecycle customization shall be implemented through interceptors.
+Applications implement lifecycle customization through interceptors.
 
 Interceptors are runtime objects attached to lifecycle components
 and are the primary runtime extension mechanism.
@@ -146,8 +146,8 @@ The lifecycle manager automatically includes interceptors in the chains correspo
 
 Interceptors are runtime objects.
 
-Interceptors are attached during lifecycle manager construction, via the public
-`WithInterceptors(interceptors ...any) Option` helper.
+An application attaches interceptors during lifecycle manager construction,
+using the public `WithInterceptors(interceptors ...any) Option` helper.
 
 The framework does not generate interceptor implementations.
 
@@ -160,15 +160,16 @@ Applications provide interceptor instances explicitly.
 Interceptors attach globally. There is no per-component scoping.
 
 Global interceptors execute for every lifecycle component that implements the
-matching operation-specific interceptor interface — this is what "Capability-Driven
-Participation" above already means: an interceptor's reach is determined by which
-interceptor interfaces it implements, not by which component it names.
+matching operation-specific interceptor interface. This is what "Capability-Driven
+Participation" above already means. An interceptor's reach depends on which
+interceptor interfaces it implements. It does not depend on which component it
+names.
 
-`WithInterceptors` is variadic and may be passed more than once; all supplied
-interceptors accumulate. There are no component names, string keys, runtime
-lookup, or registration API, and no generated per-component input — the same
-`WithInterceptors` call works unchanged for every application regardless of graph
-shape.
+`WithInterceptors` is variadic. An application may call it more than once. All
+supplied interceptors accumulate. There are no component names, string keys,
+runtime lookup, or registration API, and no generated per-component input. The
+same `WithInterceptors` call works unchanged for every application, regardless
+of graph shape.
 
 This allows applications to apply:
 
@@ -181,8 +182,8 @@ Logging
 
 globally without needing to name or enumerate individual components.
 
-A future need for narrower, component-specific policy is not precluded by this
-decision, but no such mechanism exists today; see Non-Goals.
+This decision does not preclude a future need for narrower, component-specific
+policy. No such mechanism exists today. See Non-Goals.
 
 ## Ordering
 
@@ -216,7 +217,7 @@ The lifecycle manager performs no interceptor reordering.
 
 A built chain also carries **two Yama-authored links**, which the application
 neither writes nor registers. Their positions are part of this decision because
-they are observable: they change what a registered interceptor sees.
+they are observable. They change what a registered interceptor sees.
 
 Reading outermost to innermost:
 
@@ -231,41 +232,46 @@ Reading outermost to innermost:
 exclusion is the outermost link of each shutdown chain, so a gated component
 reaches neither the application's interceptors nor its own `Quiesce`/`Stop`.
 
-Outermost is the position that makes the gate mean what ADR-003 asks for — the
-component takes no part in the pass. Placing it inside the application's
-interceptors would instead mean the component participates and is suppressed at
-the last moment, and every interceptor would run — starting spans, opening
-timers, emitting metrics — for a component that then does nothing. The
-consequence is that a registered interceptor does not observe a skip; the gate
-emits one record naming the component, and that record is the only signal.
+The outermost position makes the gate do what ADR-003 requires: the component
+takes no part in the pass. Placing it inside the application's interceptors
+would instead mean the component participates. The framework would suppress it
+at the last moment. Every interceptor would still run for a component that then
+does nothing: it would start spans, open timers, and emit metrics. As a
+consequence, a registered interceptor does not observe a skip. The gate emits
+one record naming the component. That record is the only signal.
 
 **The overrun interceptor is innermost.** The built-in overrun interceptor (see
 *Universal Wrapping*) sits directly around the component's own method, inside
 every registered interceptor. It does not time the operation. It compares the
 deadline on the context it received against the clock at the instant the wrapped
-call returns, and when that deadline has already passed it emits one record
-naming the component and how far past the deadline the call ran.
+call returns. When that deadline has already passed, it emits one record naming
+the component and how far past the deadline the call ran.
 
-Innermost is the position that makes that check attribute the overrun to the
-component. Work an interceptor does *after* the component returns cannot push a
-within-deadline component over the line, and an interceptor that suppresses the
+The innermost position makes that check attribute the overrun to the component.
+Work an interceptor does *after* the component returns cannot push a
+within-deadline component over the line. An interceptor that suppresses the
 call entirely produces no record for a component that never ran.
 
-Two things innermost does not buy, both following from the interceptors sitting
-outside it. An interceptor that blocks ahead of `next` delays the component's own
-return, and so can both trigger the record and widen the amount it reports. And
-because an interceptor may replace the context before calling `next`, the
-deadline compared against is whatever the innermost link was handed — an
-interceptor that derives a shorter or longer one substitutes it for the caller's,
-for this component only.
+The innermost position does not solve two problems, both caused by interceptors
+sitting outside it.
+
+First, an interceptor that blocks ahead of `next` delays the component's own
+return. This can both trigger the record and widen the overrun the record
+reports.
+
+Second, an interceptor may replace the context before calling `next`. The
+deadline compared against is whatever the innermost link received. An
+interceptor that derives a shorter or longer deadline substitutes it for the
+caller's deadline, but only for this component.
 
 **Both links report through `log/slog`'s package default.** Neither returns
-anything, so what they observe is emitted as a log record through `log/slog`'s
-package-level default logger — the gate's skip at Warn, an overrun at Warn. This
-is the framework's only output channel besides the public error, and it is
-deliberately not configurable: ADR-007 rejects a `SetLogger` API, and `slog`'s
-default is the standard-library seam an application already controls without Yama
-exposing one.
+anything. What they observe is emitted as a log record through `log/slog`'s
+package-level default logger: the gate's skip at Warn, an overrun at Warn.
+
+This is the framework's only output channel besides the public error. It is
+deliberately not configurable. Yama exposes no `SetLogger` API. The `slog`
+default is the standard-library seam an application already controls, without
+Yama exposing one of its own.
 
 ## Context Propagation
 
@@ -293,9 +299,11 @@ The lifecycle manager shall populate the lifecycle component into context before
 The component itself
 ```
 
-This is what an interceptor is given to identify the component it wraps. The framework derives no name for it: a component that wants a printable identity implements `fmt.Stringer`. An interceptor cannot obtain the component from its `next` argument, because `next` is the rest of the chain rather than the component, which is why the context carries it.
+This is what an interceptor is given to identify the component it wraps. The framework derives no name for it. A component that wants a printable identity implements `fmt.Stringer`.
 
-The operation is not carried as context metadata: because Start, Quiesce, and Stop are separate interceptor methods, an interceptor already knows which operation it is handling from the method that was invoked.
+An interceptor cannot obtain the component from its `next` argument. `next` is the rest of the chain, not the component itself. This is why the context carries the component.
+
+The operation is not carried as context metadata. Start, Quiesce, and Stop are separate interceptor methods. An interceptor already knows which operation it is handling from the method that was invoked.
 
 This metadata enables:
 
@@ -363,10 +371,11 @@ chain, the wrapper layer is universal. Every component is wrapped, whether or no
 interceptor is attached to it. Wrapping is not opt-in.
 
 The observational deadline carried by the caller's context relies on this same
-universal wrapping. A built-in, Yama-authored overrun interceptor — attached to
-every component's chain, never supplied or registered by the application — is
-what reports a per-component overrun once the wrapped call returns; universal
-wrapping is what gives that mechanism per-component attribution.
+universal wrapping. A built-in, Yama-authored overrun interceptor reports a
+per-component overrun once the wrapped call returns. The application never
+supplies or registers this interceptor. Yama attaches it to every component's
+chain automatically. Universal wrapping is what gives that mechanism
+per-component attribution.
 
 ## Observability
 
