@@ -12,6 +12,11 @@ formatting, everything above and below this section. Use `/code-review`
 against the diff rather than relying on writing-time self-checking alone; a
 dedicated review pass catches drift a single pass of authoring misses.
 
+## Code comments
+All code comments must follow ASD-STE100 (Simplified Technical English):
+short sentences, one instruction per sentence, active voice, approved
+vocabulary, no jargon or idioms.
+
 ## Code comments state facts, never rationale or future phases
 
 `docs/adr/` is the only place a design decision gets argued, and
@@ -36,26 +41,18 @@ next to the `panic`/stub return so it's deleted with the code it describes;
 if the incompleteness is scoped work, that scope belongs in
 `implementation_plan_claude.md`, not the comment.
 
-**Treat the urge to write one as a planning gap, not a comment.** If you
-catch yourself wanting to write a comment that restates ADR rationale or
-notes future/provisional state, stop — that urge means either an ADR isn't
-being trusted to carry its own rationale, or the implementation plan is
-under-specified for this phase. Flag the gap back to the user instead of
-writing the comment, and offer the real fix: update the implementation plan,
-or draft a new ADR if a non-obvious architectural decision got made this
-phase that isn't captured anywhere yet.
-
 **Self-check before calling a file done:** for every comment you wrote or
-touched, ask whether it explains *why* or *what's next* rather than *what*
-or *how*. If so, cut it back to the bare fact (plus, at most, a short "this
-is deliberate" flag) or move the content to its proper home.
-
-**Audience test:** caller concerns (behavior, contract, consequences of use)
-go in the doc comment; maintainer concerns (why obvious-looking code is
-wrong) go at the definition site as a fact, not an essay. This applies to
-invariants the compiler can't catch (an implicit lock order, a slice that
-must stay sorted) — not to exported signatures, where the diff itself is the
-warning and anyone touching one has already read the ADRs.
+touched, apply the audience test — caller concerns (behavior, contract,
+consequences of use) belong in the doc comment; maintainer concerns (why
+obvious-looking code is wrong) belong at the definition site as a bare fact,
+not an essay. That covers invariants the compiler can't catch (an implicit
+lock order, a slice that must stay sorted), not exported signatures, where
+the diff itself is the warning and anyone touching one has already read the
+ADRs. If a comment fails the test by explaining *why* or *what's next*, that
+is a planning gap, not a wording problem: flag it back to the user instead
+of writing it, and fix the real gap — update the implementation plan, or
+draft a new ADR if this phase settled a non-obvious decision nothing
+captures yet.
 
 ## Testing
 
