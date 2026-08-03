@@ -64,7 +64,23 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	panic(wire.Build(CoreSet))
 }
+
+// NewCore orchestrates the graph CoreSet builds, and takes no options.
+func NewCore() (*App, yama.Lifecycle, error) {
+	panic(wire.Build(CoreSet))
+}
 ```
+
+The trailing `opts ...yama.Option` parameter is optional. A stub that declares it
+gets a constructor that takes options. A stub that omits it gets a constructor
+that takes no options.
+
+A stub may declare the options parameter without a name, or bind it to the blank
+identifier. Yama names it `opts` in the constructor it emits. The name is the
+one thing about that parameter an application cannot be relying on, because it
+declared none, and the emitted body forwards the options by name. This is the
+same allowance the rename below rests on: a parameter is positional, so naming
+one reaches no caller.
 
 ### Yama derives a Wire injector from each stub
 
@@ -78,8 +94,9 @@ mechanical:
   name. The derived injector is transient, and no application code names it, so
   a mechanical name costs a reader nothing here. The objection to derived names
   applies to application-facing identifiers only.
-* **Parameters.** The stub's parameters, in order, without the trailing
-  `opts ...yama.Option`.
+* **Parameters.** The stub's parameters, in order, without a trailing
+  `opts ...yama.Option`. A stub that declares no options parameter contributes
+  all of its parameters.
 * **Results.** The stub's first result, then `func()`, then `error`. Google Wire
   returns an aggregated cleanup. The emitted constructor does not, because
   teardown runs through `Lifecycle.Stop` (ADR-007).
@@ -194,6 +211,9 @@ new tag name, not a new file convention.
   `wire.NewSet` variable keeps the providers themselves stated once, which is
   ordinary Wire practice.
 * The application maintains a second build-tagged file beside `wire.go`.
+* An application that omits the options parameter cannot pass an interceptor or a
+  boundary component. To pass one later, it adds the parameter to the stub and
+  generates again.
 
 ### Accepted Trade-Off
 
@@ -235,6 +255,21 @@ Rejected because it puts application-facing names in a place that is neither the
 application's Go source nor the emitted output. It also adds a configuration
 format to a project that has none (ADR-007). The Go compiler checks a stub, and
 it does not check a name in a flag.
+
+### Yama supplies the options parameter when the stub omits it
+
+Yama writes the constructor's signature. It could therefore add
+`opts ...yama.Option` to every constructor. A stub that omits the parameter would
+still get one. An omission would then cost the application nothing.
+
+Rejected because the constructor's signature belongs to the application. A
+parameter that the application did not write is a parameter that the stub file
+does not show. A reader of the stub would see one signature and call another.
+
+Yama renames a declared options parameter when the re-emitted body needs that
+identifier for a package. Renaming is not the same as adding. A parameter is
+positional, so a rename reaches no caller. The stub still shows how many
+arguments the constructor takes.
 
 ### Guard the emitted file with `!wireinject` as well
 

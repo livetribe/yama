@@ -118,23 +118,26 @@ func openWireGenScope(dir, name string) (scope *wireGenScope, err error) {
 	return s, nil
 }
 
-// wireGenScopes is a set of scopes held together, one per directory a single
-// Wire invocation may write to.
+// wireGenScopes is a set of scopes held together, one per transient file a
+// single generation run may write into a directory.
 type wireGenScopes []*wireGenScope
 
-// openWireGenScopes opens a scope over every directory, all or nothing.
+// openWireGenScopes opens a scope over every directory, for every transient file
+// name, all or nothing.
 //
 // A partial open is rolled back rather than returned: the directories already
 // scoped would otherwise keep their originals stranded under backup names, with
 // no caller holding the scopes needed to put them back.
-func openWireGenScopes(dirs []string, name string) (wireGenScopes, error) {
+func openWireGenScopes(dirs []string, names ...string) (wireGenScopes, error) {
 	var scopes wireGenScopes
 	for _, dir := range dirs {
-		scope, err := openWireGenScope(dir, name)
-		if err != nil {
-			return nil, errors.Join(err, scopes.restore())
+		for _, name := range names {
+			scope, err := openWireGenScope(dir, name)
+			if err != nil {
+				return nil, errors.Join(err, scopes.restore())
+			}
+			scopes = append(scopes, scope)
 		}
-		scopes = append(scopes, scope)
 	}
 
 	return scopes, nil

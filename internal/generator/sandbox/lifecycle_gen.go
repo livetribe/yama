@@ -63,7 +63,6 @@ import (
 // WithCleanup when its value implements no capability and WithCleanableComponent
 // when it does.
 func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
-	// --- re-emitted from wire_gen.go: the derived injector, minus its final return ---
 	// Value/InterfaceValue providers are reproduced as their own expressions, not
 	// by referencing Wire's private _wire*Value vars.
 	writer := os.Stdout
@@ -86,7 +85,6 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 		root2: root2,
 		root3: root3,
 	}
-	// --- end re-emitted construction ---
 
 	return app,
 		rt.NewLifecycleBuilder(opts...).
@@ -109,7 +107,6 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 // os.Stdout interface value. Each constructor declares its own levels inline and
 // shares nothing with the others, whether or not their graphs match.
 func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecycle, error) {
-	// --- re-emitted from wire_gen.go: the derived injector, minus its return ---
 	config := Config{Env: Prod, LogPrefix: "[sandbox] "}
 	consoleLogger := NewConsoleLogger(w, config)
 	base1 := NewBase1(consoleLogger)
@@ -129,7 +126,6 @@ func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecy
 		root2: root2,
 		root3: root3,
 	}
-	// --- end re-emitted construction ---
 
 	return app,
 		rt.NewLifecycleBuilder(opts...).

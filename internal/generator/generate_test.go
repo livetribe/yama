@@ -109,11 +109,28 @@ func TestWireDiagnosticsDropsWroteLines(t *testing.T) {
 		"wire: at least one generate failure",
 	}, "\n")
 
-	got := wireDiagnostics(logged)
+	got := wireDiagnostics(logged, nil)
 
 	assert.NotContains(t, got, "wrote", "a file Yama deleted must not be reported as written")
 	assert.Contains(t, got, "no provider found", "the real diagnostic survives")
 	assert.Contains(t, got, "at least one generate failure")
+}
+
+// TestWireDiagnosticsRenamesDerivedInjectors asserts a diagnostic names the stub
+// the application wrote rather than the injector Yama derived from it, and that
+// the transient file name keeps the same prefix it carries.
+func TestWireDiagnosticsRenamesDerivedInjectors(t *testing.T) {
+	logged := strings.Join([]string{
+		"wire: /tmp/a/yama_wireinject.go:11:1: inject yama_NewLifecycle: no provider found for *a.Dep",
+		"wire: /tmp/a/yama_wireinject.go:16:1: inject yama_NewLifecycleWithWriter: no provider found for *a.Dep",
+	}, "\n")
+
+	got := wireDiagnostics(logged, []string{"yama_NewLifecycle", "yama_NewLifecycleWithWriter"})
+
+	assert.Contains(t, got, "inject NewLifecycle:")
+	assert.Contains(t, got, "inject NewLifecycleWithWriter:")
+	assert.NotContains(t, got, "inject yama_", "no derived name reaches the application")
+	assert.Contains(t, got, "yama_wireinject.go", "the transient file name is not a derived injector name")
 }
 
 // TestGenerateHonorsTags asserts Options.Tags reaches both the Wire invocation
@@ -163,10 +180,10 @@ func TestGenerateHonorsHeaderFile(t *testing.T) {
 }
 
 // TestLoadSelectsWireGenAmongGeneratedFiles asserts Load parses Wire's output and
-// not Yama's own generated file in the same package. The sandbox holds both a
-// wire_gen.go and a hand-authored lifecycle_gen.go exemplar; recovering the
-// injector names Wire emits — not the constructor names the lifecycle file
-// declares — proves Load selected wire_gen.go.
+// not Yama's own generated file in the same package. The sandbox fixture holds
+// both a wire_gen.go and a lifecycle_gen.go; recovering the injector names Wire
+// emits — not the constructor names the lifecycle file declares — proves Load
+// selected wire_gen.go.
 func TestLoadSelectsWireGenAmongGeneratedFiles(t *testing.T) {
 	requireGo(t)
 
@@ -180,6 +197,30 @@ func TestLoadSelectsWireGenAmongGeneratedFiles(t *testing.T) {
 		names = append(names, inj.Name)
 	}
 	assert.ElementsMatch(t, []string{"InitializeApp", "InitializeAppWithWriter"}, names)
+}
+
+// TestLoadReportsAPackageThatDoesNotTypeCheck asserts a load reports the
+// application's own compile error, rather than returning a package whose types
+// are missing.
+//
+// The load that reads a stub already reports one, but it runs under a different
+// build tag and does not see every file this one does. Left unreported here, the
+// missing types surface later as an *AnalysisError naming a component whose type
+// Yama "cannot resolve", which reads as a defect in Yama for an error in the
+// application's own source.
+func TestLoadReportsAPackageThatDoesNotTypeCheck(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "typeerror")
+
+	_, err := NewGenerator(Options{}).Load(context.Background(), dir)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "components.go", "the message locates the file that does not compile")
+	assert.Contains(t, err.Error(), "not an int", "the message carries what the compiler said")
+
+	var analysisErr *AnalysisError
+	assert.False(t, errors.As(err, &analysisErr), "a compile error is not an analysis failure")
 }
 
 // TestGenerateNoInjectors asserts that a package with no injector function is
@@ -206,7 +247,7 @@ func TestRunWireGenerateError(t *testing.T) {
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "badwire")
 
-	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."})
+	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."}, nil)
 	require.Error(t, err)
 
 	var genErr *GenerateError
@@ -225,7 +266,7 @@ func TestRunWireToolchainError(t *testing.T) {
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "does-not-exist")
 
-	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."})
+	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."}, nil)
 	require.Error(t, err)
 
 	var toolErr *ToolchainError

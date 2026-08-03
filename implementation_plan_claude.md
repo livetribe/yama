@@ -827,9 +827,17 @@ diagnostic, it maps the diagnostic's position back to the stub.
 
 **Files/modules touched.** `internal/generator/emit*.go`; new file(s) for
 stub discovery and derivation; `internal/generator/transient.go` (adds the
-second transient name); `internal/generator/templates`, or a
-`go/ast`/`jennifer`-style builder (this phase decides which); the fixture
-corpus at `…/testdata/<case>/want/lifecycle_gen.go`.
+second transient name); the fixture corpus at
+`…/testdata/<case>/want/lifecycle_gen.go`.
+
+**Emission mechanism (this phase's choice).** The emitter assembles the file
+as text and runs `go/format` over the result. The construction body is not
+re-rendered from a template: each statement is printed from the parsed
+`wire_gen.go` AST with `go/printer`, which is what keeps the re-emission
+faithful to what Wire wrote. A template engine and a `jennifer`-style builder
+were both rejected, since neither reproduces an existing AST and both would
+mean re-deriving statements Wire already emitted. Google Wire's own generator
+assembles source text and formats it the same way.
 
 **Fixture corpus, not the sandbox.** Goldens follow Google Wire's own test
 layout. Each case is a self-contained fixture package with a `want/`

@@ -29,6 +29,10 @@ type Generator struct {
 	// tags Wire's own loader uses.
 	discoveryBuildFlags []string
 
+	// stubBuildFlags load a package's lifecycle stubs, under the tag that makes
+	// them visible.
+	stubBuildFlags []string
+
 	// parseBuildFlags load Wire's generated output, without the wireinject tag that
 	// makes its injector visible.
 	parseBuildFlags []string
@@ -41,6 +45,7 @@ func NewGenerator(opts Options) *Generator {
 		wireGenName:         opts.wireGenName(),
 		wireArgs:            opts.wireArgs(),
 		discoveryBuildFlags: opts.discoveryBuildFlags(),
+		stubBuildFlags:      opts.stubBuildFlags(),
 		parseBuildFlags:     opts.parseBuildFlags(),
 	}
 }

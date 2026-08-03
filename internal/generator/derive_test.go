@@ -1,0 +1,225 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package generator
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"go/ast"
+	"go/token"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestWireDiagnosticNamesTheStub asserts a Google Wire input error reaches the
+// application naming the file, the position, and the function the application
+// itself wrote.
+//
+// Wire runs against the derived injector, and Yama removes that file before
+// anything is printed. A diagnostic carrying its position names a path the
+// application cannot open, at a line that belongs to no file it has, for a
+// function it never declared.
+func TestWireDiagnosticNamesTheStub(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "wirefail")
+	stub := filepath.Join(dir, "lifecycle.go")
+
+	_, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
+
+	var genErr *GenerateError
+	require.ErrorAs(t, err, &genErr)
+
+	line := declLine(t, stub, "NewLifecycle")
+	want := fmt.Sprintf("lifecycle.go:%d:1: inject NewLifecycle:", line)
+
+	msg := err.Error()
+	assert.Contains(t, msg, want, "the diagnostic locates the stub's own declaration")
+	assert.NotContains(t, msg, derivedFileName, "the transient file is never named")
+	assert.NotContains(t, msg, derivedPrefix, "no derived identifier reaches the application")
+}
+
+// TestParseIgnoresTheLineDirectiveWireCopied asserts a position Yama reads out
+// of Google Wire's output names the file Yama read.
+//
+// Wire copies Yama's line directive into its output as the generated injector's
+// documentation. Left in place, it sends every position after it into the stub
+// file, at a line derived from a three-line declaration. Wire's generated body
+// holds one statement for each component, so those lines run past the end of
+// the stub file and name code that has nothing to do with the diagnostic.
+func TestParseIgnoresTheLineDirectiveWireCopied(t *testing.T) {
+	src := []byte("package p\n\n//line /abs/lifecycle.go:26:1\nfunc yama_New() {\n\tdep := NewDep()\n}\n")
+
+	fset := token.NewFileSet()
+	file, err := parseWithoutLineDirectives(fset, "wire_gen.go", src)
+	require.NoError(t, err)
+
+	fn, ok := file.Decls[0].(*ast.FuncDecl)
+	require.True(t, ok)
+
+	pos := fset.Position(fn.Body.List[0].Pos())
+	assert.Equal(t, "wire_gen.go", pos.Filename, "the position names the file it was read from")
+	assert.Equal(t, 5, pos.Line, "the position keeps the line it holds in that file")
+}
+
+// TestDropLineDirectivesKeepsEveryOffset asserts blanking a directive changes
+// neither the length of the source nor the number of lines in it, so every
+// position that follows keeps the value it had.
+func TestDropLineDirectivesKeepsEveryOffset(t *testing.T) {
+	src := []byte("package p\n\n//line /abs/lifecycle.go:26:1\nvar x = 1\n")
+
+	got := dropLineDirectives(src)
+
+	assert.Len(t, got, len(src), "the source keeps its length")
+	assert.Equal(t, bytes.Count(src, []byte("\n")), bytes.Count(got, []byte("\n")))
+	assert.NotContains(t, string(got), lineDirectivePrefix, "no directive survives")
+	assert.Contains(t, string(got), "var x = 1", "every other line is untouched")
+}
+
+// declLine is the 1-based line that path declares name on.
+func declLine(t *testing.T, path, name string) int {
+	t.Helper()
+
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+
+	for i, line := range strings.Split(string(content), "\n") {
+		if strings.HasPrefix(line, "func "+name+"(") {
+			return i + 1
+		}
+	}
+
+	t.Fatalf("no declaration of %s in %s", name, path)
+
+	return 0
+}
+
+// TestDeriveInjectorsMirrorsTheStub asserts the derived injector Google Wire is
+// given: the stub's name in the reserved namespace, the stub's parameters
+// without its options, Wire's own cleanup and error results, and the stub's
+// wire.Build call unchanged.
+func TestDeriveInjectorsMirrorsTheStub(t *testing.T) {
+	requireGo(t)
+
+	sp, err := NewGenerator(Options{}).LoadStubs(context.Background(), "testapp")
+	require.NoError(t, err)
+
+	derived, err := deriveInjectors(sp)
+	require.NoError(t, err)
+
+	src := string(derived)
+	assert.Contains(t, src, "//go:build wireinject")
+	assert.Contains(t, src, "func yama_NewLifecycle(rec *Recorder, fault Fault) (*Top, func(), error)")
+	assert.Contains(t, src, "panic(wire.Build(GraphSet))")
+	assert.NotContains(t, src, "yama.Lifecycle", "the Lifecycle result is replaced by Wire's cleanup")
+}
+
+// TestDerivedFileIsTransient asserts a generation run leaves neither transient
+// file behind, and leaves a file of either name that it did not create as it
+// found it.
+func TestDerivedFileIsTransient(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "emit", "chain")
+
+	_, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
+	require.NoError(t, err)
+
+	for _, name := range []string{derivedFileName, wireGenBaseName, backupNameFor(derivedFileName)} {
+		_, statErr := os.Stat(filepath.Join(dir, name))
+		assert.True(t, os.IsNotExist(statErr), "%s survived the run", name)
+	}
+}
+
+// TestEmitRegeneratesOverAStaleLifecycleFile asserts a committed lifecycle file
+// that no longer compiles does not stop the run that replaces it.
+//
+// A provider rename leaves the committed file referring to a symbol that no
+// longer exists.
+func TestEmitRegeneratesOverAStaleLifecycleFile(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "emit", "chain")
+	path := filepath.Join(dir, lifecycleGenName)
+	stale := []byte("//go:build !yamainject\n\npackage chain\n\nfunc Stale() *C { return NewRenamedC() }\n")
+
+	require.NoError(t, os.WriteFile(path, stale, 0o600))
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+	})
+
+	files, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+	assert.Contains(t, string(files[0].Content), "func NewLifecycle(")
+
+	restored, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, string(stale), string(restored),
+		"the run returns the file rather than writing it, so the committed copy is put back untouched")
+}
+
+// TestDeriveKeepsAnImportWhosePathDoesNotNameIt asserts the derived injector
+// file carries the imports its signatures refer to.
+//
+// A package imported without an alias, under a path whose last element is a
+// version suffix, is referred to by the name the package declares. Taking that
+// name from the path instead leaves the import out of the derived file, and
+// Wire then rejects it for an undefined identifier in a file the application
+// never wrote.
+func TestDeriveKeepsAnImportWhosePathDoesNotNameIt(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "emit", "versioned")
+
+	sp, err := NewGenerator(Options{}).LoadStubs(context.Background(), dir)
+	require.NoError(t, err)
+
+	derived, err := deriveInjectors(sp)
+	require.NoError(t, err)
+
+	src := string(derived)
+	assert.Contains(t, src, `thing "l7e.io/yama/v2/internal/generator/testdata/emit/versioned/v2"`)
+	assert.Contains(t, src, "func yama_NewLifecycle(c *thing.Client)")
+}
+
+// TestEmitPreservesAnExistingDerivedFile asserts the transient name is claimed
+// non-destructively: a file an application already keeps under that name is put
+// back untouched.
+func TestEmitPreservesAnExistingDerivedFile(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "emit", "chain")
+	path := filepath.Join(dir, derivedFileName)
+	original := []byte("//go:build never\n\npackage chain\n")
+
+	require.NoError(t, os.WriteFile(path, original, 0o600))
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+	})
+
+	_, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
+	require.NoError(t, err)
+
+	preserved, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, string(original), string(preserved))
+}

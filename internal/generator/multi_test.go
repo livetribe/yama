@@ -92,6 +92,14 @@ var _ = Describe("ResolvePackages", func() {
 		Expect(Options{}.parseBuildFlags()).To(BeEmpty(),
 			"parsing the generated file must not set wireinject: it is //go:build !wireinject")
 	})
+
+	// A lifecycle stub only exists under yamainject, and the file Yama emits for
+	// it is //go:build !yamainject, so one tag both reveals the stubs and hides
+	// the constructors emitted for them.
+	It("appends the caller's tags to yamainject to read stubs", func() {
+		Expect(Options{}.stubBuildFlags()).To(Equal([]string{"-tags=yamainject"}))
+		Expect(Options{Tags: "special"}.stubBuildFlags()).To(Equal([]string{"-tags=yamainject special"}))
+	})
 })
 
 var _ = Describe("GenerateAll", func() {

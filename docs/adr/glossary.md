@@ -27,6 +27,8 @@ in the same commit that introduces it.
 - **Derived injector** — the transient Google Wire injector Yama writes from
   a lifecycle stub. Yama removes it after a run; it is never committed. See
   ADR-011.
+- **Derived identifier** — a name Yama invents rather than copies from the
+  application or from Google Wire's output. See ADR-013.
 - **Cleanup** — a Google Wire cleanup function returned by a provider. Yama
   supports one for backward compatibility; it is not a lifecycle capability in
   its own right. See ADR-008.

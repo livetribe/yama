@@ -299,7 +299,7 @@ generated wrapper or chain type. Those roles all live in the runtime-support
 package, where they are that package's own private identifiers rather than
 generated ones.
 
-Three kinds of identifier appear in the generated file, and only the last is
+Four kinds of identifier appear in the generated file, and only the last two are
 Yama's to derive:
 
 * **Constructor names**, which the application chooses by declaring a stub
@@ -308,23 +308,30 @@ Yama's to derive:
   application's own file.
 * **Component locals**, which are the injector-local variable names Google Wire
   already emitted, reproduced by the re-emission of the injector body.
-* **Cleanup locals**, the one kind Yama derives. Google Wire names a provider's
-  cleanup positionally, which says nothing about the value it releases, so the
-  re-emitted body rebinds each cleanup to a name derived from that value
-  (ADR-008).
+* **Cleanup locals**. Google Wire names a provider's cleanup positionally, which
+  says nothing about the value it releases, so the re-emitted body rebinds each
+  cleanup to a name derived from that value (ADR-008, ADR-013).
+* **Import names**, which the constructor's tail uses to reach the public
+  package and the runtime-support package. They share one scope with the
+  component locals Wire chose, so a collision between the two is possible, and
+  the import is the name that gives way (ADR-013).
 
 Yama derives one further identifier that no committed file carries: the name of
 the injector it derives from each stub, which lives only in the transient
 derived-injector file and in Wire's transient output. That name is derived from
 the stub's, in a reserved namespace, so each stub maps to one injector in Wire's
 output and an application's own injectors are never mistaken for Yama's
-(ADR-011).
+(ADR-011, ADR-013).
 
 A derived identifier must be:
 
 * deterministic across equivalent inputs,
 * stable enough for review,
 * unique within the generated package.
+
+A name already taken in the scope it must be unique in is escaped with a numeric
+suffix, matching the convention Google Wire's own output already carries
+(ADR-013).
 
 Uniqueness is a requirement on the emitted file, not a promise that every input
 can satisfy it. An input that cannot be emitted as a compilable file fails

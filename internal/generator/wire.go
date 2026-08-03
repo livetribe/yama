@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -46,8 +48,7 @@ const wirePrefix = "wire:"
 const wireWroteMarker = ": wrote "
 
 // Options configures a generation run. Every field mirrors one of `wire gen`'s
-// own flags, so a project's existing go:generate invocation of Google Wire
-// carries over unchanged when it is replaced with Yama's.
+// own flags.
 type Options struct {
 	// OutputFilePrefix is handed to Google Wire's -output_file_prefix flag. Wire
 	// prepends it to the output file name verbatim, inserting no separator, so a
@@ -56,9 +57,8 @@ type Options struct {
 
 	// HeaderFile is handed to Google Wire's -header_file flag: a file whose
 	// content is inserted at the top of wire_gen.go. Since wire_gen.go is
-	// transient, the header itself is never seen by anyone; the flag is threaded
-	// through for parity with wire gen and because a malformed header is a
-	// diagnostic Wire itself should report.
+	// transient, the header itself is never seen by anyone. A malformed header
+	// surfaces as a diagnostic from Wire, not from Yama.
 	HeaderFile string
 
 	// Tags is handed to Google Wire's -tags flag. It also carries into Yama's own
@@ -100,6 +100,19 @@ func (o Options) wireArgs() []string {
 // Wire will, so it loads the same way.
 func (o Options) discoveryBuildFlags() []string {
 	tags := wireInjectTag
+	if o.Tags != "" {
+		tags += " " + o.Tags
+	}
+
+	return []string{"-tags=" + tags}
+}
+
+// stubBuildFlags are the build flags for loading a package's lifecycle stubs.
+// A stub only exists under the yamainject tag, and Yama's own emitted file is
+// `//go:build !yamainject`, so one load both sees the stubs and excludes the
+// constructors emitted for them.
+func (o Options) stubBuildFlags() []string {
+	tags := yamaInjectTag
 	if o.Tags != "" {
 		tags += " " + o.Tags
 	}
@@ -187,10 +200,14 @@ type LoadedPackage struct {
 // way in, so the destructive step is always wrapped in the scopes that preserve
 // the caller's files.
 //
+// derived names the injectors Yama derived for this run, which is what lets a
+// diagnostic name the stub the application wrote. Pass nil when a run derives
+// none.
+//
 // A Wire input problem surfaces as a *GenerateError naming Wire's own diagnostic;
 // an inability to launch the tool surfaces as a *ToolchainError. The two are
 // distinct so a build failure points at the right cause.
-func (g *Generator) runWire(ctx context.Context, wd string, patterns []string) error {
+func (g *Generator) runWire(ctx context.Context, wd string, patterns, derived []string) error {
 	var stdout, stderr bytes.Buffer
 
 	args := append([]string{"tool", "wire", "gen"}, g.wireArgs...)
@@ -208,21 +225,28 @@ func (g *Generator) runWire(ctx context.Context, wd string, patterns []string) e
 
 	logged := strings.TrimSpace(stderr.String() + stdout.String())
 
+	diagnostics := wireDiagnostics(logged, derived)
+
 	var exitErr *exec.ExitError
 	if errors.As(err, &exitErr) && wireReported(logged) {
-		return &GenerateError{Dir: wd, Stderr: wireDiagnostics(logged), Err: err}
+		return &GenerateError{Dir: wd, Stderr: diagnostics, Err: err}
 	}
 
-	return &ToolchainError{Stderr: wireDiagnostics(logged), Err: err}
+	return &ToolchainError{Stderr: diagnostics, Err: err}
 }
 
-// wireDiagnostics is Wire's output with its per-output success lines removed.
+// wireDiagnostics is Wire's output with its per-output success lines removed and
+// each name in derived replaced by the stub name it was derived from.
 //
 // Wire reports `wrote <path>` for each file it produced, but those files are
 // transient here and gone by the time anything is printed. Passing the lines
 // through would tell the caller Yama wrote files it had already deleted, so only
 // the diagnostics that remain true are kept.
-func wireDiagnostics(logged string) string {
+//
+// Wire names the injector it rejects, and that name is one Yama invented. Only
+// the names in derived are rewritten, so the transient file name, which carries
+// the same prefix, keeps every character it has.
+func wireDiagnostics(logged string, derived []string) string {
 	var kept []string
 	for _, line := range strings.Split(logged, "\n") {
 		if !strings.Contains(line, wireWroteMarker) {
@@ -230,7 +254,13 @@ func wireDiagnostics(logged string) string {
 		}
 	}
 
-	return strings.TrimSpace(strings.Join(kept, "\n"))
+	joined := strings.Join(kept, "\n")
+	for _, name := range derived {
+		stub := strings.TrimPrefix(name, derivedPrefix)
+		joined = strings.ReplaceAll(joined, name, stub)
+	}
+
+	return strings.TrimSpace(joined)
 }
 
 // wireReported reports whether the output carries a Google Wire diagnostic
@@ -251,13 +281,31 @@ func wireReported(diagnostic string) bool {
 //
 // Syntax and type information are loaded for the package in dir alone; its
 // dependencies contribute types through export data.
+//
+// Load reads every function in Wire's output. Google Wire copies the
+// non-injector declarations of a wire.go into that output, so a package holding
+// its own wire.go yields functions that are not injectors, and Load fails on the
+// first one it cannot read as one. Use LoadInjectors for such a package.
 func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error) {
+	return g.load(ctx, dir, nil)
+}
+
+// LoadInjectors is Load over the named injectors alone, for a caller that knows
+// which functions in Wire's output are the ones it asked Wire to generate.
+func (g *Generator) LoadInjectors(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
+	return g.load(ctx, dir, names)
+}
+
+// load type-checks the package in dir and parses Wire's output. A nil names
+// reads every function in that output.
+func (g *Generator) load(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
 		Context:    ctx,
 		Dir:        dir,
 		Fset:       fset,
 		BuildFlags: g.parseBuildFlags,
+		ParseFile:  parseWithoutLineDirectives,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
 	}
@@ -271,6 +319,10 @@ func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error
 	}
 
 	pkg := pkgs[0]
+	if loadErr := packageErrors(pkg); loadErr != nil {
+		return nil, fmt.Errorf("yama: loading package in %s: %w", dir, loadErr)
+	}
+
 	name := g.wireGenName
 
 	wireGen := findWireGen(pkg, fset, name)
@@ -278,12 +330,51 @@ func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error
 		return nil, fmt.Errorf("%w: %s has no %s", ErrNoInjectors, dir, name)
 	}
 
-	parsed, err := Parse(fset, wireGen)
+	parsed, err := parseWireGen(fset, wireGen, names)
 	if err != nil {
 		return nil, err
 	}
 
 	return &LoadedPackage{ParsedFile: parsed, Package: pkg}, nil
+}
+
+// packageErrors joins what a load reported against pkg. It returns nil when the
+// load reported nothing.
+//
+// A package that does not type-check yields values with no resolved type. A
+// caller that reads one reports a Yama defect for an error in the application's
+// own source.
+func packageErrors(pkg *packages.Package) error {
+	if len(pkg.Errors) == 0 {
+		return nil
+	}
+
+	errs := make([]error, len(pkg.Errors))
+	for i, e := range pkg.Errors {
+		errs[i] = e
+	}
+
+	return errors.Join(errs...)
+}
+
+// parseWithoutLineDirectives parses one file of the package under load, with
+// every line directive blanked, so a position Yama reports names the file it
+// read. It parses under go/packages' own mode, since the loader type-checks what
+// it returns and reports the errors itself.
+//
+// A nil src means the loader read nothing, and the file is read here.
+func parseWithoutLineDirectives(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
+	if src == nil {
+		content, err := os.ReadFile(filename)
+		if err != nil {
+			return nil, err
+		}
+		src = content
+	}
+
+	clean := dropLineDirectives(src)
+
+	return parser.ParseFile(fset, filename, clean, parser.AllErrors|parser.ParseComments)
 }
 
 // Generate runs Google Wire for the single package in dir and parses the result.
@@ -305,6 +396,16 @@ func (g *Generator) Generate(ctx context.Context, dir string) (*LoadedPackage, e
 	}
 
 	return pkgs[0], nil
+}
+
+// parseWireGen reads Wire's output, over every function in it or over the named
+// ones alone.
+func parseWireGen(fset *token.FileSet, wireGen *ast.File, names []string) (*ParsedFile, error) {
+	if names == nil {
+		return extractInjectors(fset, wireGen, nil)
+	}
+
+	return ParseInjectors(fset, wireGen, names)
 }
 
 // findWireGen returns the package's Wire output — the file named name, which

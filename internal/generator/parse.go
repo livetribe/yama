@@ -24,21 +24,43 @@ import (
 // injector's return list, when the injector returns one.
 const cleanupResultIndex = 1
 
-// Parse walks the AST of a generated wire_gen.go and extracts one independent
-// dependency graph per injector function. It performs no type analysis and
+// ParseInjectors walks the AST of a generated wire_gen.go and extracts one
+// independent dependency graph per named injector function. Every other
+// declaration in the file is left unread. It performs no type analysis and
 // derives no lifecycle levels; it records the ordered creation events, their
 // dependency edges, each injector's returned root, and any Google Wire cleanup
 // functions.
 //
 // A shape it cannot derive ordering from is reported as a *ParseError naming the
 // injector and source position, never a panic and never a silent omission.
-func Parse(fset *token.FileSet, file *ast.File) (*ParsedFile, error) {
+//
+// Not every function in a generated wire_gen.go is an injector. Google Wire
+// copies the non-injector declarations of a wire.go into its output, since that
+// file is build-tagged out of the normal build and those declarations would
+// otherwise be lost. A package that holds both a lifecycle stub and an
+// application's own wire.go therefore yields a file with functions Yama never
+// asked for, which it cannot read as injectors and has no reason to.
+func ParseInjectors(fset *token.FileSet, file *ast.File, names []string) (*ParsedFile, error) {
+	want := make(map[string]bool, len(names))
+	for _, name := range names {
+		want[name] = true
+	}
+
+	return extractInjectors(fset, file, want)
+}
+
+// extractInjectors extracts the injectors of one generated file. A nil want reads
+// every function; otherwise only the functions want names are read.
+func extractInjectors(fset *token.FileSet, file *ast.File, want map[string]bool) (*ParsedFile, error) {
 	valueVars := packageValueVars(file)
 
 	var injectors []*Injector
 	for _, decl := range file.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Body == nil {
+			continue
+		}
+		if want != nil && !want[fn.Name.Name] {
 			continue
 		}
 
@@ -95,7 +117,9 @@ func parseInjector(fset *token.FileSet, fn *ast.FuncDecl, valueVars map[string]a
 	if err := detectCleanups(fset, inj.Name, inj.Components, ret); err != nil {
 		return nil, err
 	}
-	resolveValueExprs(inj.Components, valueVars)
+	if err := resolveValueExprs(fset, inj.Name, inj.Components, valueVars); err != nil {
+		return nil, err
+	}
 
 	return inj, nil
 }
@@ -253,15 +277,29 @@ func detectCleanups(fset *token.FileSet, injector string, components []*Componen
 // resolveValueExprs attaches to each ProviderValue component the initializer of the
 // package-level _wire*Value variable it reads, so the value can be re-emitted
 // directly rather than referencing that private variable.
-func resolveValueExprs(components []*Component, valueVars map[string]ast.Expr) {
+//
+// A read the file declares no value for is reported rather than left unresolved.
+// Generated code cannot name that variable, because the file declaring it is
+// removed, so an unresolved read is a creation event this parser classified as a
+// value and cannot reproduce.
+func resolveValueExprs(fset *token.FileSet, injector string, components []*Component, valueVars map[string]ast.Expr) error {
 	for _, c := range components {
 		if c.Provider != ProviderValue {
 			continue
 		}
-		if id, ok := c.Rhs.(*ast.Ident); ok {
+
+		id, ok := c.Rhs.(*ast.Ident)
+		if ok {
 			c.ValueExpr = valueVars[id.Name]
 		}
+		if c.ValueExpr == nil {
+			return newParseError(fset, injector, c.Rhs.Pos(),
+				"unrecognized provider form: %s reads %s, which the file declares no value for",
+				c.Name, types.ExprString(c.Rhs))
+		}
 	}
+
+	return nil
 }
 
 // checkResultNameCollisions rejects a file whose injectors return results that

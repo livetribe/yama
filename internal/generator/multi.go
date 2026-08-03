@@ -67,7 +67,7 @@ func (g *Generator) GenerateAll(ctx context.Context, dir string, patterns []stri
 	// before reporting the one that did not, but those files are transient here
 	// and the deferred restore removes them: a failed run leaves the tree
 	// untouched rather than half-regenerated.
-	if err := g.runWire(ctx, dir, patterns); err != nil {
+	if err := g.runWire(ctx, dir, patterns, nil); err != nil {
 		return nil, err
 	}
 

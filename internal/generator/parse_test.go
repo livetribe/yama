@@ -69,7 +69,7 @@ func parseFile(t *testing.T, path string) *ParsedFile {
 	file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	require.NoError(t, err)
 
-	parsed, err := Parse(fset, file)
+	parsed, err := extractInjectors(fset, file, nil)
 	require.NoError(t, err)
 
 	return parsed
@@ -301,6 +301,12 @@ func TestParseMalformedShapes(t *testing.T) {
 			distinct:   "result type name collision",
 		},
 		{
+			name:       "unresolved-value-provider",
+			path:       "testdata/malformed/unresolvedvalue/wire_gen.go",
+			substrings: []string{"InitializeApp", "unrecognized provider form", "config reads elsewhereValue"},
+			distinct:   "which the file declares no value for",
+		},
+		{
 			name:       "unpaired-cleanup",
 			path:       "testdata/malformed/orphancleanup/wire_gen.go",
 			substrings: []string{"InitApp", "cleanup function orphaned pairs with no component"},
@@ -317,7 +323,7 @@ func TestParseMalformedShapes(t *testing.T) {
 
 			var parsed *ParsedFile
 			require.NotPanics(t, func() {
-				parsed, err = Parse(fset, file)
+				parsed, err = extractInjectors(fset, file, nil)
 			})
 			require.Error(t, err)
 			assert.Nil(t, parsed)
