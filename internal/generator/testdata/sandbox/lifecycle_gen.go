@@ -65,22 +65,19 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	}
 	// --- end re-emitted construction ---
 
-	b := rt.NewLifecycleBuilder(opts...)
-	b.NextLevel().
-		WithComponents(base1).
-		WithCleanup(base2Cleanup).
-		WithCleanableComponent(base3, base3Cleanup).
-		Add()
-	b.NextLevel().
-		WithComponents(mid2).
-		WithComponents(root2).
-		Add()
-	b.NextLevel().
-		WithComponents(root3).
-		Add()
-	lc := b.Build()
-
-	return app, lc, nil
+	return app,
+		rt.NewLifecycleBuilder(opts...).
+			NextLevel().
+			WithComponents(base1).
+			WithCleanup(base2Cleanup).
+			WithCleanableComponent(base3, base3Cleanup).
+			NextLevel().
+			WithComponents(mid2).
+			WithComponents(root2).
+			NextLevel().
+			WithComponents(root3).
+			Build(),
+		nil
 }
 
 // NewLifecycleWithWriter is the constructor for the InitializeAppWithWriter
@@ -112,20 +109,17 @@ func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecy
 	}
 	// --- end re-emitted construction ---
 
-	b := rt.NewLifecycleBuilder(opts...)
-	b.NextLevel().
-		WithComponents(base1).
-		WithCleanup(base2Cleanup).
-		WithCleanableComponent(base3, base3Cleanup).
-		Add()
-	b.NextLevel().
-		WithComponents(mid2).
-		WithComponents(root2).
-		Add()
-	b.NextLevel().
-		WithComponents(root3).
-		Add()
-	lc := b.Build()
-
-	return app, lc, nil
+	return app,
+		rt.NewLifecycleBuilder(opts...).
+			NextLevel().
+			WithComponents(base1).
+			WithCleanup(base2Cleanup).
+			WithCleanableComponent(base3, base3Cleanup).
+			NextLevel().
+			WithComponents(mid2).
+			WithComponents(root2).
+			NextLevel().
+			WithComponents(root3).
+			Build(),
+		nil
 }

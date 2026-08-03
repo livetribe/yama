@@ -140,21 +140,26 @@ Level membership and level order are expressed as a call chain against the
 runtime-support package's builder, not as generated types:
 
 ```go
-b := rt.NewLifecycleBuilder(opts...)
-b.NextLevel().
-    WithComponents(base1).
-    WithCleanup(base2Cleanup).
-    WithCleanableComponent(base3, base3Cleanup).
-    Add()
-b.NextLevel().
-    WithComponents(mid2).
-    WithComponents(root2).
-    Add()
-b.NextLevel().
-    WithComponents(root3).
-    Add()
-lc := b.Build()
+return app,
+    rt.NewLifecycleBuilder(opts...).
+        NextLevel().
+        WithComponents(base1).
+        WithCleanup(base2Cleanup).
+        WithCleanableComponent(base3, base3Cleanup).
+        NextLevel().
+        WithComponents(mid2).
+        WithComponents(root2).
+        NextLevel().
+        WithComponents(root3).
+        Build(),
+    nil
 ```
+
+`NextLevel` starts a new level. Every member added after it belongs to that level.
+`NextLevel` and the `With…` methods return the builder, so the calls chain.
+`Build` ends the chain and returns the `Lifecycle`. The whole declaration is one
+expression in the constructor's `return` statement, and the constructor declares
+no local variable for the builder or for the `Lifecycle`.
 
 The order in which levels are added is the dependency order: the first level
 added starts first, and both shutdown passes walk the levels back. Within a
@@ -818,4 +823,4 @@ func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for
 
 ### Explicitly Not Public
 
-The exported symbols of the Yama-owned runtime-support package (ADR-010) are not part of this surface, even though they are exported so generated code can reach them: `NewLifecycleBuilder`, `LifecycleBuilder` with `NextLevel` and `Build`, and `LevelBuilder` with `WithComponents`, `WithCleanableComponent`, `WithCleanup`, and `Add`. The generated constructor in the application's own package is not part of it either: it lives in the application, and the application names it (ADR-011). Applications should not depend on anything outside the list above.
+The exported symbols of the Yama-owned runtime-support package (ADR-010) are not part of this surface, even though they are exported so generated code can reach them: `NewLifecycleBuilder`, and `LifecycleBuilder` with `NextLevel`, `WithComponents`, `WithCleanableComponent`, `WithCleanup`, and `Build`. The generated constructor in the application's own package is not part of it either: it lives in the application, and the application names it (ADR-011). Applications should not depend on anything outside the list above.

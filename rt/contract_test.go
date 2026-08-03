@@ -58,9 +58,9 @@ var _ = Describe("the rt lifecycle contract", func() {
 			)
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(mid).Add()
-			b.NextLevel().WithComponents(top).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(mid)
+			b.NextLevel().WithComponents(top)
 
 			Expect(b.Build().Start(context.Background())).To(Succeed())
 		})
@@ -78,9 +78,9 @@ var _ = Describe("the rt lifecycle contract", func() {
 				gomock.InOrder(ordered(top), ordered(mid), ordered(base))
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(base).Add()
-				b.NextLevel().WithComponents(mid).Add()
-				b.NextLevel().WithComponents(top).Add()
+				b.NextLevel().WithComponents(base)
+				b.NextLevel().WithComponents(mid)
+				b.NextLevel().WithComponents(top)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -121,9 +121,9 @@ var _ = Describe("the rt lifecycle contract", func() {
 			}
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(mid).Add()
-			b.NextLevel().WithComponents(top).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(mid)
+			b.NextLevel().WithComponents(top)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -149,9 +149,9 @@ var _ = Describe("the rt lifecycle contract", func() {
 			)
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(mid).Add()
-			b.NextLevel().WithComponents(top).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(mid)
+			b.NextLevel().WithComponents(top)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -179,11 +179,11 @@ var _ = Describe("the rt lifecycle contract", func() {
 			b := rt.NewLifecycleBuilder()
 			b.NextLevel().WithCleanableComponent(base, func() {
 				events = append(events, "base.cleanup")
-			}).Add()
-			b.NextLevel().WithComponents(mid).Add()
+			})
+			b.NextLevel().WithComponents(mid)
 			b.NextLevel().WithCleanableComponent(top, func() {
 				events = append(events, "top.cleanup")
-			}).Add()
+			})
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -237,9 +237,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 				WithCleanableComponent(conn, func() {
 					cleaned = true
 					record("conn.cleanup")
-				}).
-				Add()
-			b.NextLevel().WithComponents(top).Add()
+				})
+			b.NextLevel().WithComponents(top)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -278,9 +277,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 				WithCleanableComponent(conn, func() {
 					pairedRuns++
 					pairedSaw = quiesced
-				}).
-				Add()
-			b.NextLevel().WithComponents(top).Add()
+				})
+			b.NextLevel().WithComponents(top)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -312,7 +310,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			worker.EXPECT().Start(gomock.Any()).DoAndReturn(arrive)
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(router, worker).Add()
+			b.NextLevel().WithComponents(router, worker)
 
 			started := make(chan error, 1)
 			go func() {
@@ -339,7 +337,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 				}
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(router, worker).Add()
+				b.NextLevel().WithComponents(router, worker)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -370,7 +368,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			stopper.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(starter, stopper).Add()
+			b.NextLevel().WithComponents(starter, stopper)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())
@@ -390,9 +388,9 @@ var _ = Describe("the rt lifecycle contract", func() {
 			base.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(mid).Add()
-			b.NextLevel().WithComponents(top).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(mid)
+			b.NextLevel().WithComponents(top)
 
 			Expect(b.Build().Start(context.Background())).To(MatchError(yama.ErrStartFailed))
 		})
@@ -408,7 +406,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 				fail(failing.EXPECT().Start(gomock.Any()))
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(sibling, failing).Add()
+				b.NextLevel().WithComponents(sibling, failing)
 				lc := b.Build()
 
 				var err error
@@ -450,8 +448,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 			)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(failing).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(failing)
 
 			var err error
 			Expect(func() {
@@ -483,7 +481,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			sibling.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(sibling, failing).Add()
+			b.NextLevel().WithComponents(sibling, failing)
 
 			started := make(chan error, 1)
 			go func() {
@@ -525,7 +523,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			sibling.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(failing, sibling).Add()
+			b.NextLevel().WithComponents(failing, sibling)
 
 			started := make(chan error, 1)
 			go func() {
@@ -543,7 +541,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			only.EXPECT().Start(gomock.Any()).Return(sentinel)
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(only).Add()
+			b.NextLevel().WithComponents(only)
 
 			err := b.Build().Start(context.Background())
 			Expect(err).To(MatchError(yama.ErrStartFailed))
@@ -565,8 +563,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 			base.EXPECT().Stop(gomock.Any()).After(topStop)
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(top, failing).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(top, failing)
 
 			Expect(b.Build().Start(context.Background())).To(MatchError(yama.ErrStartFailed))
 		})
@@ -579,8 +577,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 			second.EXPECT().Start(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(first).Add()
-			b.NextLevel().WithComponents(second).Add()
+			b.NextLevel().WithComponents(first)
+			b.NextLevel().WithComponents(second)
 
 			Expect(b.Build().Start(context.Background())).To(Succeed())
 		})
@@ -599,8 +597,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 				expect(top)
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(base).Add()
-				b.NextLevel().WithComponents(top).Add()
+				b.NextLevel().WithComponents(base)
+				b.NextLevel().WithComponents(top)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -647,7 +645,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			})
 
 			b := rt.NewLifecycleBuilder(yama.WithBeginComponents(begin))
-			b.NextLevel().WithComponents(graph).Add()
+			b.NextLevel().WithComponents(graph)
 
 			var err error
 			Expect(func() {
@@ -668,7 +666,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			graph.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder(yama.WithEndComponents(end))
-			b.NextLevel().WithComponents(graph).Add()
+			b.NextLevel().WithComponents(graph)
 
 			var err error
 			Expect(func() {
@@ -694,7 +692,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 				}
 
 				b := rt.NewLifecycleBuilder(opt)
-				b.NextLevel().WithComponents(graph).Add()
+				b.NextLevel().WithComponents(graph)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -718,7 +716,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 				only.EXPECT().Stop(gomock.Any())
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(only).Add()
+				b.NextLevel().WithComponents(only)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -736,7 +734,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 				only.EXPECT().Stop(gomock.Any())
 
 				b := rt.NewLifecycleBuilder()
-				b.NextLevel().WithComponents(only).Add()
+				b.NextLevel().WithComponents(only)
 				lc := b.Build()
 
 				Expect(lc.Start(context.Background())).To(Succeed())
@@ -771,8 +769,8 @@ var _ = Describe("the rt lifecycle contract", func() {
 			failing.EXPECT().Start(gomock.Any()).Return(errors.New("boom"))
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(failing).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(failing)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(MatchError(yama.ErrStartFailed))
@@ -787,7 +785,7 @@ var _ = Describe("the rt lifecycle contract", func() {
 			only.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithComponents(only).Add()
+			b.NextLevel().WithComponents(only)
 			lc := b.Build()
 
 			Expect(lc.Start(context.Background())).To(Succeed())

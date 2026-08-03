@@ -20,11 +20,16 @@ import (
 	"l7e.io/yama/v2/rt/internal/exec"
 )
 
-// LifecycleBuilder assembles a Lifecycle one level at a time. Generated code adds
-// levels in dependency order: the first level added starts first, and shutdown
-// walks the levels in reverse. The begin boundary set is added as the first level
-// by NewLifecycleBuilder and the end boundary set as the last by Build, so
-// generated code adds only the graph's own levels between them.
+// LifecycleBuilder assembles a Lifecycle one level at a time. NextLevel starts a
+// new level, and every member added after it belongs to that level. NextLevel and
+// the With… methods return the builder, so one expression can declare a whole
+// lifecycle.
+//
+// Generated code adds levels in dependency order: the first level added starts
+// first, and shutdown walks the levels in reverse. The begin boundary set has the
+// first level to itself and the end boundary set has the last, so generated code
+// adds only the graph's own levels between them. Generated code starts each of
+// those levels with NextLevel, including the first.
 //
 // A builder is single-use. Every method panics once Build has been called.
 type LifecycleBuilder struct {
@@ -33,12 +38,15 @@ type LifecycleBuilder struct {
 	levels []exec.Level
 	chains *exec.Chains
 	end    []any
-	built  bool
+
+	current []exec.CompleteLifecycle
+
+	built bool
 }
 
 // NewLifecycleBuilder applies the construction options, builds the three
-// interceptor chains once for reuse across every component, and opens the begin
-// boundary set as the first level.
+// interceptor chains once for reuse across every component, and adds the begin
+// boundary set as a first level of its own.
 func NewLifecycleBuilder(opts ...yama.Option) *LifecycleBuilder {
 	cfg := &bridge.Config{}
 	for _, o := range opts {
@@ -55,36 +63,82 @@ func NewLifecycleBuilder(opts ...yama.Option) *LifecycleBuilder {
 		end:    end,
 	}
 
-	b.NextLevel().
-		WithComponents(begin...).
-		Add()
+	b.WithComponents(begin...)
 
 	return b
 }
 
-// NextLevel opens the next level. Its members run concurrently with one another
-// and after every member of the levels already added. The level joins the
-// lifecycle when LevelBuilder.Add is called; a level that is never added is
-// discarded.
-func (b *LifecycleBuilder) NextLevel() *LevelBuilder {
+// NextLevel starts the next level. Every member added after it belongs to that
+// level. Those members run concurrently with one another, and after every member
+// of the levels before them. A level with no members is not added.
+func (b *LifecycleBuilder) NextLevel() *LifecycleBuilder {
 	b.check()
 
-	return newLevelBuilder(b.chains, func(level exec.Level) {
-		b.levels = append(b.levels, level)
-	})
+	b.flushCurrentLevel()
+
+	return b
 }
 
-// Build appends the end boundary set as the final level and returns the
+// WithComponents adds components to the current level, each bound through the
+// interceptor chains. A component joins only the passes whose capability
+// interfaces it implements; one implementing none is inert.
+func (b *LifecycleBuilder) WithComponents(components ...any) *LifecycleBuilder {
+	b.check()
+
+	for _, c := range components {
+		b.current = append(b.current, b.chains.WrapComponent(c))
+	}
+
+	return b
+}
+
+// WithCleanableComponent adds a component to the current level. The component's
+// provider also returned a Google Wire cleanup function. The cleanup runs as part
+// of that component's teardown, ahead of the component's own Stop, and does not
+// pass through the interceptor chains.
+func (b *LifecycleBuilder) WithCleanableComponent(c any, cleanup func()) *LifecycleBuilder {
+	b.check()
+
+	b.current = append(b.current, exec.NewCleanableComponent(b.chains.WrapComponent(c), cleanup))
+
+	return b
+}
+
+// WithCleanup adds a Google Wire cleanup function to the current level. The value
+// it releases implements no lifecycle capability of its own. The cleanup is the
+// value's whole teardown, runs at the value's position in the ordering, and does
+// not pass through the interceptor chains.
+func (b *LifecycleBuilder) WithCleanup(cleanup func()) *LifecycleBuilder {
+	b.check()
+
+	b.current = append(b.current, exec.Cleanup(cleanup))
+
+	return b
+}
+
+// Build adds the end boundary set as a final level of its own and returns the
 // Lifecycle. Any further use of the builder panics.
 func (b *LifecycleBuilder) Build() yama.Lifecycle {
 	b.check()
 
-	b.NextLevel().
-		WithComponents(b.end...).
-		Add()
+	b.flushCurrentLevel()
+	b.WithComponents(b.end...)
+	b.flushCurrentLevel()
 
 	b.built = true
+
 	return exec.NewLifecycle(b.levels)
+}
+
+// flushCurrentLevel moves the members of the current level into the level list.
+// It ignores a level that has no members.
+func (b *LifecycleBuilder) flushCurrentLevel() {
+	if b.current == nil {
+		return
+	}
+
+	b.levels = append(b.levels, b.current)
+	b.current = nil
 }
 
 // check panics on reuse after Build. Misuse is a generation bug, not a runtime
@@ -95,83 +149,5 @@ func (b *LifecycleBuilder) check() {
 	}
 	if b.built {
 		panic("lifecycle already built")
-	}
-}
-
-// LevelBuilder accumulates the members of a single level. Order of accumulation
-// carries no meaning: the members run concurrently.
-//
-// A LevelBuilder is single-use. Every method panics once Add has been called.
-type LevelBuilder struct {
-	valid bool
-
-	chains     *exec.Chains
-	components []exec.CompleteLifecycle
-
-	done  func(level exec.Level)
-	built bool
-}
-
-func newLevelBuilder(chains *exec.Chains, done func(level exec.Level)) *LevelBuilder {
-	return &LevelBuilder{
-		valid:  true,
-		chains: chains,
-		done:   done,
-	}
-}
-
-// WithComponents adds components to the level, each bound through the interceptor
-// chains. A component joins only the passes whose capability interfaces it
-// implements; one implementing none is inert.
-func (b *LevelBuilder) WithComponents(components ...any) *LevelBuilder {
-	b.check()
-
-	for _, c := range components {
-		b.components = append(b.components, b.chains.WrapComponent(c))
-	}
-
-	return b
-}
-
-// WithCleanableComponent adds a component whose provider also returned a Google
-// Wire cleanup function. The cleanup runs as part of that component's teardown,
-// ahead of the component's own Stop, and does not pass through the interceptor
-// chains.
-func (b *LevelBuilder) WithCleanableComponent(c any, cleanup func()) *LevelBuilder {
-	b.check()
-
-	b.components = append(b.components, exec.NewCleanableComponent(b.chains.WrapComponent(c), cleanup))
-
-	return b
-}
-
-// WithCleanup adds the Google Wire cleanup function of a value that implements no
-// lifecycle capability of its own. The cleanup is the value's whole teardown, runs
-// at the value's position in the ordering, and does not pass through the
-// interceptor chains.
-func (b *LevelBuilder) WithCleanup(cleanup func()) *LevelBuilder {
-	b.check()
-
-	b.components = append(b.components, exec.Cleanup(cleanup))
-
-	return b
-}
-
-// Add seals the level and hands it to the lifecycle being built.
-func (b *LevelBuilder) Add() {
-	b.check()
-
-	b.done(b.components)
-	b.built = true
-}
-
-// check panics on reuse after Add. Misuse is a generation bug, not a runtime
-// condition a caller can recover from.
-func (b *LevelBuilder) check() {
-	if !b.valid {
-		panic("invalid level builder")
-	}
-	if b.built {
-		panic("level already built and added")
 	}
 }

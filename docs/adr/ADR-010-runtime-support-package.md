@@ -68,24 +68,28 @@ constructor does three things:
 3. It seals the builder and returns the application beside its `Lifecycle`.
 
 Level membership and level order are expressed as a **call chain**, not as
-types:
+types. The chain is one expression in the constructor's `return` statement:
 
 ```go
-b := rt.NewLifecycleBuilder(opts...)
-b.NextLevel().
-    WithComponents(base1).
-    WithCleanup(base2Cleanup).
-    WithCleanableComponent(base3, base3Cleanup).
-    Add()
-b.NextLevel().
-    WithComponents(mid2).
-    WithComponents(root2).
-    Add()
-b.NextLevel().
-    WithComponents(root3).
-    Add()
-lc := b.Build()
+return app,
+    rt.NewLifecycleBuilder(opts...).
+        NextLevel().
+        WithComponents(base1).
+        WithCleanup(base2Cleanup).
+        WithCleanableComponent(base3, base3Cleanup).
+        NextLevel().
+        WithComponents(mid2).
+        WithComponents(root2).
+        NextLevel().
+        WithComponents(root3).
+        Build(),
+    nil
 ```
+
+`NextLevel` starts a new level. Every member added after it belongs to that
+level. `NextLevel` and the `With…` methods return the builder, so the calls
+chain. `Build` ends the chain and returns the `Lifecycle`. The constructor
+declares no local variable for the builder or for the `Lifecycle`.
 
 The three `With…` forms are the teardown forms a member can take. Deciding
 which form applies to a member is the one thing about a member that the
@@ -158,7 +162,8 @@ have different graphs. Emitting no types removes both needs. It leaves the
 generated file with the smallest naming problem it could have: the
 constructor names are the application's (ADR-011), the component locals are
 Wire's, and the only identifiers Yama derives are the cleanup locals
-(ADR-008).
+(ADR-008). The call chain is one expression. The constructor holds no
+builder local and no lifecycle local, so Yama names neither.
 
 ### The constructor is the graph-specific artifact either way
 
@@ -195,6 +200,8 @@ generated stubs). This decision follows that established pattern.
 * Execution ordering remains visible in the generated code.
 * The generated file has no generated type names, so the naming rules and
   collision handling that generated level types would require do not exist.
+* The builder chain is one expression, so the generated constructor declares
+  no builder local and no lifecycle local.
 
 ### Negative
 
@@ -233,6 +240,15 @@ implies.
 The alternative would give a generated stack frame per level to breakpoint
 on. That is a genuine loss, recorded under Consequences. It does not
 outweigh a per-graph family of types and the naming rules they would need.
+
+### Hold the builder in a local and seal each level explicitly
+
+Rejected. In that shape, each level is a statement of its own. The statement
+reads the builder from a local and ends with a call that seals the level.
+The constructor must then name two locals that tell a reader nothing about
+the graph: the builder, and the `Lifecycle` the builder returns. A separate
+seal call also states what the next `NextLevel` already states. The call
+chain declares the same members in the same order, in one expression.
 
 ### Emit the machinery inline into `lifecycle_gen.go`
 

@@ -61,8 +61,8 @@ var _ = Describe("LifecycleBuilder", func() {
 			)
 
 			b := rt.NewLifecycleBuilder(yama.WithBeginComponents(begin), yama.WithEndComponents(end))
-			b.NextLevel().WithComponents(base).Add()
-			b.NextLevel().WithComponents(top).Add()
+			b.NextLevel().WithComponents(base)
+			b.NextLevel().WithComponents(top)
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -81,7 +81,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			only.EXPECT().Stop(gomock.Any())
 
 			b := rt.NewLifecycleBuilder(yama.WithBeginComponents(beginStarter), yama.WithEndComponents(endStopper))
-			b.NextLevel().WithComponents(only).Add()
+			b.NextLevel().WithComponents(only)
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -96,7 +96,7 @@ var _ = Describe("LifecycleBuilder", func() {
 				begin.EXPECT().Start(gomock.Any()).Return(errors.New("begin boom"))
 
 				b := rt.NewLifecycleBuilder(yama.WithBeginComponents(begin))
-				b.NextLevel().WithComponents(graph).Add()
+				b.NextLevel().WithComponents(graph)
 
 				Expect(b.Build().Start(ctx)).To(MatchError(yama.ErrStartFailed))
 			})
@@ -111,7 +111,7 @@ var _ = Describe("LifecycleBuilder", func() {
 				graph.EXPECT().Stop(gomock.Any())
 
 				b := rt.NewLifecycleBuilder(yama.WithEndComponents(end))
-				b.NextLevel().WithComponents(graph).Add()
+				b.NextLevel().WithComponents(graph)
 
 				Expect(b.Build().Start(ctx)).To(MatchError(yama.ErrStartFailed))
 			})
@@ -127,7 +127,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			failing.EXPECT().Start(gomock.Any()).Return(errors.New("boom"))
 
 			b := rt.NewLifecycleBuilder(yama.WithBeginComponents(begin), yama.WithEndComponents(end))
-			b.NextLevel().WithComponents(failing).Add()
+			b.NextLevel().WithComponents(failing)
 
 			Expect(b.Build().Start(ctx)).To(MatchError(yama.ErrStartFailed))
 		})
@@ -146,7 +146,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			})
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true }).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true })
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -164,7 +164,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			owner.EXPECT().Start(gomock.Any()).Return(errors.New("boom"))
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true }).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() { cleaned = true })
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
@@ -183,7 +183,7 @@ var _ = Describe("LifecycleBuilder", func() {
 				Times(1)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
-			b.NextLevel().WithCleanableComponent(owner, func() {}).Add()
+			b.NextLevel().WithCleanableComponent(owner, func() {})
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -196,7 +196,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			events := []string{}
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") }).Add()
+			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") })
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -218,8 +218,8 @@ var _ = Describe("LifecycleBuilder", func() {
 			})
 
 			b := rt.NewLifecycleBuilder()
-			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") }).Add()
-			b.NextLevel().WithComponents(later).Add()
+			b.NextLevel().WithCleanup(func() { events = append(events, "cleanup") })
+			b.NextLevel().WithComponents(later)
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -232,7 +232,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			interceptor := mocks.NewMockStopInterceptor(ctrl)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
-			b.NextLevel().WithCleanup(func() {}).Add()
+			b.NextLevel().WithCleanup(func() {})
 			lc := b.Build()
 
 			Expect(lc.Start(ctx)).To(Succeed())
@@ -255,7 +255,7 @@ var _ = Describe("LifecycleBuilder", func() {
 			)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(first, second))
-			b.NextLevel().WithComponents(only).Add()
+			b.NextLevel().WithComponents(only)
 
 			Expect(b.Build().Start(ctx)).To(Succeed())
 		})
@@ -274,8 +274,8 @@ var _ = Describe("LifecycleBuilder", func() {
 				Times(3)
 
 			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
-			b.NextLevel().WithComponents(first, second).Add()
-			b.NextLevel().WithComponents(third).Add()
+			b.NextLevel().WithComponents(first, second)
+			b.NextLevel().WithComponents(third)
 
 			Expect(b.Build().Start(ctx)).To(Succeed())
 		})
@@ -283,19 +283,16 @@ var _ = Describe("LifecycleBuilder", func() {
 
 	Describe("misuse", func() {
 		It("panics on any use of a builder after Build", func() {
+			component := execmocks.NewMockCompleteLifecycle(ctrl)
+
 			b := rt.NewLifecycleBuilder()
 			b.Build()
 
 			Expect(func() { b.NextLevel() }).To(Panic())
+			Expect(func() { b.WithComponents(component) }).To(Panic())
+			Expect(func() { b.WithCleanableComponent(component, func() {}) }).To(Panic())
+			Expect(func() { b.WithCleanup(func() {}) }).To(Panic())
 			Expect(func() { b.Build() }).To(Panic())
-		})
-
-		It("panics on any use of a level builder after Add", func() {
-			lb := rt.NewLifecycleBuilder().NextLevel()
-			lb.Add()
-
-			Expect(func() { lb.Add() }).To(Panic())
-			Expect(func() { lb.WithComponents(execmocks.NewMockCompleteLifecycle(ctrl)) }).To(Panic())
 		})
 	})
 })

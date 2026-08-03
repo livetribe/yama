@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build !wireinject && !yamainject
+//go:build !yamainject
 
 package sandbox
 
@@ -36,7 +36,9 @@ package sandbox
 //     file, which adds only the graph's own levels.
 //
 // The file emits no types and no methods: level membership and level order are
-// the builder call chain below, and nothing else. See docs/adr/ADR-010.
+// the builder call chain below, and nothing else. Each constructor declares its
+// levels in one expression, inside its return statement. No constructor declares
+// a builder local or a lifecycle local. See docs/adr/ADR-010.
 //
 // Levels over the components that occupy one — every lifecycle-capable component,
 // plus base2, which is dependency-only but carries a cleanup — ordered
@@ -86,22 +88,19 @@ func NewLifecycle(opts ...yama.Option) (*App, yama.Lifecycle, error) {
 	}
 	// --- end re-emitted construction ---
 
-	b := rt.NewLifecycleBuilder(opts...)
-	b.NextLevel().
-		WithComponents(base1).
-		WithCleanup(base2Cleanup).
-		WithCleanableComponent(base3, base3Cleanup).
-		Add()
-	b.NextLevel().
-		WithComponents(mid2).
-		WithComponents(root2).
-		Add()
-	b.NextLevel().
-		WithComponents(root3).
-		Add()
-	lc := b.Build()
-
-	return app, lc, nil
+	return app,
+		rt.NewLifecycleBuilder(opts...).
+			NextLevel().
+			WithComponents(base1).
+			WithCleanup(base2Cleanup).
+			WithCleanableComponent(base3, base3Cleanup).
+			NextLevel().
+			WithComponents(mid2).
+			WithComponents(root2).
+			NextLevel().
+			WithComponents(root3).
+			Build(),
+		nil
 }
 
 // NewLifecycleWithWriter orchestrates the graph CoreSet builds. There is one
@@ -132,20 +131,17 @@ func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecy
 	}
 	// --- end re-emitted construction ---
 
-	b := rt.NewLifecycleBuilder(opts...)
-	b.NextLevel().
-		WithComponents(base1).
-		WithCleanup(base2Cleanup).
-		WithCleanableComponent(base3, base3Cleanup).
-		Add()
-	b.NextLevel().
-		WithComponents(mid2).
-		WithComponents(root2).
-		Add()
-	b.NextLevel().
-		WithComponents(root3).
-		Add()
-	lc := b.Build()
-
-	return app, lc, nil
+	return app,
+		rt.NewLifecycleBuilder(opts...).
+			NextLevel().
+			WithComponents(base1).
+			WithCleanup(base2Cleanup).
+			WithCleanableComponent(base3, base3Cleanup).
+			NextLevel().
+			WithComponents(mid2).
+			WithComponents(root2).
+			NextLevel().
+			WithComponents(root3).
+			Build(),
+		nil
 }
