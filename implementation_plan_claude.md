@@ -966,10 +966,14 @@ cleanly when the target package is malformed.
   - The `//go:generate` directive invokes Yama, which runs `go tool wire`
     internally. This directive is documented, and it works via `go
     generate ./…` on the example app.
-  - Generation is atomic, or close to it. A failure in the Yama step does
-    not leave a half-written `lifecycle_gen.go` that would break the
-    package's compile. Assert this via a write-to-temp-then-rename
-    approach or equivalent.
+  - Generation writes `lifecycle_gen.go` with one plain write. It is not
+    made crash-safe. A write that fails part way can leave the file
+    truncated, and another run restores it: generation reads only files
+    that are still on disk, and it produces the same content every time.
+    A staged write, renamed onto the file, was built and then removed. It
+    bought recovery from a failure the next run already recovers from, and
+    it cost the code that has to preserve the file's own permission,
+    because a rename replaces the file rather than writing through it.
   - External-module compile proof (the Orientation §0 `internal/bridge`
     boundary). With the example app in its own `go.mod`, `go build ./...`
     and `go vet ./...` succeed for it as a standalone module. This check
@@ -989,8 +993,10 @@ cleanly when the target package is malformed.
   gen`'s own behavior (measured: Wire skips such a package whether named
   explicitly or matched by a wildcard, and exits 0 even when no named
   package holds an injector). A package pattern resolves to nothing → a
-  clear error, since `wire gen` also fails there. The output directory is
-  read-only → a clear error.
+  clear error, since `wire gen` also fails there. The committed
+  `lifecycle_gen.go` is read-only → a clear error, and the file keeps its
+  content. A read-only output directory does not stop the write, because
+  the write opens a file that is already there.
 
 **Regression note.** The example app becomes a living integration fixture
 reused by Phase 10. Keep it minimal, but ensure it covers at least 2

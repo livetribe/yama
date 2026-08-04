@@ -101,7 +101,9 @@ Generation is one `go:generate` directive that invokes Yama, which derives a Goo
 
 The `wire_gen.go` Yama generates is a transient intermediate, not a committed artifact. Yama needs the injector only to derive ordering. The lifecycle file re-emits that construction. Nothing at runtime calls Wire's injector. An application constructs and runs through Yama's generated lifecycle constructor.
 
-Adopting Yama is additive. An application adds a lifecycle stub file. It also adds a `//go:generate` directive that invokes Yama. That directive belongs in a committed file, because the transient `wire_gen.go` cannot carry one. Adoption modifies no file the application already has.
+Adopting Yama is additive. An application adds a lifecycle stub file. It also adds a `//go:generate` directive that invokes Yama. That directive belongs in a committed file, because the transient `wire_gen.go` cannot carry one. A build tag must not exclude that file. The `go generate` command does not read a file that a build tag excludes. The stub file therefore cannot hold the directive. Adoption modifies no file the application already has.
+
+The application's `go.mod` must pin the Google Wire generator as a Go tool dependency. Yama runs `go tool wire gen` from the target package's directory. The module that holds that package supplies the tool. If a module does not pin the tool, Yama reports a toolchain error. That error is different from a Wire input error.
 
 An application may also want Wire injectors of its own. It then keeps its `wire.go`, its own `//go:generate` directive naming Wire's command, and its committed `wire_gen.go`. Wire never sees the stub file, because a build tag that Wire does not set guards that file. Yama's run leaves a committed `wire_gen.go` as it found it.
 

@@ -149,6 +149,7 @@ func (s *Stub) ResultType() ast.Expr {
 type StubPackage struct {
 	Dir     string
 	PkgName string
+	PkgPath string
 	Fset    *token.FileSet
 	Stubs   []*Stub
 
@@ -200,7 +201,13 @@ func (g *Generator) LoadStubs(ctx context.Context, dir string) (*StubPackage, er
 		return nil, fmt.Errorf("yama: loading lifecycle stubs in %s: %w", dir, loadErr)
 	}
 
-	sp := &StubPackage{Dir: dir, PkgName: pkg.Name, Fset: fset, ImportNames: map[string]string{}}
+	sp := &StubPackage{
+		Dir:         dir,
+		PkgName:     pkg.Name,
+		PkgPath:     pkg.PkgPath,
+		Fset:        fset,
+		ImportNames: map[string]string{},
+	}
 	for path, imported := range pkg.Imports {
 		sp.ImportNames[path] = imported.Name
 	}

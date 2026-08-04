@@ -12,13 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build wireinject
+//go:build yamainject
 
-package tagged
+package hello
 
-import "github.com/google/wire"
+import (
+	"io"
 
-// InitRoot builds Root; NewDep is only visible under the "special" tag.
-func InitRoot() *Root {
-	panic(wire.Build(NewDep, NewRoot))
+	"github.com/google/wire"
+
+	yama "l7e.io/yama/v2"
+)
+
+// NewLifecycle orchestrates the graph GraphSet builds, reporting to w.
+func NewLifecycle(w io.Writer, opts ...yama.Option) (*Server, yama.Lifecycle, error) {
+	panic(wire.Build(GraphSet))
 }

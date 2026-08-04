@@ -350,7 +350,7 @@ public API (ADR-007, ADR-010).
 
 ## 14. Generated Artifact Layout
 
-Generation produces one committed file in the target application package: Yama's `lifecycle_gen.go`. One `go:generate` directive invokes Yama, which derives a Google Wire injector from each lifecycle stub, runs Google Wire over it, parses the generated injector, and emits the lifecycle file. Google Wire's generator is pinned as a Go tool dependency in `go.mod` and invoked as `go tool wire gen`, so generation is reproducible and needs no assumption about `wire` being on `PATH`.
+Generation produces one committed file in the target application package: Yama's `lifecycle_gen.go`. One `go:generate` directive invokes Yama, which derives a Google Wire injector from each lifecycle stub, runs Google Wire over it, parses the generated injector, and emits the lifecycle file. Google Wire's generator is pinned as a Go tool dependency in the application's `go.mod` and invoked as `go tool wire gen`, so generation is reproducible and needs no assumption about `wire` being on `PATH`. A build tag must not exclude the file that holds the `go:generate` directive.
 
 The package carries one hand-authored, build-tagged declaration file that
 generation reads: the lifecycle stub file, behind `//go:build yamainject`,

@@ -23,34 +23,99 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 
 	"l7e.io/yama/v2/internal/generator"
 )
 
+// The exit codes are `wire gen`'s own, measured against it: 2 for arguments it
+// cannot parse, 1 for a run that failed.
+const (
+	usageExitCode   = 2
+	failureExitCode = 1
+)
+
 func main() {
 	ctx := context.Background()
 
-	if err := run(ctx, os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+	err := run(ctx, os.Stderr, os.Args[1:])
+	if err == nil {
+		return
 	}
+
+	// The flag package writes the diagnostic and the usage text as it parses. A
+	// usage error is already on the stream; printing it here would repeat it.
+	var usage *usageError
+	if errors.As(err, &usage) {
+		os.Exit(usageExitCode)
+	}
+
+	fmt.Fprintln(os.Stderr, err)
+	os.Exit(failureExitCode)
 }
 
-// run drives generation from parsed args.
-func run(ctx context.Context, args []string) error {
-	parsed, err := parseArgs(args)
+// run generates for the packages args names, writing progress and diagnostics
+// to stderr.
+func run(ctx context.Context, stderr io.Writer, args []string) error {
+	parsed, err := parseArgs(stderr, args)
 	if err != nil {
 		return err
 	}
 
 	g := generator.NewGenerator(parsed.opts)
 
-	_, err = g.GenerateAll(ctx, ".", parsed.patterns)
+	files, err := g.EmitAll(ctx, ".", parsed.patterns)
+	if err != nil {
+		return err
+	}
 
-	return err
+	return writeFiles(stderr, files)
+}
+
+// writeFiles commits each emitted lifecycle file and reports one progress line
+// for each one written.
+//
+// The line names Yama's own artifact in the shape Wire uses for its own,
+// `yama: <import path>: wrote <path>`, on the stream Wire writes its own to.
+//
+// A file whose rendering reported a defect is written and then reported: the
+// artifact on disk is the diagnostic.
+func writeFiles(progress io.Writer, files []*generator.LifecycleFile) error {
+	var errs []error
+	for _, file := range files {
+		// Collected before the write, so a write that fails reports the defect too.
+		errs = append(errs, file.Errs...)
+
+		path, err := file.Write()
+		if err != nil {
+			errs = append(errs, err)
+
+			continue
+		}
+
+		fmt.Fprintf(progress, "yama: %s: wrote %s\n", file.PkgPath, path)
+	}
+
+	return errors.Join(errs...)
+}
+
+// usageError reports arguments the command cannot parse. It carries what the
+// flag package reported, which the flag package has also already written to the
+// command's error stream together with the usage text.
+type usageError struct {
+	Err error
+}
+
+func (e *usageError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *usageError) Unwrap() error {
+	return e.Err
 }
 
 // parsedArgs is the command's flags and positional package patterns, kept
@@ -61,12 +126,13 @@ type parsedArgs struct {
 	patterns []string
 }
 
-// parseArgs parses args into flags and package patterns. Flag names and
-// defaults match `wire gen` exactly (see `go tool wire help gen`); an
-// unrecognized flag is reported by the flag package in the same shape wire
-// itself would report it.
-func parseArgs(args []string) (parsedArgs, error) {
+// parseArgs parses args into flags and package patterns, writing what it cannot
+// parse to out. Flag names and defaults match `wire gen` exactly (see `go tool
+// wire help gen`); an unrecognized flag is reported by the flag package in the
+// same shape wire itself would report it, and arrives back as a *usageError.
+func parseArgs(out io.Writer, args []string) (parsedArgs, error) {
 	fs := flag.NewFlagSet("yama", flag.ContinueOnError)
+	fs.SetOutput(out)
 
 	var parsed parsedArgs
 	fs.StringVar(&parsed.opts.HeaderFile, "header_file", "",
@@ -84,7 +150,7 @@ func parseArgs(args []string) (parsedArgs, error) {
 	}
 
 	if err := fs.Parse(args); err != nil {
-		return parsedArgs{}, err
+		return parsedArgs{}, &usageError{Err: err}
 	}
 	parsed.patterns = fs.Args()
 

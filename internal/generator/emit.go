@@ -52,6 +52,7 @@ const (
 // being discarded with the error.
 type LifecycleFile struct {
 	Dir     string
+	PkgPath string
 	Name    string
 	Content []byte
 	Errs    []error
@@ -93,7 +94,7 @@ func Emit(sp *StubPackage, pkg *LoadedPackage, analysis *Analysis) *LifecycleFil
 
 	content, err := renderFile(sp, pkg, imports, constructors)
 
-	file := &LifecycleFile{Dir: sp.Dir, Name: lifecycleGenName, Content: content}
+	file := &LifecycleFile{Dir: sp.Dir, PkgPath: sp.PkgPath, Name: lifecycleGenName, Content: content}
 	if err != nil {
 		file.Errs = append(file.Errs, err)
 	}
