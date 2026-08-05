@@ -33,10 +33,13 @@ import (
 //
 // Both transient files are scoped before Wire runs and removed after, so a file
 // of either name that Yama did not create is preserved and restored. The
-// committed lifecycle file is scoped with them, which keeps a stale copy out of
-// both Wire's load and Yama's own, and puts it back afterward. A package that
-// declares no stub is skipped in silence, the way Wire skips a package with no
-// injector.
+// committed lifecycle file is scoped with them, and put back afterward.
+//
+// The derived file declares each constructor beside its injector. The committed
+// lifecycle file declares the same constructors, and the two are never visible
+// together. Scoping also keeps a stale committed copy out of both Wire's load
+// and Yama's own. A package that declares no stub is skipped in silence, the way
+// Wire skips a package with no injector.
 func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) (files []*LifecycleFile, err error) {
 	stubPkgs, err := g.loadStubPackages(ctx, dir, patterns)
 	if err != nil {

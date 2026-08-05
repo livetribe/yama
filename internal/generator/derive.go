@@ -53,7 +53,12 @@ func writeDerivedInjectors(sp *StubPackage) (string, error) {
 	return target, nil
 }
 
-// deriveInjectors renders one Google Wire injector per lifecycle stub.
+// placeholderPanicFormat is the message a placeholder constructor panics with.
+// It takes the constructor's name.
+const placeholderPanicFormat = "yama: %s has no body; an interrupted run left this placeholder, run yama again"
+
+// deriveInjectors renders one Google Wire injector and one placeholder
+// constructor per lifecycle stub.
 //
 // Each injector takes its name from its stub, in the reserved namespace. It
 // takes its parameters from the stub's parameters, without the trailing Option
@@ -61,8 +66,15 @@ func writeDerivedInjectors(sp *StubPackage) (string, error) {
 // and the construction error. Wire's output therefore always has a cleanup
 // return for Yama to fold, whether or not a provider contributes one. Its body
 // is the stub's body, copied unchanged.
+//
+// Each placeholder carries the stub's own name and its whole signature. Wire
+// reads a function as an injector template only when the body is one panic call
+// around wire.Build, so Wire generates nothing for a placeholder. Wire copies a
+// declaration of any other shape from this file into wire_gen.go, unchanged.
+// That copy is what declares the constructor in the load Yama makes over Wire's
+// output, which sets neither build tag.
 func deriveInjectors(sp *StubPackage) ([]byte, error) {
-	imports, err := derivedImports(sp)
+	imports, err := stubImports(sp, derivedNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -82,6 +94,10 @@ func deriveInjectors(sp *StubPackage) ([]byte, error) {
 		writeLineDirective(&buf, sp.Fset, stub)
 		fmt.Fprintf(&buf, "func %s(%s) (%s, func(), error) {\n", stub.DerivedName(), params, result)
 		fmt.Fprintf(&buf, "\tpanic(%s)\n}\n", build)
+
+		buf.WriteString("\n")
+		writeLineDirective(&buf, sp.Fset, stub)
+		writePlaceholder(&buf, sp.Fset, stub)
 	}
 
 	formatted, err := format.Source(buf.Bytes())
@@ -90,6 +106,20 @@ func deriveInjectors(sp *StubPackage) ([]byte, error) {
 	}
 
 	return formatted, nil
+}
+
+// writePlaceholder writes one declaration of the constructor a stub names. The
+// declaration carries the stub's own name, its whole parameter list and its
+// whole result list.
+func writePlaceholder(buf *bytes.Buffer, fset *token.FileSet, stub *Stub) {
+	params := printFields(fset, stub.Params)
+	results := printFields(fset, stub.Results)
+
+	message := fmt.Sprintf(placeholderPanicFormat, stub.Name)
+	quoted := strconv.Quote(message)
+
+	fmt.Fprintf(buf, "func %s(%s) (%s) {\n", stub.Name, params, results)
+	fmt.Fprintf(buf, "\tpanic(%s)\n}\n", quoted)
 }
 
 // lineDirectivePrefix begins a Go line directive. It moves every position after
@@ -138,24 +168,34 @@ func dropLineDirectives(src []byte) []byte {
 	return bytes.Join(lines, []byte("\n"))
 }
 
-// derivedImports maps each package name the derived injectors refer to onto its
-// import path. It copies the signatures and the wire.Build calls, and nothing
-// else. It therefore leaves out an import that a stub file carries for another
-// purpose.
+// derivedNodes are the parts of a stub that the derived file reproduces: the
+// wire.Build call, every declared parameter type, and every declared result
+// type. The injector reproduces the graph parameters and the first result. The
+// placeholder reproduces the whole signature.
+func derivedNodes(s *Stub) []ast.Node {
+	nodes := []ast.Node{s.Build}
+	for _, f := range s.Params {
+		nodes = append(nodes, f.Type)
+	}
+
+	for _, f := range s.Results {
+		nodes = append(nodes, f.Type)
+	}
+
+	return nodes
+}
+
+// stubImports maps each package name a transient file refers to onto its import
+// path. nodesOf gives the parts of one stub that the file reproduces, so an
+// import a stub file carries for another purpose is left out.
 //
-// Two stub files can give one name to two different packages. One derived file
-// cannot use that name for both, so derivedImports reports the conflict rather
-// than resolving it. The derived file is transient. A name Yama invented for the
-// conflict would therefore appear in Wire's diagnostics, and in nothing an
-// application can read.
-func derivedImports(sp *StubPackage) (map[string]string, error) {
+// Two stub files can give one name to two different packages. One transient file
+// cannot use that name for both. stubImports reports that conflict as a
+// *StubError, and resolves nothing.
+func stubImports(sp *StubPackage, nodesOf func(*Stub) []ast.Node) (map[string]string, error) {
 	imports := map[string]string{}
 	for _, stub := range sp.Stubs {
-		nodes := []ast.Node{stub.Build}
-		for _, f := range stub.GraphParams() {
-			nodes = append(nodes, f.Type)
-		}
-		nodes = append(nodes, stub.ResultType())
+		nodes := nodesOf(stub)
 
 		declared := fileImports(stub.File, sp.ImportNames)
 		for _, name := range qualifiers(nodes...) {

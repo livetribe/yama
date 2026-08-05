@@ -129,7 +129,10 @@ func TestDeriveInjectorsMirrorsTheStub(t *testing.T) {
 	assert.Contains(t, src, "//go:build wireinject")
 	assert.Contains(t, src, "func yama_NewLifecycle(rec *Recorder, fault Fault) (*Top, func(), error)")
 	assert.Contains(t, src, "panic(wire.Build(GraphSet))")
-	assert.NotContains(t, src, "yama.Lifecycle", "the Lifecycle result is replaced by Wire's cleanup")
+
+	injector := declarationOf(t, src, "yama_NewLifecycle")
+	assert.NotContains(t, injector, "yama.Lifecycle", "the Lifecycle result is replaced by Wire's cleanup")
+	assert.NotContains(t, injector, optionTypeName, "the options parameter reaches no injector")
 }
 
 // TestDerivedFileIsTransient asserts a generation run leaves neither transient
@@ -222,4 +225,84 @@ func TestEmitPreservesAnExistingDerivedFile(t *testing.T) {
 	preserved, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, string(original), string(preserved))
+}
+
+// TestDeriveWritesAPlaceholderPerStub asserts the derived file declares the
+// constructor its stub names, under the whole declared signature, beside the
+// injector.
+//
+// A caller passes the arguments the stub declares and reads the results it
+// declares. A declaration that drops a parameter or a result does not compile
+// against that caller.
+func TestDeriveWritesAPlaceholderPerStub(t *testing.T) {
+	requireGo(t)
+
+	sp, err := NewGenerator(Options{}).LoadStubs(context.Background(), "testapp")
+	require.NoError(t, err)
+
+	derived, err := deriveInjectors(sp)
+	require.NoError(t, err)
+
+	src := string(derived)
+	assert.Contains(t, src, "func NewLifecycle(rec *Recorder, fault Fault, opts ...yama.Option) (*Top, yama.Lifecycle, error) {")
+	assert.Contains(t, src, "func yama_NewLifecycle(rec *Recorder, fault Fault) (*Top, func(), error) {")
+	assert.Contains(t, src, `yama "l7e.io/yama/v2"`)
+}
+
+// TestPlaceholderCarriesALineDirective asserts each placeholder is bound to the
+// stub it comes from.
+//
+// The derived file is transient. A diagnostic carrying its own position names a
+// path the application cannot open.
+func TestPlaceholderCarriesALineDirective(t *testing.T) {
+	requireGo(t)
+
+	sp, err := NewGenerator(Options{}).LoadStubs(context.Background(), "testapp")
+	require.NoError(t, err)
+
+	derived, err := deriveInjectors(sp)
+	require.NoError(t, err)
+
+	line := declLine(t, filepath.Join("testapp", "lifecycle.go"), "NewLifecycle")
+	want := fmt.Sprintf("lifecycle.go:%d:1", line)
+
+	src := string(derived)
+	assert.Equal(t, 2, strings.Count(src, lineDirectivePrefix), "one directive per declaration")
+	assert.Contains(t, src, want)
+}
+
+// TestEmitResolvesASiblingPackagesConstructor asserts a run over two stub
+// packages generates both, when an ordinary file in one calls the constructor
+// the other's stub declares.
+//
+// Google Wire type-checks every package it loads. The caller's package fails to
+// compile unless the constructor resolves while the committed lifecycle file is
+// held aside.
+func TestEmitResolvesASiblingPackagesConstructor(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "crosspkg")
+
+	files, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"./..."})
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+
+	for _, file := range files {
+		assert.Empty(t, file.Errs, "%s: rendering reported a defect in the emitter", file.PkgPath)
+	}
+}
+
+// declarationOf is the source text of one function declaration in src, from its
+// func keyword to the closing brace in the first column.
+func declarationOf(t *testing.T, src, name string) string {
+	t.Helper()
+
+	open := strings.Index(src, "func "+name+"(")
+	require.GreaterOrEqual(t, open, 0, "no declaration of %s", name)
+
+	rest := src[open:]
+	end := strings.Index(rest, "\n}\n")
+	require.GreaterOrEqual(t, end, 0, "declaration of %s does not close", name)
+
+	return rest[:end]
 }

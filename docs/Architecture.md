@@ -365,15 +365,27 @@ Wire's `wire_gen.go`. Neither is committed. Removal is non-destructive, so a fil
 of either name that Yama did not create is preserved and restored (ADR-008,
 ADR-011).
 
+The derived-injector file carries two declarations per lifecycle stub. One is
+the injector Google Wire generates a body for. The other declares the
+constructor's own name and whole signature, over a body Google Wire does not
+read as a template. Google Wire copies that second declaration into its own
+output, which is where Yama's later load of that output resolves the constructor
+(ADR-011).
+
 `lifecycle_gen.go` carries `//go:build !yamainject`, which keeps the emitted
 constructor out of the load that reads the stubs, since those declare the same
 function. It states no other tool's build condition (ADR-011).
 
 A run also moves the committed `lifecycle_gen.go` aside, beside the two
-transient files, and puts it back afterward. Google Wire type-checks the whole
-package, and so does Yama's load of Wire's output. A committed file left stale
-by a provider rename would otherwise fail the step that produces its
-replacement (ADR-011).
+transient files, and puts it back afterward. The committed file and the
+derived-injector file declare the same constructors, and the scope keeps the two
+apart. An application file that calls a lifecycle constructor therefore compiles
+during Google Wire's run and during Yama's own load of Wire's output, in the
+constructor's own package and in a sibling package alike.
+
+The scope covers a second hazard. Google Wire type-checks the whole package, and
+so does Yama's load of Wire's output. A committed file left stale by a provider
+rename would otherwise fail the step that produces its replacement (ADR-011).
 
 Google Wire may be unable to build a stub's declared result. This can happen because
 providers do not reach it, or because a dependency cycle exists among them. Either case

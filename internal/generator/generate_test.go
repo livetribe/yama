@@ -120,10 +120,9 @@ func TestWireDiagnosticsDropsWroteLines(t *testing.T) {
 // the application wrote rather than the injector Yama derived from it, and that
 // the transient file name keeps the same prefix it carries.
 func TestWireDiagnosticsRenamesDerivedInjectors(t *testing.T) {
-	logged := strings.Join([]string{
-		"wire: /tmp/a/yama_wireinject.go:11:1: inject yama_NewLifecycle: no provider found for *a.Dep",
-		"wire: /tmp/a/yama_wireinject.go:16:1: inject yama_NewLifecycleWithWriter: no provider found for *a.Dep",
-	}, "\n")
+	logged := "wire: /tmp/a/yama_wireinject.go:11:1: inject yama_NewLifecycle: no provider found for *a.Dep" +
+		"\n" +
+		"wire: /tmp/a/yama_wireinject.go:16:1: inject yama_NewLifecycleWithWriter: no provider found for *a.Dep"
 
 	got := wireDiagnostics(logged, []string{"yama_NewLifecycle", "yama_NewLifecycleWithWriter"})
 

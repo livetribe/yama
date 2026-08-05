@@ -89,11 +89,15 @@ it, parses the output, and emits the constructor body. The derivation is
 mechanical:
 
 * **Name.** Derived from the stub's own name, in the `yama`-prefixed reserved
-  namespace. Each stub therefore maps to one injector in Wire's output by name,
-  and an injector the application declared for its own purposes carries no such
-  name. The derived injector is transient, and no application code names it, so
-  a mechanical name costs a reader nothing here. The objection to derived names
-  applies to application-facing identifiers only.
+  namespace. The derived injector and the placeholder are both in one file, and
+  the placeholder carries the stub's own name. The prefix keeps the two
+  declarations apart. With the prefix removed, Wire reports `NewLifecycle
+  redeclared in this block` for every stub. An injector the application declared
+  for its own purposes carries no name from the reserved namespace. Each stub
+  therefore maps to one injector in Wire's output by name. The derived injector
+  is transient, and no application code names it, so a mechanical name costs a
+  reader nothing here. The objection to derived names applies to
+  application-facing identifiers only.
 * **Parameters.** The stub's parameters, in order, without a trailing
   `opts ...yama.Option`. A stub that declares no options parameter contributes
   all of its parameters.
@@ -116,12 +120,46 @@ invisible to that load.
 The emitted file states Yama's own build condition and no other tool's. Google
 Wire's tag does not appear in it.
 
-A committed `lifecycle_gen.go` can also stop compiling on its own. A provider
-rename leaves it referring to a symbol that no longer exists. Google Wire
-type-checks the whole package, and so does Yama's own load of Wire's output, so
-a stale file would fail the step that produces its replacement. Yama scopes that
-file for the run instead. It moves the file aside before Wire runs, and puts it
-back afterward, on the same terms as the two transient files.
+### The derived injector file also declares each constructor
+
+Google Wire runs with the `wireinject` tag set and the `yamainject` tag clear.
+The stub is invisible under that tag. Yama holds the committed lifecycle file
+aside. Nothing then declares the constructor. Google Wire type-checks the whole
+package. An ordinary file of the application that calls the constructor therefore
+does not compile, and the run fails.
+
+The same failure reaches a sibling package. An untagged file in one stub package
+can call another stub package's constructor. A run that covers both packages then
+fails.
+
+The derived injector file therefore carries a second declaration for each stub, a
+**placeholder**. A placeholder declares the stub's own name, its whole parameter
+list, and its whole result list. Its body is one `panic` call with a string
+argument.
+
+Google Wire reads a function as an injector template when its body is one
+expression statement that calls `wire.Build`. A `panic` call may wrap that call,
+and Google Wire looks through the wrapper. A `panic` call with a string argument
+is neither shape. It is ordinary code to Google Wire, and an ordinary declaration
+to the Go type-checker. Google Wire generates nothing for a placeholder.
+
+Google Wire copies a non-injector declaration into `wire_gen.go` from every file
+that held an injector. The derived injector file holds one injector per stub.
+Each placeholder therefore reaches `wire_gen.go` unchanged. That copy declares
+the constructor in the load Yama makes over Wire's output, which sets neither
+tag. Yama depends on this behaviour of Google Wire. The end-to-end tests over a
+package with a caller are the only check on it.
+
+Yama scopes the committed `lifecycle_gen.go` for the run. It moves the file aside
+before Wire runs. It puts the file back afterward, on the same terms as the two
+transient files. The committed file and the placeholder declare the same
+constructors, and the scope keeps the two apart.
+
+The scope covers a second hazard. A committed `lifecycle_gen.go` can stop
+compiling on its own. A provider rename leaves it referring to a symbol that no
+longer exists. Google Wire type-checks the whole package, and so does Yama's own
+load of Wire's output. A stale file would therefore fail the step that produces
+its replacement.
 
 ## Rationale
 
@@ -203,9 +241,29 @@ new tag name, not a new file convention.
 * Yama writes a second transient file into the package directory. Generation must
   preserve and restore that filename with the same care it gives `wire_gen.go`,
   so a run never destroys a file Yama does not own.
-* Google Wire reports diagnostics against the derived injector, which is a file
-  the application never sees. Yama must map each position back to the stub before
-  it reports the error.
+* Yama depends on Google Wire copying a non-injector declaration into
+  `wire_gen.go`. Yama tolerated that behaviour before and now requires it. No
+  unit test pins it. The end-to-end tests over a package with a caller fail if it
+  changes.
+* A run that ends without restoring leaves the constructor declared in Wire's
+  output, with a `panic` body. Three costs follow. An ordinary build then
+  compiles and panics when the constructor is called. The next Yama run fails in
+  the load that reads the stubs, before the scope reports the backup that holds
+  the application's original. An application that runs Google Wire itself gets
+  the placeholder copied into its own committed `wire_gen.go`.
+* A `wireinject`-tagged file of the application that declares a lifecycle
+  constructor's name now fails the run.
+* Each constructor's name is in the package scope while Google Wire runs. Google
+  Wire chooses a different name for a local when its first choice collides. A
+  stub whose name is one that Google Wire would choose therefore changes the
+  emitted body.
+* The derived injector file reproduces each stub's whole signature. One rule
+  rejects two stub files that bind one package name to two paths. Every package
+  name in a signature now falls under that rule. It covered less before.
+* Google Wire reports diagnostics against the derived injector and against the
+  placeholder, both in a file the application never sees. Yama binds each
+  declaration to its stub with a line directive, so every position it reports
+  names the stub instead.
 * An application that wants both a plain Wire injector and a lifecycle
   constructor over one graph writes two declarations. Stating the providers in a
   `wire.NewSet` variable keeps the providers themselves stated once, which is
@@ -217,9 +275,11 @@ new tag name, not a new file convention.
 
 ### Accepted Trade-Off
 
-The project accepts two costs: a second transient file, and the work of mapping
-Wire diagnostics back to the stub. In exchange, it gets one declaration per
-orchestrated graph and a `wire.Build` call that keeps Wire's own meaning.
+The project accepts three costs: a second transient file, the work of mapping
+Wire diagnostics back to the stub, and a dependency on Google Wire's copying of
+non-injector declarations. In exchange, it gets one declaration per orchestrated
+graph, a `wire.Build` call that keeps Wire's own meaning, and an application that
+may call its own lifecycle constructor from ordinary code.
 
 ## Rejected Alternatives
 
@@ -287,6 +347,32 @@ names a third party's build condition, written there by Yama rather than by the
 application, to pay for a state that is already broken and that one command
 repairs. Scoping the file covers the same hazard for every run Yama does
 execute, and it leaves the emitted file stating one condition of Yama's own.
+
+### A third transient file carries the placeholders
+
+Yama could write the placeholders into their own file, under the emitted file's
+name and build constraint, rather than beside the derived injectors. Google Wire
+copies nothing from a file that holds no injector. The placeholders would
+therefore not reach `wire_gen.go`, and the interrupted-run costs above would not
+arise.
+
+Rejected. Google Wire's run is one stage of a generation run, and one file
+supports that stage. A second file for the same stage adds a name to the scope
+protocol. It also writes a transient file at the path of a committed one. A run
+that ends without restoring then leaves a file that a reader takes for the
+application's own committed output. Every cost this alternative avoids follows
+from a run that does not finish, and one ordinary Yama run repairs that state.
+
+### A marker of Yama's own replaces `wire.Build` in the stub
+
+A stub could state its providers with a Yama marker, which Yama recognises and
+Google Wire does not. The stub file could then be visible to Google Wire without
+being read as a template.
+
+Rejected. It adds an exported symbol to the module's public API surface, and it
+rewrites every stub in every application. It also gives up the rule above, that
+`wire.Build` keeps the meaning Google Wire gives it. A reader then holds two
+meanings for one shape. The placeholder changes nothing an application writes.
 
 ## Non-Goals
 
