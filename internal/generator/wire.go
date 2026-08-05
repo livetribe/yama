@@ -47,6 +47,11 @@ const wirePrefix = "wire:"
 // `wire: <pkgPath>: wrote <path>`. wireDiagnostics drops the lines carrying it.
 const wireWroteMarker = ": wrote "
 
+// wireInjectMarker introduces the injector's name in Google Wire's per-injector
+// diagnostic, `inject <name>: <reason>`. wireDiagnostics rewrites the name that
+// follows it.
+const wireInjectMarker = "inject "
+
 // Options configures a generation run. Every field mirrors one of `wire gen`'s
 // own flags.
 type Options struct {
@@ -221,9 +226,12 @@ func (g *Generator) runWire(ctx context.Context, wd string, patterns, derived []
 // through would tell the caller Yama wrote files it had already deleted, so only
 // the diagnostics that remain true are kept.
 //
-// Wire names the injector it rejects, and that name is one Yama invented. Only
-// the names in derived are rewritten, so the transient file name, which carries
-// the same prefix, keeps every character it has.
+// Wire names the injector it rejects, and that name is one Yama invented. A
+// rewrite applies to the name that follows Wire's own injector marker, and to
+// nothing else. Every other text in the same diagnostic keeps the characters it
+// has, including a path that carries the reserved prefix: the transient file is
+// named for the tag it declares, so a stub named for that tag too derives an
+// injector whose name is the whole stem of that file.
 func wireDiagnostics(logged string, derived []string) string {
 	var kept []string
 	for _, line := range strings.Split(logged, "\n") {
@@ -235,7 +243,7 @@ func wireDiagnostics(logged string, derived []string) string {
 	joined := strings.Join(kept, "\n")
 	for _, name := range derived {
 		stub := strings.TrimPrefix(name, derivedPrefix)
-		joined = strings.ReplaceAll(joined, name, stub)
+		joined = strings.ReplaceAll(joined, wireInjectMarker+name, wireInjectMarker+stub)
 	}
 
 	return strings.TrimSpace(joined)

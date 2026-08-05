@@ -147,8 +147,7 @@ func TestWireDiagnosticsDropsWroteLines(t *testing.T) {
 // the application wrote rather than the injector Yama derived from it, and that
 // the transient file name keeps the same prefix it carries.
 func TestWireDiagnosticsRenamesDerivedInjectors(t *testing.T) {
-	logged := "wire: /tmp/a/yama_wireinject.go:11:1: inject yama_NewLifecycle: no provider found for *a.Dep" +
-		"\n" +
+	const logged = "wire: /tmp/a/yama_wireinject.go:11:1: inject yama_NewLifecycle: no provider found for *a.Dep\n" +
 		"wire: /tmp/a/yama_wireinject.go:16:1: inject yama_NewLifecycleWithWriter: no provider found for *a.Dep"
 
 	got := wireDiagnostics(logged, []string{"yama_NewLifecycle", "yama_NewLifecycleWithWriter"})
@@ -157,6 +156,22 @@ func TestWireDiagnosticsRenamesDerivedInjectors(t *testing.T) {
 	assert.Contains(t, got, "inject NewLifecycleWithWriter:")
 	assert.NotContains(t, got, "inject yama_", "no derived name reaches the application")
 	assert.Contains(t, got, "yama_wireinject.go", "the transient file name is not a derived injector name")
+}
+
+// TestWireDiagnosticsRewritesTheInjectorNameAlone asserts a rewrite reaches the
+// name Wire gives an injector, and reaches nothing else in the same diagnostic.
+//
+// The transient file is named for the build tag it declares. A stub named for
+// that tag therefore derives an injector whose name is that file's whole stem,
+// and a rewrite of every occurrence would rename the file in the path Wire
+// reported.
+func TestWireDiagnosticsRewritesTheInjectorNameAlone(t *testing.T) {
+	const logged = "wire: /tmp/a/yama_wireinject.go:11:1: inject yama_wireinject: no provider found for *a.Dep"
+
+	got := wireDiagnostics(logged, []string{"yama_wireinject"})
+
+	assert.Contains(t, got, "inject wireinject:", "the injector's name is rewritten")
+	assert.Contains(t, got, "/tmp/a/yama_wireinject.go:11:1:", "the path it was reported at is not")
 }
 
 // TestEmitHonorsTags asserts Options.Tags reaches every load a run makes, and
