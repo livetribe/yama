@@ -309,7 +309,11 @@ func newStub(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, build *ast.C
 		yamaName = yamaPkgName
 	}
 
-	s.HasOpts = hasOptsDeclared(s, yamaName)
+	hasOpts, err := hasOptsDeclared(fset, s, yamaName)
+	if err != nil {
+		return nil, err
+	}
+	s.HasOpts = hasOpts
 
 	if err := checkResults(fset, s, yamaName); err != nil {
 		return nil, err
@@ -321,18 +325,28 @@ func newStub(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, build *ast.C
 // hasOptsDeclared reports whether the stub's parameter list ends in a variadic
 // Option parameter. The derived injector takes the stub's parameters without
 // that one, and the emitted constructor forwards it to the builder.
-func hasOptsDeclared(s *Stub, yamaName string) bool {
+//
+// A final parameter that is variadic but not Option is an ordinary graph
+// parameter. A final parameter that is Option but not variadic is a
+// *StubError.
+func hasOptsDeclared(fset *token.FileSet, s *Stub, yamaName string) (bool, error) {
 	if len(s.Params) == 0 {
-		return false
+		return false, nil
 	}
 
 	last := s.Params[len(s.Params)-1]
-	ellipsis, ok := last.Type.(*ast.Ellipsis)
-	if !ok {
-		return false
+
+	if ellipsis, ok := last.Type.(*ast.Ellipsis); ok {
+		return isSelector(ellipsis.Elt, yamaName, optionTypeName), nil
 	}
 
-	return isSelector(ellipsis.Elt, yamaName, optionTypeName)
+	if isSelector(last.Type, yamaName, optionTypeName) {
+		want := fmt.Sprintf("a final parameter of the form opts ...%s.%s", yamaName, optionTypeName)
+		return false, newStubError(fset, s, last.Type.Pos(), "final parameter is %s.%s but not variadic; it needs %s",
+			yamaName, optionTypeName, want)
+	}
+
+	return false, nil
 }
 
 // checkResults requires the three results the emitted constructor returns: the

@@ -58,8 +58,9 @@ func TestLoadStubsAcceptsAStubWithoutOptions(t *testing.T) {
 	requireGo(t)
 
 	cases := map[string][]string{
-		filepath.Join("testdata", "emit", "noopts"):   {"cfg"},
-		filepath.Join("testdata", "stub", "noparams"): nil,
+		filepath.Join("testdata", "emit", "noopts"):             {"cfg"},
+		filepath.Join("testdata", "stub", "noparams"):           nil,
+		filepath.Join("testdata", "emit", "variadicgraphparam"): {"names"},
 	}
 
 	for dir, want := range cases {
@@ -179,7 +180,8 @@ func TestLoadStubsRejectsAnUnusableSignature(t *testing.T) {
 	requireGo(t)
 
 	cases := map[string]string{
-		"badresults": "second result",
+		"badresults":      "second result",
+		"optsnotvariadic": "not variadic",
 	}
 
 	for name, want := range cases {

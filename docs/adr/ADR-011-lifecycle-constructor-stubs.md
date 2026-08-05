@@ -67,13 +67,19 @@ func NewLifecycleWithWriter(w io.Writer, opts ...yama.Option) (*App, yama.Lifecy
 
 // NewCore orchestrates the graph CoreSet builds, and takes no options.
 func NewCore() (*App, yama.Lifecycle, error) {
-	panic(wire.Build(CoreSet))
+	panic(wire.Build(AppSet))
 }
 ```
 
 The trailing `opts ...yama.Option` parameter is optional. A stub that declares it
 gets a constructor that takes options. A stub that omits it gets a constructor
 that takes no options.
+
+A final parameter that is variadic but of another type is an ordinary graph
+parameter, and the constructor it produces takes no options. A final parameter
+of type `yama.Option` that is not variadic is an error. Such a parameter states
+the options convention and misses the ellipsis it needs, and no graph takes an
+`Option` as an input.
 
 A stub may declare the options parameter without a name, or bind it to the blank
 identifier. Yama names it `opts` in the constructor it emits. The name is the
