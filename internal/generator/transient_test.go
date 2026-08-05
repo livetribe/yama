@@ -43,12 +43,21 @@ func wireGenPathsFor(dir string, opts Options) (gen, backup string) {
 	return filepath.Join(dir, name), filepath.Join(dir, backupNameFor(name))
 }
 
-func expectNoWireGenArtifacts(dir string, opts Options) {
+func expectNoTransientArtifacts(dir string, opts Options) {
 	GinkgoHelper()
 
 	gen, backup := wireGenPathsFor(dir, opts)
 	Expect(gen).NotTo(BeAnExistingFile(), "generated output must not be left behind")
 	Expect(backup).NotTo(BeAnExistingFile(), "backup must not be left behind")
+
+	// A run scopes the derived injectors and the lifecycle file on the same terms
+	// as Wire's output, so a directory it left clean holds neither, nor a backup
+	// of either.
+	for _, name := range []string{derivedFileName, lifecycleGenName} {
+		Expect(filepath.Join(dir, name)).NotTo(BeAnExistingFile(), name+" must not be left behind")
+		Expect(filepath.Join(dir, backupNameFor(name))).NotTo(BeAnExistingFile(),
+			backupNameFor(name)+" must not be left behind")
+	}
 }
 
 func skipWithoutGo() {
@@ -59,7 +68,7 @@ func skipWithoutGo() {
 	}
 }
 
-var _ = Describe("Generate", func() {
+var _ = Describe("a run over a package Wire generates for", func() {
 	var (
 		ctx    context.Context
 		dir    string
@@ -96,7 +105,7 @@ var _ = Describe("Generate", func() {
 		})
 
 		It("returns that file untouched and consumes the backup", func() {
-			pkg, err := NewGenerator(opts).Generate(ctx, dir)
+			pkg, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pkg.Injectors).To(HaveLen(1), "the graph came from Wire's output, not the sentinel")
 			Expect(pkg.Injectors[0].Name).To(Equal("InitRoot"))
@@ -115,11 +124,11 @@ var _ = Describe("Generate", func() {
 		})
 
 		It("removes the file it generated and leaves no trace", func() {
-			pkg, err := NewGenerator(opts).Generate(ctx, dir)
+			pkg, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pkg.Injectors).To(HaveLen(1))
 
-			expectNoWireGenArtifacts(dir, opts)
+			expectNoTransientArtifacts(dir, opts)
 		})
 	})
 
@@ -138,7 +147,7 @@ var _ = Describe("Generate", func() {
 			Expect(opts.wireGenName()).To(Equal("foo_wire_gen.go"), "Wire prepends the prefix verbatim")
 			Expect(backup).To(Equal(filepath.Join(dir, ".yama.foo_wire_gen.go")))
 
-			pkg, err := NewGenerator(opts).Generate(ctx, dir)
+			pkg, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pkg.Injectors).To(HaveLen(1))
 			Expect(pkg.Injectors[0].Name).To(Equal("InitRoot"))
@@ -160,14 +169,14 @@ var _ = Describe("Generate", func() {
 		})
 
 		It("still restores the directory", func() {
-			_, err := NewGenerator(opts).Generate(ctx, dir)
+			_, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).To(HaveOccurred(), "badwire has no provider for *Base")
 
-			expectNoWireGenArtifacts(dir, opts)
+			expectNoTransientArtifacts(dir, opts)
 		})
 	})
 
-	// A real package, not a bare temp directory: Generate resolves the package
+	// A real package, not a bare temp directory: a run resolves the package
 	// before opening any scope, exactly as Google Wire loads before generating,
 	// so a directory outside a module fails at resolution and never reaches the
 	// guard under test.
@@ -179,7 +188,7 @@ var _ = Describe("Generate", func() {
 		// That backup holds the caller's original, so proceeding would overwrite
 		// the only copy.
 		It("refuses loudly and touches nothing", func() {
-			_, err := NewGenerator(opts).Generate(ctx, dir)
+			_, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(backupNameFor(opts.wireGenName())))
 			Expect(err.Error()).To(ContainSubstring("interrupted run"))

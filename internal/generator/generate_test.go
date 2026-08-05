@@ -34,18 +34,45 @@ func requireGo(t *testing.T) {
 	}
 }
 
-// TestGenerateRunsWireAndResolvesTypes runs Google Wire for real, loads and
-// type-checks the package, and asserts that every component identifier the parser
-// recorded resolves against the package's type information. This is the
-// node-identity contract the model depends on: it type-checks these exact
-// nodes rather than reparsing.
-func TestGenerateRunsWireAndResolvesTypes(t *testing.T) {
+// generateFixture runs Google Wire over the package in dir and returns the named
+// injectors, parsed and type-checked. The directory is left as it was found,
+// whether or not the run succeeds.
+//
+// Generation proper reads lifecycle stubs, and never an application's own
+// wire.go. The parse and analysis fixtures state their graphs as plain
+// injectors, which keeps each one to the shape under test, so the tests that
+// read them drive the same machinery from here instead.
+func generateFixture(ctx context.Context, g *Generator, dir string, names []string) (pkg *LoadedPackage, err error) {
+	scopes, err := openWireGenScopes([]string{dir}, g.wireGenName)
+	if err != nil {
+		return nil, err
+	}
+
+	defer func() {
+		if restoreErr := scopes.restore(); restoreErr != nil {
+			pkg, err = nil, errors.Join(err, restoreErr)
+		}
+	}()
+
+	if wireErr := g.runWire(ctx, dir, []string{"."}, nil); wireErr != nil {
+		return nil, wireErr
+	}
+
+	return g.LoadInjectors(ctx, dir, names)
+}
+
+// TestLoadResolvesEveryComponentType loads and type-checks a package holding
+// Wire's output, and asserts that every component identifier the parser recorded
+// resolves against the package's type information. This is the node-identity
+// contract the model depends on: it type-checks these exact nodes rather than
+// reparsing.
+func TestLoadResolvesEveryComponentType(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "structcomp")
 
-	pkg, err := NewGenerator(Options{}).Generate(ctx, dir)
+	pkg, err := NewGenerator(Options{}).LoadInjectors(ctx, dir, []string{"InitRoot"})
 	require.NoError(t, err)
 	require.Len(t, pkg.Injectors, 1)
 	require.NotNil(t, pkg.Package)
@@ -132,70 +159,67 @@ func TestWireDiagnosticsRenamesDerivedInjectors(t *testing.T) {
 	assert.Contains(t, got, "yama_wireinject.go", "the transient file name is not a derived injector name")
 }
 
-// TestGenerateHonorsTags asserts Options.Tags reaches both the Wire invocation
-// and Yama's own package load: NewDep is defined only under the "special" build
-// tag, so generation must fail without the tag and succeed, with NewDep's type
-// resolved, with it.
-func TestGenerateHonorsTags(t *testing.T) {
+// TestEmitHonorsTags asserts Options.Tags reaches every load a run makes, and
+// the Wire invocation between them: NewDep is defined only under the "special"
+// build tag, so generation must fail without the tag and succeed with it.
+//
+// The emitted call to NewDep is what proves both ends. Wire resolved the
+// provider to write the call, and Yama's own load resolved its type to analyze
+// the component the call builds.
+func TestEmitHonorsTags(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "tagged")
 
-	_, err := NewGenerator(Options{}).Generate(ctx, dir)
+	_, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"."})
 	require.Error(t, err, "without the tag, NewDep does not exist")
 
-	pkg, err := NewGenerator(Options{Tags: "special"}).Generate(ctx, dir)
+	files, err := NewGenerator(Options{Tags: "special"}).EmitAll(ctx, dir, []string{"."})
 	require.NoError(t, err)
-	require.Len(t, pkg.Injectors, 1)
+	require.Len(t, files, 1)
 
-	inj := pkg.Injectors[0]
-	require.NotEmpty(t, inj.Components)
-
-	dep := inj.Components[0]
-	assert.Equal(t, "dep", dep.Name)
-
-	obj := pkg.Package.TypesInfo.Defs[dep.Ident]
-	require.NotNil(t, obj, "NewDep's result must resolve under the same tag Wire used to generate it")
-	assert.Equal(t, "*l7e.io/yama/v2/internal/generator/testdata/tagged.Dep", obj.Type().String())
+	content := string(files[0].Content)
+	assert.Contains(t, content, "func NewLifecycle(")
+	assert.Contains(t, content, "NewDep()", "the tagged provider reached Wire and Yama's own load alike")
 }
 
-// TestGenerateHonorsHeaderFile asserts a valid -header_file does not break
+// TestEmitHonorsHeaderFile asserts a valid -header_file does not break
 // generation. The header itself is never observed by Yama — wire_gen.go is
 // transient — so this is a smoke test that the flag reaches Wire cleanly, not an
 // assertion on the header's content.
-func TestGenerateHonorsHeaderFile(t *testing.T) {
+func TestEmitHonorsHeaderFile(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "tagged")
 
-	pkg, err := NewGenerator(Options{
+	files, err := NewGenerator(Options{
 		Tags:       "special",
 		HeaderFile: "header.txt",
-	}).Generate(ctx, dir)
+	}).EmitAll(ctx, dir, []string{"."})
 	require.NoError(t, err)
-	require.Len(t, pkg.Injectors, 1)
+	require.Len(t, files, 1)
 }
 
-// TestLoadSelectsWireGenAmongGeneratedFiles asserts Load parses Wire's output and
-// not Yama's own generated file in the same package. The sandbox fixture holds
-// both a wire_gen.go and a lifecycle_gen.go; recovering the injector names Wire
-// emits — not the constructor names the lifecycle file declares — proves Load
-// selected wire_gen.go.
+// TestLoadSelectsWireGenAmongGeneratedFiles asserts a load parses Wire's output
+// and not Yama's own generated file in the same package. The sandbox fixture
+// holds both a wire_gen.go and a lifecycle_gen.go, and only wire_gen.go declares
+// the injectors asked for here, so recovering both proves the load selected it.
 func TestLoadSelectsWireGenAmongGeneratedFiles(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
+	want := []string{"InitializeApp", "InitializeAppWithWriter"}
 
-	pkg, err := NewGenerator(Options{}).Load(ctx, filepath.Join("testdata", "sandbox"))
+	pkg, err := NewGenerator(Options{}).LoadInjectors(ctx, filepath.Join("testdata", "sandbox"), want)
 	require.NoError(t, err)
 
 	var names []string
 	for _, inj := range pkg.Injectors {
 		names = append(names, inj.Name)
 	}
-	assert.ElementsMatch(t, []string{"InitializeApp", "InitializeAppWithWriter"}, names)
+	assert.ElementsMatch(t, want, names)
 }
 
 // TestLoadReportsAPackageThatDoesNotTypeCheck asserts a load reports the
@@ -212,7 +236,7 @@ func TestLoadReportsAPackageThatDoesNotTypeCheck(t *testing.T) {
 
 	dir := filepath.Join("testdata", "typeerror")
 
-	_, err := NewGenerator(Options{}).Load(context.Background(), dir)
+	_, err := NewGenerator(Options{}).LoadInjectors(context.Background(), dir, []string{"InitializeApp"})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "components.go", "the message locates the file that does not compile")
@@ -222,20 +246,19 @@ func TestLoadReportsAPackageThatDoesNotTypeCheck(t *testing.T) {
 	assert.False(t, errors.As(err, &analysisErr), "a compile error is not an analysis failure")
 }
 
-// TestGenerateNoInjectors asserts that a package with no injector function is
-// not a failure: Wire itself silently does nothing there (confirmed against a
-// real invocation — exit 0, no file written), and Generate reports the same
-// non-error outcome via the ErrNoInjectors sentinel rather than the generic
-// file-not-found error Load would otherwise produce.
-func TestGenerateNoInjectors(t *testing.T) {
+// TestEmitSkipsAPackageWithNoStub asserts a package that declares no lifecycle
+// stub is not a failure. Yama generates for the graphs an application asked to
+// orchestrate, and skips the rest in silence, the way Wire itself skips a
+// package holding no injector.
+func TestEmitSkipsAPackageWithNoStub(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
 	dir := filepath.Join("testdata", "multipkg", "noinjector")
 
-	_, err := NewGenerator(Options{}).Generate(ctx, dir)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, ErrNoInjectors), "want ErrNoInjectors, got %v", err)
+	files, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"."})
+	require.NoError(t, err)
+	assert.Empty(t, files)
 }
 
 // TestRunWireGenerateError asserts that a Wire input problem surfaces as a

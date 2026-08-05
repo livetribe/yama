@@ -35,9 +35,10 @@ package-pattern list, and it defaults to `.`.
 
 The project matched the flags on purpose. It decided every other question case
 by case, in whichever file needed an answer. This left a contradiction that
-nobody noticed. `internal/generator/multi.go`'s `GenerateAll` skips a package
-with no injector in silence, matching Wire. Its doc comment states this. A
-test asserts it. The implementation plan's Phase 9 Definition of Done once
+nobody noticed. A sweep skips a package with nothing to generate in silence,
+matching Wire. It reports that package through the `ErrNoStubs` sentinel, which
+the sweep reads and no caller ever sees. A doc comment states this. A test
+asserts it. The implementation plan's Phase 9 Definition of Done once
 required a clear error for the same case instead. This ADR's Decision settles
 which of the two the code keeps. The plan has since been corrected to match
 it. Both were written in good faith. Nothing existed to settle the

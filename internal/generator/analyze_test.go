@@ -18,6 +18,7 @@ import (
 	"context"
 	"go/types"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -33,12 +34,12 @@ var analyzedDirs sync.Map
 // analyzeDir generates and analyzes the fixture package in dir, reusing the
 // result across the tests that read it. A test that mutates what it is given, or
 // that must observe an independent load, loads the package itself.
-func analyzeDir(t *testing.T, dir string) *Analysis {
+func analyzeDir(t *testing.T, dir string, names ...string) *Analysis {
 	t.Helper()
 	requireGo(t)
 
 	load := sync.OnceValues(func() (*Analysis, error) {
-		pkg, err := NewGenerator(Options{}).Generate(context.Background(), dir)
+		pkg, err := generateFixture(context.Background(), NewGenerator(Options{}), dir, names)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +47,11 @@ func analyzeDir(t *testing.T, dir string) *Analysis {
 		return Analyze(pkg)
 	})
 
-	stored, _ := analyzedDirs.LoadOrStore(dir, load)
+	// Keyed by the injectors too: two callers reading different injectors out of
+	// one fixture would otherwise share whichever ran first.
+	key := dir + "\x00" + strings.Join(names, ",")
+
+	stored, _ := analyzedDirs.LoadOrStore(key, load)
 	analyze := stored.(func() (*Analysis, error))
 
 	analysis, err := analyze()
@@ -59,7 +64,8 @@ func analyzeDir(t *testing.T, dir string) *Analysis {
 // rather than generated: its wire_gen.go is hand-massaged and must not be
 // regenerated.
 var sandboxAnalysis = sync.OnceValues(func() (*Analysis, error) {
-	pkg, err := NewGenerator(Options{}).Load(context.Background(), filepath.Join("testdata", "sandbox"))
+	pkg, err := NewGenerator(Options{}).LoadInjectors(context.Background(), filepath.Join("testdata", "sandbox"),
+		[]string{"InitializeApp", "InitializeAppWithWriter"})
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +222,7 @@ func TestFoldSandboxCleanups(t *testing.T) {
 func TestAnalyzeCapabilityCombinations(t *testing.T) {
 	dir := filepath.Join("testdata", "capabilities")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitApp")
 	ia := injectorAnalysis(t, analysis, "InitApp")
 
 	assertLevels(t, [][]string{
@@ -254,7 +260,7 @@ func TestAnalyzeCapabilityCombinations(t *testing.T) {
 func TestAnalyzeReadsTheBoundValuesType(t *testing.T) {
 	dir := filepath.Join("testdata", "capabilities")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitApp")
 	ia := injectorAnalysis(t, analysis, "InitApp")
 
 	gateway := componentByName(t, ia.Injector, "gateway")
@@ -272,7 +278,7 @@ func TestAnalyzeReadsTheBoundValuesType(t *testing.T) {
 func TestAnalyzeWithoutYamaImport(t *testing.T) {
 	dir := filepath.Join("testdata", "noyama")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitApp")
 	ia := injectorAnalysis(t, analysis, "InitApp")
 
 	assertLevels(t, [][]string{{"worker"}}, ia)
@@ -285,7 +291,7 @@ func TestAnalyzeWithoutYamaImport(t *testing.T) {
 func TestAnalyzeCleanupOnlyComponent(t *testing.T) {
 	dir := filepath.Join("testdata", "structcomp")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitRoot")
 	ia := injectorAnalysis(t, analysis, "InitRoot")
 
 	assertLevels(t, [][]string{{"b"}}, ia)
@@ -305,7 +311,7 @@ func TestAnalyzeCleanupOnlyComponent(t *testing.T) {
 func TestFoldCleanupsAtTheirValuesPosition(t *testing.T) {
 	dir := filepath.Join("testdata", "cleanup")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitApp")
 	ia := injectorAnalysis(t, analysis, "InitApp")
 
 	assertLevels(t, [][]string{
@@ -335,7 +341,7 @@ func TestFoldingLeavesTheTypeGraphUnmodified(t *testing.T) {
 	requireGo(t)
 
 	dir := filepath.Join("testdata", "cleanup")
-	pkg, err := NewGenerator(Options{}).Generate(context.Background(), dir)
+	pkg, err := generateFixture(context.Background(), NewGenerator(Options{}), dir, []string{"InitApp"})
 	require.NoError(t, err)
 
 	analysis := analyzePackage(t, pkg)
@@ -381,7 +387,7 @@ func TestFoldingLeavesTheTypeGraphUnmodified(t *testing.T) {
 func TestAnalyzeNoLifecycleComponents(t *testing.T) {
 	dir := filepath.Join("testdata", "minimal")
 
-	analysis := analyzeDir(t, dir)
+	analysis := analyzeDir(t, dir, "InitApp")
 	ia := injectorAnalysis(t, analysis, "InitApp")
 
 	assert.Empty(t, ia.Levels)
@@ -399,7 +405,8 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 
 	var runs [][][]string
 	for range 2 {
-		pkg, err := g.Load(ctx, filepath.Join("testdata", "sandbox"))
+		pkg, err := g.LoadInjectors(ctx, filepath.Join("testdata", "sandbox"),
+			[]string{"InitializeApp", "InitializeAppWithWriter"})
 		require.NoError(t, err)
 
 		analysis := analyzePackage(t, pkg)
@@ -419,7 +426,8 @@ func TestAnalyzeIsDeterministic(t *testing.T) {
 func TestAnalyzeUnresolvedComponentType(t *testing.T) {
 	requireGo(t)
 
-	pkg, err := NewGenerator(Options{}).Load(context.Background(), filepath.Join("testdata", "sandbox"))
+	pkg, err := NewGenerator(Options{}).LoadInjectors(context.Background(),
+		filepath.Join("testdata", "sandbox"), []string{"InitializeApp"})
 	require.NoError(t, err)
 
 	inj := pkg.Injectors[0]

@@ -16,7 +16,7 @@
 // component graph wired end to end, with Wire's wire_gen.go and a
 // lifecycle_gen.go checked in beside it.
 //
-// wire_gen.go is hand-massaged. Tests Load this package rather than running
+// wire_gen.go is hand-massaged. Tests load this package rather than running
 // Wire over it, so regenerating wire_gen.go discards the massaging the parser
 // oracle asserts against. lifecycle_gen.go is present so a load has two
 // generated files to choose between.

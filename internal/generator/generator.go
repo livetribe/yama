@@ -25,10 +25,6 @@ type Generator struct {
 	// wireArgs is the `wire gen` flag list handed to the tool.
 	wireArgs []string
 
-	// discoveryBuildFlags load the packages Wire will generate for, under the same
-	// tags Wire's own loader uses.
-	discoveryBuildFlags []string
-
 	// stubBuildFlags load a package's lifecycle stubs, under the tag that makes
 	// them visible.
 	stubBuildFlags []string
@@ -42,10 +38,9 @@ type Generator struct {
 // each of Wire's flag forms once up front.
 func NewGenerator(opts Options) *Generator {
 	return &Generator{
-		wireGenName:         opts.wireGenName(),
-		wireArgs:            opts.wireArgs(),
-		discoveryBuildFlags: opts.discoveryBuildFlags(),
-		stubBuildFlags:      opts.stubBuildFlags(),
-		parseBuildFlags:     opts.parseBuildFlags(),
+		wireGenName:     opts.wireGenName(),
+		wireArgs:        opts.wireArgs(),
+		stubBuildFlags:  opts.stubBuildFlags(),
+		parseBuildFlags: opts.parseBuildFlags(),
 	}
 }

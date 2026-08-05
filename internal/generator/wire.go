@@ -93,20 +93,6 @@ func (o Options) wireArgs() []string {
 	return args
 }
 
-// discoveryBuildFlags are the build flags for finding the packages Wire will
-// generate for. They mirror Google Wire's own loader byte for byte: Wire always
-// loads under the wireinject tag, appending the caller's tags to it, because an
-// injector only exists under that tag. Yama must resolve the same package set
-// Wire will, so it loads the same way.
-func (o Options) discoveryBuildFlags() []string {
-	tags := wireInjectTag
-	if o.Tags != "" {
-		tags += " " + o.Tags
-	}
-
-	return []string{"-tags=" + tags}
-}
-
 // stubBuildFlags are the build flags for loading a package's lifecycle stubs.
 // A stub only exists under the yamainject tag, and Yama's own emitted file is
 // `//go:build !yamainject`, so one load both sees the stubs and excludes the
@@ -121,9 +107,9 @@ func (o Options) stubBuildFlags() []string {
 }
 
 // parseBuildFlags are the build flags for loading Wire's generated output. They
-// deliberately omit the wireinject tag that discoveryBuildFlags sets: the
-// generated file is `//go:build !wireinject`, so it is invisible under the tag
-// that makes its injector visible.
+// deliberately omit the wireinject tag: the generated file is
+// `//go:build !wireinject`, so it is invisible under the tag that makes the
+// injector it was generated from visible.
 func (o Options) parseBuildFlags() []string {
 	if o.Tags == "" {
 		return nil
@@ -170,14 +156,6 @@ func (e *ToolchainError) Unwrap() error {
 	return e.Err
 }
 
-// ErrNoInjectors reports that a package has no Wire output for Load to find —
-// either because Wire ran and found no injector function to generate (confirmed
-// against a real invocation: Wire treats an injector-free package as a silent
-// no-op, exit 0, no file written) or because Wire has not been run there. It is
-// not a failure; GenerateAll uses it to skip a package in a multi-package sweep
-// the same way Wire itself silently skips one.
-var ErrNoInjectors = errors.New("yama: package has no Wire injector")
-
 // LoadedPackage is a parsed wire_gen.go together with its type-checked package.
 // The parsed injectors reference AST nodes owned by Package.Syntax, so a
 // component's concrete type can be resolved through Package.TypesInfo without
@@ -196,9 +174,9 @@ type LoadedPackage struct {
 // in Wire's own order rather than reordered by a per-package loop.
 //
 // It overwrites any Wire output under those patterns, because that is what
-// invoking Wire does, and it is deliberately unexported: GenerateAll is the only
-// way in, so the destructive step is always wrapped in the scopes that preserve
-// the caller's files.
+// invoking Wire does, and it is deliberately unexported: EmitAll is the only way
+// in, so the destructive step is always wrapped in the scopes that preserve the
+// caller's files.
 //
 // derived names the injectors Yama derived for this run, which is what lets a
 // diagnostic name the stub the application wrote. Pass nil when a run derives
@@ -276,28 +254,18 @@ func wireReported(diagnostic string) bool {
 	return false
 }
 
-// Load type-checks the package in dir and parses Wire's output into the model. It
-// assumes that output already exists; use Generate to run Wire first.
+// LoadInjectors type-checks the package in dir and parses the named injectors out
+// of Wire's output. It assumes that output already exists, and that names holds
+// at least one injector: a load asking for none yields a package with none.
 //
 // Syntax and type information are loaded for the package in dir alone; its
 // dependencies contribute types through export data.
-//
-// Load reads every function in Wire's output. Google Wire copies the
-// non-injector declarations of a wire.go into that output, so a package holding
-// its own wire.go yields functions that are not injectors, and Load fails on the
-// first one it cannot read as one. Use LoadInjectors for such a package.
-func (g *Generator) Load(ctx context.Context, dir string) (*LoadedPackage, error) {
-	return g.load(ctx, dir, nil)
-}
-
-// LoadInjectors is Load over the named injectors alone, for a caller that knows
-// which functions in Wire's output are the ones it asked Wire to generate.
 func (g *Generator) LoadInjectors(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
 	return g.load(ctx, dir, names)
 }
 
-// load type-checks the package in dir and parses Wire's output. A nil names
-// reads every function in that output.
+// load type-checks the package in dir and parses the injectors names holds out
+// of Wire's output.
 func (g *Generator) load(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
@@ -327,10 +295,10 @@ func (g *Generator) load(ctx context.Context, dir string, names []string) (*Load
 
 	wireGen := findWireGen(pkg, fset, name)
 	if wireGen == nil {
-		return nil, fmt.Errorf("%w: %s has no %s", ErrNoInjectors, dir, name)
+		return nil, fmt.Errorf("yama: %s has no %s", dir, name)
 	}
 
-	parsed, err := parseWireGen(fset, wireGen, names)
+	parsed, err := ParseInjectors(fset, wireGen, names)
 	if err != nil {
 		return nil, err
 	}
@@ -375,37 +343,6 @@ func parseWithoutLineDirectives(fset *token.FileSet, filename string, src []byte
 	clean := dropLineDirectives(src)
 
 	return parser.ParseFile(fset, filename, clean, parser.AllErrors|parser.ParseComments)
-}
-
-// Generate runs Google Wire for the single package in dir and parses the result.
-//
-// Wire's output is transient: it exists only while the graph is read, and dir is
-// left as Generate found it. An output file already present is preserved and put
-// back untouched — Generate removes only a file it generated itself — and the
-// directory is restored even when generation or parsing fails.
-//
-// It is GenerateAll over the one package in dir, so both paths run Wire the same
-// way; a relative HeaderFile therefore resolves against dir here.
-func (g *Generator) Generate(ctx context.Context, dir string) (*LoadedPackage, error) {
-	pkgs, err := g.GenerateAll(ctx, dir, []string{"."})
-	if err != nil {
-		return nil, err
-	}
-	if len(pkgs) == 0 {
-		return nil, fmt.Errorf("%w: %s has no %s", ErrNoInjectors, dir, g.wireGenName)
-	}
-
-	return pkgs[0], nil
-}
-
-// parseWireGen reads Wire's output, over every function in it or over the named
-// ones alone.
-func parseWireGen(fset *token.FileSet, wireGen *ast.File, names []string) (*ParsedFile, error) {
-	if names == nil {
-		return extractInjectors(fset, wireGen, nil)
-	}
-
-	return ParseInjectors(fset, wireGen, names)
 }
 
 // findWireGen returns the package's Wire output — the file named name, which

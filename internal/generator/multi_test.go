@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 
@@ -25,15 +26,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// injectorNames extracts and sorts the injector function names across a set of
-// resolved packages, so a spec can assert on package identity regardless of the
-// order Generate happened to visit directories in.
-func injectorNames(pkgs []*LoadedPackage) []string {
+// emittedPkgs is the sorted last element of each emitted file's package path, so
+// a spec can assert on package identity regardless of the order the sweep
+// visited directories in.
+func emittedPkgs(files []*LifecycleFile) []string {
 	var names []string
-	for _, pkg := range pkgs {
-		for _, inj := range pkg.Injectors {
-			names = append(names, inj.Name)
-		}
+	for _, f := range files {
+		names = append(names, path.Base(f.PkgPath))
 	}
 	sort.Strings(names)
 
@@ -51,7 +50,7 @@ var _ = Describe("ResolvePackages", func() {
 	It("expands a pattern to every package directory it matches", func() {
 		dir := filepath.Join("testdata", "multipkg")
 
-		dirs, err := ResolvePackages(ctx, dir, []string{"./..."}, Options{}.discoveryBuildFlags())
+		dirs, err := ResolvePackages(ctx, dir, []string{"./..."}, Options{}.stubBuildFlags())
 		Expect(err).NotTo(HaveOccurred())
 
 		var bases []string
@@ -64,31 +63,23 @@ var _ = Describe("ResolvePackages", func() {
 	It("defaults to \".\" when no patterns are given", func() {
 		dir := filepath.Join("testdata", "multipkg", "a")
 
-		dirs, err := ResolvePackages(ctx, dir, nil, Options{}.discoveryBuildFlags())
+		dirs, err := ResolvePackages(ctx, dir, nil, Options{}.stubBuildFlags())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dirs).To(HaveLen(1))
 	})
 
-	// Google Wire loads under the wireinject tag, because an injector only exists
-	// under it. Resolution must match Wire's package set: a directory missed here
-	// is one Wire writes to without a scope protecting it.
-	It("resolves a package whose injector is only visible under wireinject", func() {
+	// A stub exists only under yamainject. Resolution must match the package set
+	// a run generates for: a directory missed here is one Wire writes to without
+	// a scope protecting it.
+	It("resolves a package whose stub is only visible under yamainject", func() {
 		dir := filepath.Join("testdata", "tagged")
 
-		dirs, err := ResolvePackages(ctx, dir, []string{"."}, Options{Tags: "special"}.discoveryBuildFlags())
+		dirs, err := ResolvePackages(ctx, dir, []string{"."}, Options{Tags: "special"}.stubBuildFlags())
 		Expect(err).NotTo(HaveOccurred())
 		Expect(dirs).To(HaveLen(1))
 	})
 
-	// The caller's tags are appended to wireinject rather than replacing it, so a
-	// tag-gated provider and the injector are visible at once.
-	It("appends the caller's tags to wireinject rather than replacing it", func() {
-		flags := Options{Tags: "special"}.discoveryBuildFlags()
-		Expect(flags).To(Equal([]string{"-tags=wireinject special"}))
-
-		Expect(Options{}.discoveryBuildFlags()).To(Equal([]string{"-tags=wireinject"}),
-			"wireinject is set even with no caller tags")
-
+	It("sets no tag for the load that reads Wire's output", func() {
 		Expect(Options{}.parseBuildFlags()).To(BeEmpty(),
 			"parsing the generated file must not set wireinject: it is //go:build !wireinject")
 	})
@@ -102,7 +93,7 @@ var _ = Describe("ResolvePackages", func() {
 	})
 })
 
-var _ = Describe("GenerateAll", func() {
+var _ = Describe("EmitAll over several packages", func() {
 	var (
 		ctx context.Context
 		dir string
@@ -119,28 +110,29 @@ var _ = Describe("GenerateAll", func() {
 	// transient here and the restore removes them: the run yields nothing rather
 	// than a tree where some packages were regenerated and others were not.
 	It("fails the whole run when Wire fails on any package", func() {
-		pkgs, err := NewGenerator(Options{}).GenerateAll(ctx, dir, []string{"./..."})
+		files, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"./..."})
 
 		Expect(err).To(HaveOccurred(), "bad has no provider for *Base")
 		Expect(err.Error()).To(ContainSubstring("no provider found"))
-		Expect(pkgs).To(BeEmpty())
+		Expect(files).To(BeEmpty())
 	})
 
-	// a and b both have injectors and noinjector has none, so a clean sweep
+	// a and b both declare a stub and noinjector declares none, so a clean sweep
 	// yields the two that do and silently skips the one that does not.
-	It("generates every package with an injector and skips the one without", func() {
-		pkgs, err := NewGenerator(Options{}).GenerateAll(ctx, dir, []string{"./a", "./b", "./noinjector"})
+	It("generates every package with a stub and skips the one without", func() {
+		files, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"./a", "./b", "./noinjector"})
 
 		Expect(err).NotTo(HaveOccurred())
-		Expect(injectorNames(pkgs)).To(Equal([]string{"InitRoot", "InitRoot"}))
+		Expect(emittedPkgs(files)).To(Equal([]string{"a", "b"}),
+			"the package with no stub contributes no file")
 	})
 
 	It("leaves no trace in any of the swept directories", func() {
-		_, err := NewGenerator(Options{}).GenerateAll(ctx, dir, []string{"./..."})
+		_, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"./..."})
 		Expect(err).To(HaveOccurred())
 
 		for _, name := range []string{"a", "b", "noinjector", "bad"} {
-			expectNoWireGenArtifacts(filepath.Join("testdata", "multipkg", name), Options{})
+			expectNoTransientArtifacts(filepath.Join("testdata", "multipkg", name), Options{})
 		}
 	})
 
@@ -154,7 +146,7 @@ var _ = Describe("GenerateAll", func() {
 
 		opts := Options{HeaderFile: "shared_header.txt"}
 
-		_, err := NewGenerator(opts).GenerateAll(ctx, dir, []string{"./a"})
+		_, err := NewGenerator(opts).EmitAll(ctx, dir, []string{"./a"})
 		Expect(err).NotTo(HaveOccurred(),
 			"the header sits beside the invoking directory, not inside package a")
 	})
@@ -166,14 +158,14 @@ var _ = Describe("GenerateAll", func() {
 		Expect(os.WriteFile(stale, []byte("original\n"), 0o600)).To(Succeed())
 		DeferCleanup(func() { os.Remove(stale) })
 
-		_, err := NewGenerator(Options{}).GenerateAll(ctx, dir, []string{"./..."})
+		_, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"./..."})
 		Expect(err).To(HaveOccurred())
 		Expect(err.Error()).To(ContainSubstring("interrupted run"))
 
 		// Directories are scoped in sorted order, so "a" was opened before "b"
 		// refused and must have been rolled back; the rest were never reached.
 		for _, name := range []string{"a", "bad", "noinjector"} {
-			expectNoWireGenArtifacts(filepath.Join(dir, name), Options{})
+			expectNoTransientArtifacts(filepath.Join(dir, name), Options{})
 		}
 
 		gen, _ := wireGenPathsFor(filepath.Join(dir, "b"), Options{})
@@ -184,9 +176,9 @@ var _ = Describe("GenerateAll", func() {
 		Expect(string(content)).To(Equal("original\n"))
 	})
 
-	It("does not surface ErrNoInjectors in the joined error", func() {
-		_, err := NewGenerator(Options{}).GenerateAll(ctx, dir, []string{"./..."})
-		Expect(errors.Is(err, ErrNoInjectors)).To(BeFalse(),
-			"a package with no injector is a silent skip, not a reported failure")
+	It("does not surface ErrNoStubs in the joined error", func() {
+		_, err := NewGenerator(Options{}).EmitAll(ctx, dir, []string{"./..."})
+		Expect(errors.Is(err, ErrNoStubs)).To(BeFalse(),
+			"a package with no stub is a silent skip, not a reported failure")
 	})
 })
