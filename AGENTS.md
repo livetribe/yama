@@ -12,6 +12,9 @@ formatting, everything above and below this section. Use `/code-review`
 against the diff rather than relying on writing-time self-checking alone; a
 dedicated review pass catches drift a single pass of authoring misses.
 
+A change that touches code is not proposed as done until `make check` passes,
+run in the actual working tree, not a scratch copy or worktree.
+
 ## Code comments
 All code comments must follow ASD-STE100 (Simplified Technical English):
 short sentences, one instruction per sentence, active voice, approved
