@@ -604,6 +604,10 @@ func memberCall(m Member) string {
 
 // indent shifts rendered source one tab to the right, so a statement printed at
 // the left margin sits inside a function body.
+//
+// indent adds a tab to every line, including the lines inside a multi-line
+// string literal. writeConstruction writes a value provider itself and does not
+// call indent. Every statement that reaches indent has identifier operands.
 func indent(src string) string {
 	lines := strings.Split(src, "\n")
 	for i, line := range lines {

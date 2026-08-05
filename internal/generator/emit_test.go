@@ -65,6 +65,7 @@ var emitCases = []string{
 	"optsshadow",
 	"pkgscope",
 	"single",
+	"value",
 	"variadicgraphparam",
 	"versioned",
 }
