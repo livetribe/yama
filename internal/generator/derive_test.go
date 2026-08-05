@@ -98,7 +98,7 @@ func TestParseKeepsTheLineDirectiveInEveryOtherFile(t *testing.T) {
 	require.NoError(t, err)
 
 	pos := fset.Position(file.Decls[0].Pos())
-	assert.Equal(t, "/abs/other.go", pos.Filename, "the directive still applies outside wire_gen.go")
+	assert.Equal(t, filepath.Clean("/abs/other.go"), pos.Filename, "the directive still applies outside wire_gen.go")
 }
 
 // TestDropLineDirectivesKeepsEveryOffset asserts blanking a directive changes

@@ -18,6 +18,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,6 +44,10 @@ func TestWriteCommitsTheContent(t *testing.T) {
 // package keeps the permission it carries. An application that set a mode on its
 // generated file deliberately still has that mode after it regenerates.
 func TestWriteKeepsTheCommittedFileMode(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows tracks only a read-only attribute, so it cannot stage a 0600 file to begin with")
+	}
+
 	dir := t.TempDir()
 	target := filepath.Join(dir, lifecycleGenName)
 	require.NoError(t, os.WriteFile(target, []byte("package stale\n"), 0o600))
