@@ -273,7 +273,7 @@ func (g *Generator) load(ctx context.Context, dir string, names []string) (*Load
 		Dir:        dir,
 		Fset:       fset,
 		BuildFlags: g.parseBuildFlags,
-		ParseFile:  parseWithoutLineDirectives,
+		ParseFile:  g.parseWithoutLineDirectives,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo | packages.NeedImports,
 	}
@@ -325,13 +325,17 @@ func packageErrors(pkg *packages.Package) error {
 	return errors.Join(errs...)
 }
 
-// parseWithoutLineDirectives parses one file of the package under load, with
-// every line directive blanked, so a position Yama reports names the file it
-// read. It parses under go/packages' own mode, since the loader type-checks what
-// it returns and reports the errors itself.
+// parseWithoutLineDirectives parses one file of the package under load. In
+// g.wireGenName, every line directive is blanked first, so a position Yama
+// reports out of that file names the file itself. Every other file parses
+// unchanged.
 //
 // A nil src means the loader read nothing, and the file is read here.
-func parseWithoutLineDirectives(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
+func (g *Generator) parseWithoutLineDirectives(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
+	if filepath.Base(filename) != g.wireGenName {
+		return parser.ParseFile(fset, filename, src, parser.AllErrors|parser.ParseComments)
+	}
+
 	if src == nil {
 		content, err := os.ReadFile(filename)
 		if err != nil {

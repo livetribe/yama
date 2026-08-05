@@ -68,8 +68,10 @@ func TestWireDiagnosticNamesTheStub(t *testing.T) {
 func TestParseIgnoresTheLineDirectiveWireCopied(t *testing.T) {
 	src := []byte("package p\n\n//line /abs/lifecycle.go:26:1\nfunc yama_New() {\n\tdep := NewDep()\n}\n")
 
+	g := NewGenerator(Options{})
+
 	fset := token.NewFileSet()
-	file, err := parseWithoutLineDirectives(fset, "wire_gen.go", src)
+	file, err := g.parseWithoutLineDirectives(fset, "wire_gen.go", src)
 	require.NoError(t, err)
 
 	fn, ok := file.Decls[0].(*ast.FuncDecl)
@@ -78,6 +80,25 @@ func TestParseIgnoresTheLineDirectiveWireCopied(t *testing.T) {
 	pos := fset.Position(fn.Body.List[0].Pos())
 	assert.Equal(t, "wire_gen.go", pos.Filename, "the position names the file it was read from")
 	assert.Equal(t, 5, pos.Line, "the position keeps the line it holds in that file")
+}
+
+// TestParseKeepsTheLineDirectiveInEveryOtherFile asserts a line directive
+// survives parsing in any file besides the one Google Wire writes.
+//
+// A package under load may hold a file with its own reason to carry a `//line
+// ` prefixed line. Blanking it there would corrupt content the derived-injector
+// mechanism has no business touching.
+func TestParseKeepsTheLineDirectiveInEveryOtherFile(t *testing.T) {
+	src := []byte("package p\n\n//line /abs/other.go:26:1\nfunc F() {}\n")
+
+	g := NewGenerator(Options{})
+
+	fset := token.NewFileSet()
+	file, err := g.parseWithoutLineDirectives(fset, "components.go", src)
+	require.NoError(t, err)
+
+	pos := fset.Position(file.Decls[0].Pos())
+	assert.Equal(t, "/abs/other.go", pos.Filename, "the directive still applies outside wire_gen.go")
 }
 
 // TestDropLineDirectivesKeepsEveryOffset asserts blanking a directive changes
@@ -92,6 +113,35 @@ func TestDropLineDirectivesKeepsEveryOffset(t *testing.T) {
 	assert.Equal(t, bytes.Count(src, []byte("\n")), bytes.Count(got, []byte("\n")))
 	assert.NotContains(t, string(got), lineDirectivePrefix, "no directive survives")
 	assert.Contains(t, string(got), "var x = 1", "every other line is untouched")
+}
+
+// TestDropLineDirectivesLeavesIndentedCommentsAlone asserts a line carrying the
+// prefix anywhere but column 1 survives.
+//
+// Go honors a directive at column 1 alone, so an indented line that begins with
+// the same characters is ordinary comment text. Blanking it would destroy
+// content while correcting nothing.
+func TestDropLineDirectivesLeavesIndentedCommentsAlone(t *testing.T) {
+	src := []byte("package p\n\nfunc F() {\n\t//line up the columns before printing\n}\n")
+
+	got := dropLineDirectives(src)
+
+	assert.Equal(t, string(src), string(got), "an indented comment is not a directive")
+}
+
+// TestDropLineDirectivesLeavesStringContentAlone asserts a line inside a string
+// literal survives, however it begins.
+//
+// A wire.Value provider carries its value expression into Wire's output, and
+// the emitted constructor reproduces that expression. Blanking a line inside
+// one writes a corrupted value into the committed lifecycle file, which
+// compiles and reports nothing.
+func TestDropLineDirectivesLeavesStringContentAlone(t *testing.T) {
+	src := []byte("package p\n\nvar banner = `usage:\n//line up the columns\ndone`\n")
+
+	got := dropLineDirectives(src)
+
+	assert.Equal(t, string(src), string(got), "string content is not a comment")
 }
 
 // declLine is the 1-based line that path declares name on.

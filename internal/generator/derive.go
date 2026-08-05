@@ -20,6 +20,7 @@ import (
 	"go/ast"
 	"go/format"
 	"go/printer"
+	"go/scanner"
 	"go/token"
 	"os"
 	"path/filepath"
@@ -150,22 +151,45 @@ func writeLineDirective(buf *bytes.Buffer, fset *token.FileSet, stub *Stub) {
 // each component, and the declaration the directive points into holds three
 // lines. Yama's own diagnostics name the file they were read from instead.
 //
+// The source is scanned into tokens, and only a comment token is a candidate.
+// A line inside a string literal can carry the same prefix, and blanking it
+// would corrupt a value the emitted file reproduces.
+//
+// Go honors a directive that begins at column 1 alone, so a comment carrying
+// the prefix anywhere else is ordinary text and is left as it is.
+//
 // Each directive gives way to a comment of the same width, so every offset and
 // every line number in src keeps the value it had.
 func dropLineDirectives(src []byte) []byte {
-	lines := bytes.Split(src, []byte("\n"))
-	for i, line := range lines {
-		trimmed := bytes.TrimLeft(line, " \t")
-		if !bytes.HasPrefix(trimmed, []byte(lineDirectivePrefix)) {
+	fset := token.NewFileSet()
+	file := fset.AddFile("", fset.Base(), len(src))
+
+	var s scanner.Scanner
+	s.Init(file, src, nil, scanner.ScanComments)
+
+	out := bytes.Clone(src)
+	for {
+		pos, tok, lit := s.Scan()
+		if tok == token.EOF {
+			break
+		}
+		if tok != token.COMMENT || !strings.HasPrefix(lit, lineDirectivePrefix) {
 			continue
 		}
 
-		blanked := bytes.Repeat([]byte(" "), len(line))
+		offset := file.Offset(pos)
+		if offset > 0 && out[offset-1] != '\n' {
+			continue
+		}
+
+		blanked := out[offset : offset+len(lit)]
+		for i := range blanked {
+			blanked[i] = ' '
+		}
 		copy(blanked, "//")
-		lines[i] = blanked
 	}
 
-	return bytes.Join(lines, []byte("\n"))
+	return out
 }
 
 // derivedNodes are the parts of a stub that the derived file reproduces: the
