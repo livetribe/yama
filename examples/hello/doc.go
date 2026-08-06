@@ -26,8 +26,6 @@
 // starts and stops, and its provider returns a cleanup function. Server starts,
 // quiesces, and stops.
 //
-// The directive below regenerates lifecycle_gen.go. Run it with
-// `go generate ./...`.
-//
-//go:generate go tool yama
+// lifecycle_gen.go carries its own go:generate directive, so `go generate ./...`
+// regenerates it without a directive here.
 package hello

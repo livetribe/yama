@@ -135,19 +135,20 @@ func TestEmitIgnoresTheApplicationsOwnWireFile(t *testing.T) {
 	assert.NotContains(t, content, "InitializeA", "the application's own injector gets no constructor")
 }
 
-// TestEmittedFileCarriesItsHeaderAndTag asserts the two things the emitted file
-// must open with: the provenance header the Go ecosystem recognizes, and the
-// build constraint that keeps the file out of the load that reads the stubs
-// declaring the same constructors.
+// TestEmittedFileCarriesItsHeaderAndTag asserts the three things the emitted
+// file must open with: the provenance header the Go ecosystem recognizes, the
+// directive that regenerates it, and the build constraint that keeps the file
+// out of the load that reads the stubs declaring the same constructors.
 func TestEmittedFileCarriesItsHeaderAndTag(t *testing.T) {
 	requireGo(t)
 
 	file := emitFixture(t, filepath.Join("testdata", "emit", "chain"))
 
 	lines := strings.Split(string(file.Content), "\n")
-	require.Greater(t, len(lines), 3)
+	require.Greater(t, len(lines), 4)
 	assert.Equal(t, generatedHeader, lines[0])
-	assert.Equal(t, "//go:build !yamainject", lines[2])
+	assert.Equal(t, generateDirective, lines[2])
+	assert.Equal(t, "//go:build !yamainject", lines[3])
 }
 
 // TestEmittedFileIsGofmtClean asserts that re-formatting the emitted file is a
