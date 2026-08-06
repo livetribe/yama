@@ -115,7 +115,7 @@ An application may instead give Yama sole ownership of generation. It then point
 
 Google Wire writes `wire_gen.go` into the package directory. It offers no way to redirect the file. Yama therefore removes `wire_gen.go` after it emits the lifecycle file. The derived-injector file is transient on the same terms. Google Wire generates from a package, so Yama writes the derived injector into the package directory. Yama removes that file with `wire_gen.go`.
 
-Removal is non-destructive for both. Yama removes only a file it wrote. Yama moves aside a file already present under either name before generation, and restores it afterward. Generation therefore never overwrites or deletes a file Yama does not own. Both removals run even when a later step fails, so a failed run leaves the package directory as it found it.
+Removal is non-destructive for `wire_gen.go`, if a file of that name is already present. Yama removes only a `wire_gen.go` it wrote. Yama moves the file it found aside before generation, and restores it afterward. Generation therefore never overwrites or deletes a `wire_gen.go` Yama does not own. Both removals run even when a later step fails, so a failed run leaves the package directory as it found it.
 
 A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift. A change in Yama's parser, its analysis, or its emitter changes the lifecycle file's content, so it surfaces at that diff.
 

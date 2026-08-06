@@ -16,12 +16,14 @@ package generator
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
 	"go/printer"
 	"go/scanner"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,6 +42,9 @@ const derivedFileMode = 0o600
 
 // writeDerivedInjectors writes sp's derived injectors into the package
 // directory. It returns the path of the file it wrote.
+//
+// Yama owns derivedFileName. A run writes over a file already at that path,
+// and removeDerivedInjectors then deletes it.
 func writeDerivedInjectors(sp *StubPackage) (string, error) {
 	content, err := deriveInjectors(sp)
 	if err != nil {
@@ -52,6 +57,23 @@ func writeDerivedInjectors(sp *StubPackage) (string, error) {
 	}
 
 	return target, nil
+}
+
+// removeDerivedInjectors deletes the derived-injector file from every stub
+// package directory. A directory that holds no such file is left alone.
+//
+// Every directory is attempted even after an earlier one fails, and the
+// failures are reported together.
+func removeDerivedInjectors(stubPkgs []*StubPackage) error {
+	var errs []error
+	for _, sp := range stubPkgs {
+		target := filepath.Join(sp.Dir, derivedFileName)
+		if err := os.Remove(target); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			errs = append(errs, fmt.Errorf("yama: removing %s in %s: %w", derivedFileName, sp.Dir, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // placeholderPanicFormat is the message a placeholder constructor panics with.

@@ -73,7 +73,7 @@ The generation pipeline is:
 10. Emit the lifecycle file. Include a provenance header.
 11. Format generated Go code with standard Go formatting.
 
-Generation runs one command and produces one committed file, the lifecycle file. The derived-injector file and `wire_gen.go` are both transient intermediates. Yama removes both after generation. If either file already existed and Yama did not create it, Yama preserves that file. A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift.
+Generation runs one command and produces one committed file, the lifecycle file. The derived-injector file and `wire_gen.go` are both transient intermediates. Yama removes both after generation. If a `wire_gen.go` already existed and Yama did not create it, Yama preserves that file. Yama owns the derived-injector file's name and writes over a file already at that name. A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift.
 
 Generation failures are build-time failures. Examples include:
 
@@ -361,9 +361,10 @@ reads nor requires one.
 
 Generation writes two transient files into the package directory and removes
 both: the derived-injector file, behind `//go:build wireinject`, and Google
-Wire's `wire_gen.go`. Neither is committed. Removal is non-destructive, so a file
-of either name that Yama did not create is preserved and restored (ADR-008,
-ADR-011).
+Wire's `wire_gen.go`. Neither is committed. Removal of `wire_gen.go` is
+non-destructive, so a file of that name that Yama did not create is preserved and
+restored (ADR-008). Yama owns the derived-injector file's name. A run writes over
+a file already at that name (ADR-011).
 
 The derived-injector file carries two declarations per lifecycle stub. One is
 the injector Google Wire generates a body for. The other declares the

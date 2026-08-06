@@ -819,15 +819,17 @@ namespace. Each derived injector's parameters are the stub's parameters,
 minus the trailing `opts ...yama.Option`. Each derived injector's results
 replace `yama.Lifecycle` with `func()`. Each derived injector's body is the
 stub's body, copied unchanged. The generator writes the derived injectors to
-a transient `wireinject`-tagged file. It removes that file together with
-`wire_gen.go`. `internal/generator/transient.go` already generalizes to a
-second transient filename, so this reuses that mechanism. Wire diagnostics
+a transient `wireinject`-tagged file. Yama owns that filename. A run writes
+over a file already at that name, and removes the file at the end. That
+removal is the generator's own. It does not use the
+`internal/generator/transient.go` scope, which covers `wire_gen.go`. Wire
+diagnostics
 land on the derived file, not the stub. Before the generator reports a
 diagnostic, it maps the diagnostic's position back to the stub.
 
 **Files/modules touched.** `internal/generator/emit*.go`; new file(s) for
-stub discovery and derivation; `internal/generator/transient.go` (adds the
-second transient name); the fixture corpus at
+stub discovery and derivation; `internal/generator/transient.go` (scopes the
+committed lifecycle file); the fixture corpus at
 `…/testdata/<case>/want/lifecycle_gen.go`.
 
 **Emission mechanism (this phase's choice).** The emitter assembles the file

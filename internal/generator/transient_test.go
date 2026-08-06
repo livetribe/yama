@@ -50,14 +50,19 @@ func expectNoTransientArtifacts(dir string, opts Options) {
 	Expect(gen).NotTo(BeAnExistingFile(), "generated output must not be left behind")
 	Expect(backup).NotTo(BeAnExistingFile(), "backup must not be left behind")
 
-	// A run scopes the derived injectors and the lifecycle file on the same terms
-	// as Wire's output, so a directory it left clean holds neither, nor a backup
-	// of either.
-	for _, name := range []string{derivedFileName, lifecycleGenName} {
-		Expect(filepath.Join(dir, name)).NotTo(BeAnExistingFile(), name+" must not be left behind")
-		Expect(filepath.Join(dir, backupNameFor(name))).NotTo(BeAnExistingFile(),
-			backupNameFor(name)+" must not be left behind")
-	}
+	// A run scopes the lifecycle file on the same terms as Wire's output, so a
+	// directory it left clean holds neither it nor its backup.
+	Expect(filepath.Join(dir, lifecycleGenName)).NotTo(BeAnExistingFile(),
+		lifecycleGenName+" must not be left behind")
+	Expect(filepath.Join(dir, backupNameFor(lifecycleGenName))).NotTo(BeAnExistingFile(),
+		backupNameFor(lifecycleGenName)+" must not be left behind")
+
+	// The derived injectors have no scope. A run removes that file, and never
+	// creates a backup of it.
+	Expect(filepath.Join(dir, derivedFileName)).NotTo(BeAnExistingFile(),
+		derivedFileName+" must not be left behind")
+	Expect(filepath.Join(dir, backupNameFor(derivedFileName))).NotTo(BeAnExistingFile(),
+		backupNameFor(derivedFileName)+" must never be created")
 }
 
 func skipWithoutGo() {

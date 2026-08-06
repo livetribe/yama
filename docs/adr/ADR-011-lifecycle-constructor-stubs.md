@@ -115,6 +115,10 @@ mechanical:
 The derived injector file and Wire's `wire_gen.go` are both transient. Yama
 removes both. `lifecycle_gen.go` is the only committed output.
 
+Yama owns the derived injector file's name. A run writes over a file already at
+that name, and removes the file at the end. Wire's output is different. Yama
+moves a `wire_gen.go` it did not write aside, and puts the file back (ADR-008).
+
 ### The emitted file carries one negative tag
 
 Yama emits `lifecycle_gen.go` guarded by `//go:build !yamainject`. That tag
@@ -157,8 +161,8 @@ tag. Yama depends on this behaviour of Google Wire. The end-to-end tests over a
 package with a caller are the only check on it.
 
 Yama scopes the committed `lifecycle_gen.go` for the run. It moves the file aside
-before Wire runs. It puts the file back afterward, on the same terms as the two
-transient files. The committed file and the placeholder declare the same
+before Wire runs. It puts the file back afterward, on the same terms as Wire's
+output. The committed file and the placeholder declare the same
 constructors, and the scope keeps the two apart.
 
 The scope covers a second hazard. A committed `lifecycle_gen.go` can stop
@@ -244,9 +248,9 @@ new tag name, not a new file convention.
 
 ### Negative
 
-* Yama writes a second transient file into the package directory. Generation must
-  preserve and restore that filename with the same care it gives `wire_gen.go`,
-  so a run never destroys a file Yama does not own.
+* Yama writes a second transient file into the package directory. Yama owns that
+  filename. A run writes over a file already at that name, and removes the file
+  at the end. An application cannot keep a file of that name.
 * Yama depends on Google Wire copying a non-injector declaration into
   `wire_gen.go`. Yama tolerated that behaviour before and now requires it. No
   unit test pins it. The end-to-end tests over a package with a caller fail if it

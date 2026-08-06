@@ -186,8 +186,7 @@ func TestDeriveInjectorsMirrorsTheStub(t *testing.T) {
 }
 
 // TestDerivedFileIsTransient asserts a generation run leaves neither transient
-// file behind, and leaves a file of either name that it did not create as it
-// found it.
+// file behind, and creates no backup of the derived-injector file.
 func TestDerivedFileIsTransient(t *testing.T) {
 	requireGo(t)
 
@@ -200,6 +199,27 @@ func TestDerivedFileIsTransient(t *testing.T) {
 		_, statErr := os.Stat(filepath.Join(dir, name))
 		assert.True(t, os.IsNotExist(statErr), "%s survived the run", name)
 	}
+}
+
+// TestEmitOverwritesAStrandedDerivedFile asserts a derived-injector file left by
+// an interrupted run does not stop the next one. Yama owns that filename.
+func TestEmitOverwritesAStrandedDerivedFile(t *testing.T) {
+	requireGo(t)
+
+	dir := filepath.Join("testdata", "emit", "chain")
+	path := filepath.Join(dir, derivedFileName)
+	stranded := []byte("//go:build wireinject\n\npackage chain\n\nfunc Stranded() {}\n")
+
+	require.NoError(t, os.WriteFile(path, stranded, 0o600))
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+	})
+
+	files, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
+	require.NoError(t, err)
+	require.Len(t, files, 1)
+
+	assert.NoFileExists(t, path, "the stranded file is removed with the run's own")
 }
 
 // TestEmitRegeneratesOverAStaleLifecycleFile asserts a committed lifecycle file
@@ -252,29 +272,6 @@ func TestDeriveKeepsAnImportWhosePathDoesNotNameIt(t *testing.T) {
 	src := string(derived)
 	assert.Contains(t, src, `thing "l7e.io/yama/v2/internal/generator/testdata/emit/versioned/v2"`)
 	assert.Contains(t, src, "func yama_NewLifecycle(c *thing.Client)")
-}
-
-// TestEmitPreservesAnExistingDerivedFile asserts the transient name is claimed
-// non-destructively: a file an application already keeps under that name is put
-// back untouched.
-func TestEmitPreservesAnExistingDerivedFile(t *testing.T) {
-	requireGo(t)
-
-	dir := filepath.Join("testdata", "emit", "chain")
-	path := filepath.Join(dir, derivedFileName)
-	original := []byte("//go:build never\n\npackage chain\n")
-
-	require.NoError(t, os.WriteFile(path, original, 0o600))
-	t.Cleanup(func() {
-		_ = os.Remove(path)
-	})
-
-	_, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
-	require.NoError(t, err)
-
-	preserved, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, string(original), string(preserved))
 }
 
 // TestDeriveWritesAPlaceholderPerStub asserts the derived file declares the

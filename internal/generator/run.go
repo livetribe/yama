@@ -31,9 +31,11 @@ import (
 // writing them, so a caller decides what to do with a package whose committed
 // file already matches.
 //
-// Both transient files are scoped before Wire runs and removed after, so a file
-// of either name that Yama did not create is preserved and restored. The
-// committed lifecycle file is scoped with them, and put back afterward.
+// Wire's output is scoped before Wire runs and removed after, so a file of that
+// name that Yama did not create is preserved and restored. The committed
+// lifecycle file is scoped with it, and put back afterward. The derived file has
+// no scope. Yama owns that name, writes over a file already at that path, and
+// removes the file after the run.
 //
 // The derived file declares each constructor beside its injector. The committed
 // lifecycle file declares the same constructors, and the two are never visible
@@ -54,7 +56,7 @@ func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) 
 		dirs[i] = sp.Dir
 	}
 
-	scopes, err := openWireGenScopes(dirs, g.wireGenName, derivedFileName, lifecycleGenName)
+	scopes, err := openWireGenScopes(dirs, g.wireGenName, lifecycleGenName)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +67,13 @@ func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) 
 		// a caller must not lose behind a Wire diagnostic.
 		if restoreErr := scopes.restore(); restoreErr != nil {
 			files, err = nil, errors.Join(err, restoreErr)
+		}
+	}()
+
+	// Covers every stub package, including one whose write failed partway.
+	defer func() {
+		if removeErr := removeDerivedInjectors(stubPkgs); removeErr != nil {
+			files, err = nil, errors.Join(err, removeErr)
 		}
 	}()
 
