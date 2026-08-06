@@ -20,6 +20,21 @@ import (
 	"path/filepath"
 )
 
+// LifecycleFile is one package's emitted lifecycle file, ready to be written.
+//
+// Errs holds what went wrong while rendering it, and Content is set whether or
+// not Errs is empty. A caller writes the content, reports the errors, and fails
+// the run, which is how Google Wire reports the same kind of failure: the
+// unreadable artifact is the diagnostic, so it reaches the disk rather than
+// being discarded with the error.
+type LifecycleFile struct {
+	Dir     string
+	PkgPath string
+	Name    string
+	Content []byte
+	Errs    []error
+}
+
 // lifecycleFileMode is the permission a write requests for the committed
 // lifecycle file. The umask applies to it, and a file already in the package
 // keeps the permission it carries.
