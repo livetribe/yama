@@ -30,10 +30,6 @@ import (
 // which is what lets it sit beside the regenerated one without colliding.
 const backupNamePrefix = ".yama."
 
-// backupFileMode is the permission for the placeholder that claims the backup
-// name. A preserved original keeps its own mode, since it is moved, not copied.
-const backupFileMode = 0o600
-
 // backupNameFor is where a Wire output named name is held while Yama regenerates.
 func backupNameFor(name string) string {
 	return backupNamePrefix + name
@@ -47,27 +43,28 @@ func backupNameFor(name string) string {
 // and put back by restore. Only a file that appeared while the scope was open —
 // Yama's own — is ever removed.
 //
-// The scope also serializes generation on a directory: creating the backup name is
-// the exclusive claim, so a second run cannot interleave and overwrite the first
-// one's preserved original.
+// A directory that holds no file of that name gets no backup. A backup is taken
+// only to hold a caller's file, so one already there is a caller's file an earlier
+// run did not put back, and this scope's restore puts it back.
 type wireGenScope struct {
 	dir        string
 	name       string
 	backupName string
 	path       string
 	backup     string
-	preserved  bool
 }
 
 // openWireGenScope prepares dir for a transient Wire output named name, moving any
 // existing file of that name aside.
 //
-// Claiming the backup name is exclusive and atomic. Testing for the name and then
-// renaming onto it would be a check-then-act race: os.Rename replaces its
-// destination silently, so two concurrent runs could each move a file onto the same
-// backup and destroy the original. The claim fails instead, which also catches a
-// backup stranded by an earlier interrupted run.
-func openWireGenScope(dir, name string) (scope *wireGenScope, err error) {
+// A backup already in dir holds a caller's file. The scope keeps it and removes
+// any file at the name it came from, which an earlier run generated and did not
+// remove. Leaving that file would put a stale copy in the load that Google Wire
+// and Yama both run over the package.
+//
+// Otherwise a file of that name is moved onto the backup name, and a directory
+// with no such file gets no backup at all.
+func openWireGenScope(dir, name string) (*wireGenScope, error) {
 	s := &wireGenScope{
 		dir:        dir,
 		name:       name,
@@ -76,46 +73,53 @@ func openWireGenScope(dir, name string) (scope *wireGenScope, err error) {
 	s.path = filepath.Join(dir, s.name)
 	s.backup = filepath.Join(dir, s.backupName)
 
-	claim, err := os.OpenFile(s.backup, os.O_CREATE|os.O_EXCL|os.O_WRONLY, backupFileMode)
-	if err != nil {
-		if errors.Is(err, fs.ErrExist) {
-			return nil, fmt.Errorf("yama: %s already exists in %s, from a concurrent or interrupted run; "+
-				"if it holds your original %s restore it, otherwise remove it, then regenerate",
-				s.backupName, dir, s.name)
+	_, backupErr := os.Lstat(s.backup)
+	if backupErr == nil {
+		if err := os.Remove(s.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("yama: removing generated %s in %s: %w", s.name, dir, err)
 		}
 
-		return nil, fmt.Errorf("yama: claiming %s in %s: %w", s.backupName, dir, err)
-	}
-
-	// Armed only now that the claim is ours: releasing it above would delete a
-	// backup another run holds, which may be the caller's only copy.
-	defer func() {
-		if err != nil {
-			_ = os.Remove(s.backup)
-		}
-	}()
-
-	if err := claim.Close(); err != nil {
-		return nil, fmt.Errorf("yama: claiming %s in %s: %w", s.backupName, dir, err)
-	}
-
-	_, statErr := os.Lstat(s.path)
-	if statErr != nil {
-		if !errors.Is(statErr, fs.ErrNotExist) {
-			return nil, fmt.Errorf("yama: inspecting %s in %s: %w", s.name, dir, statErr)
-		}
-
-		// Nothing of that name to preserve; the claim alone holds the slot.
 		return s, nil
 	}
+	if !errors.Is(backupErr, fs.ErrNotExist) {
+		return nil, fmt.Errorf("yama: inspecting %s in %s: %w", s.backupName, dir, backupErr)
+	}
 
-	// Replaces the placeholder this scope just claimed, which nothing else holds.
 	if err := os.Rename(s.path, s.backup); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			// Nothing of that name to preserve.
+			return s, nil
+		}
+
 		return nil, fmt.Errorf("yama: preserving existing %s in %s: %w", s.name, dir, err)
 	}
-	s.preserved = true
 
 	return s, nil
+}
+
+// putBackInterrupted moves back what an earlier run moved aside and did not put
+// back, over every directory in dirs, for every transient file name.
+//
+// A directory that holds no backup is left as it is. Only a move back happens
+// here, never a move aside, so a directory this run goes on to skip is never left
+// short of a file it holds.
+//
+// The rename replaces the file at the name it moves back to, which an earlier run
+// generated after it vacated that name.
+func putBackInterrupted(dirs []string, names ...string) error {
+	var errs []error
+	for _, dir := range dirs {
+		for _, name := range names {
+			path := filepath.Join(dir, name)
+			backup := filepath.Join(dir, backupNameFor(name))
+
+			if err := os.Rename(backup, path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				errs = append(errs, fmt.Errorf("yama: putting %s back in %s: %w", name, dir, err))
+			}
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // wireGenScopes is a set of scopes held together, one per transient file a
@@ -157,34 +161,25 @@ func (s wireGenScopes) restore() error {
 	return errors.Join(errs...)
 }
 
-// restore returns the directory to the state openWireGenScope found it in: the
-// file generated inside the scope is removed, and any preserved original is put
-// back. It releases the claim either way.
+// restore returns the directory to the state openWireGenScope found it in.
 //
-// Every step is attempted even after an earlier one fails, and the failures are
-// reported together: giving up early would strand the original under the backup
-// name when putting it back would still have succeeded.
+// A backup is moved back to the name it came from. The rename replaces whatever
+// occupies that name, which is the file generated inside the scope, so the two
+// steps are one. A scope over a directory that held no file of that name has no
+// backup, and removes the generated file instead.
 func (s *wireGenScope) restore() error {
-	var errs []error
+	err := os.Rename(s.backup, s.path)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("yama: restoring original %s in %s: %w; it is preserved at %s",
+			s.name, s.dir, err, s.backupName)
+	}
 
 	if err := os.Remove(s.path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		errs = append(errs, fmt.Errorf("yama: removing generated %s in %s: %w", s.name, s.dir, err))
+		return fmt.Errorf("yama: removing generated %s in %s: %w", s.name, s.dir, err)
 	}
 
-	if !s.preserved {
-		if err := os.Remove(s.backup); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			errs = append(errs, fmt.Errorf("yama: releasing %s in %s: %w", s.backupName, s.dir, err))
-		}
-
-		return errors.Join(errs...)
-	}
-
-	// Attempted even if the removal above failed: the rename replaces whatever
-	// occupies the slot, so the caller's original wins over a stray generated file.
-	if err := os.Rename(s.backup, s.path); err != nil {
-		errs = append(errs, fmt.Errorf("yama: restoring original %s in %s: %w; it is preserved at %s",
-			s.name, s.dir, err, s.backupName))
-	}
-
-	return errors.Join(errs...)
+	return nil
 }

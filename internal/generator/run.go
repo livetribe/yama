@@ -37,13 +37,29 @@ import (
 // no scope. Yama owns that name, writes over a file already at that path, and
 // removes the file after the run.
 //
+// A run puts back what an earlier run moved aside and left, over every package it
+// resolves, before it reads any stub. It never moves a file aside at that point,
+// so a package it goes on to skip keeps every file it holds.
+//
 // The derived file declares each constructor beside its injector. The committed
 // lifecycle file declares the same constructors, and the two are never visible
 // together. Scoping also keeps a stale committed copy out of both Wire's load
 // and Yama's own. A package that declares no stub is skipped in silence, the way
 // Wire skips a package with no injector.
 func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) (files []*LifecycleFile, err error) {
-	stubPkgs, err := g.loadStubPackages(ctx, dir, patterns)
+	resolved, err := ResolvePackages(ctx, dir, patterns, g.stubBuildFlags)
+	if err != nil {
+		return nil, err
+	}
+
+	// Runs before the load below, which type-checks each package. An earlier run
+	// that ended without restoring left Wire's output at a name it had already
+	// vacated, and that output declares the constructors the stubs declare.
+	if repairErr := putBackInterrupted(resolved, g.wireGenName, lifecycleGenName); repairErr != nil {
+		return nil, repairErr
+	}
+
+	stubPkgs, err := g.loadStubPackages(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -119,14 +135,9 @@ func derivedNames(stubPkgs []*StubPackage) []string {
 	return names
 }
 
-// loadStubPackages reads the lifecycle stubs of every package under patterns,
-// skipping the packages that declare none.
-func (g *Generator) loadStubPackages(ctx context.Context, dir string, patterns []string) ([]*StubPackage, error) {
-	dirs, err := ResolvePackages(ctx, dir, patterns, g.stubBuildFlags)
-	if err != nil {
-		return nil, err
-	}
-
+// loadStubPackages reads the lifecycle stubs of every package in dirs, skipping
+// the packages that declare none.
+func (g *Generator) loadStubPackages(ctx context.Context, dirs []string) ([]*StubPackage, error) {
 	var stubPkgs []*StubPackage
 	for _, d := range dirs {
 		sp, err := g.LoadStubs(ctx, d)

@@ -1048,9 +1048,13 @@ mismatch, a gofmt version mismatch, or OS line-ending differences.
     things. `Start` returns only `ErrStartFailed` to callers. `Stop`
     returns nothing. Component errors are visible only through
     interceptors.
-  - The README documents four things: the `go:generate` line; the `(app,
-    lifecycle, err)` pattern; `RunUntilSignal` as the typical `main`; and
-    the boundary-component options.
+  - The README documents five things: the `go:generate` line; the `(app,
+    lifecycle, err)` pattern; `RunUntilSignal` as the typical `main`; the
+    boundary-component options; and what generation does to the package
+    directory — which files are transient, that a committed `wire_gen.go`
+    is moved aside and put back, that an interrupted run can leave
+    `.yama.wire_gen.go` holding it, and that two runs over one directory
+    at once can delete it (ADR-008).
   - Large-graph generation is exercised (PRD §9, "Generated Code
     Complexity"). The example app used elsewhere in this phase is
     deliberately minimal. It does not exercise this named project risk on

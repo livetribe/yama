@@ -20,7 +20,7 @@ with the earlier `v0.x` signal-watcher. v2 is under active construction: the
 public API surface is defined and frozen, but the code generator and runtime
 are still being built.
 
-## Usage
+## Setup
 
 Generation is one command. Yama runs Google Wire for you, reads the injector
 Wire produces, and writes `lifecycle_gen.go`.
@@ -35,6 +35,8 @@ tool (
 	l7e.io/yama/v2/cmd/yama
 )
 ```
+
+## Declaring a lifecycle
 
 Declare the graph with ordinary Wire providers. Then add a lifecycle stub file,
 behind the `yamainject` build tag, naming each constructor the application
@@ -59,6 +61,8 @@ stub file:
 //go:generate go tool yama
 ```
 
+## Generating
+
 Then generate:
 
 ```bash
@@ -67,6 +71,8 @@ go generate ./...
 
 Yama's flags and package-pattern argument are `wire gen`'s own, so a directive
 that already names Wire's command carries over by changing the command it names.
+
+## Running
 
 The application calls the generated constructor and runs the lifecycle it
 returns:
@@ -82,14 +88,55 @@ if err := yama.RunUntilSignal(lc); err != nil {
 }
 ```
 
-`lifecycle_gen.go` is the only file generation commits. Wire's `wire_gen.go`
-and Yama's derived-injector file are transient intermediates, written into the
-package directory and removed afterward. A file of either name that Yama did
-not create is moved aside for the run and restored, so an application that
-commits its own `wire_gen.go` keeps it.
+## Files in the package directory
+
+`lifecycle_gen.go` is the only file generation commits. A run also writes two
+transient files into the package directory and removes both before it returns:
+
+| File | Owner | Committed |
+|---|---|---|
+| `lifecycle_gen.go` | Yama | yes |
+| `wire_gen.go` | Wire | no, transient |
+| `yama_wireinject.go` | Yama | no, transient |
+
+A run does not overwrite a `wire_gen.go` that it did not create. It moves that
+file to `.yama.wire_gen.go` for the run, and puts it back at the end. An
+application that commits its own Wire output therefore keeps it. A run moves a
+committed `lifecycle_gen.go` to `.yama.lifecycle_gen.go` the same way.
+
+Yama owns the name `yama_wireinject.go`. A run writes over a file already at
+that name. Do not keep a file of your own there.
+
+Do not start two runs over one package directory at the same time. Yama does
+not lock the directory. The second run's cleanup can delete a `wire_gen.go`
+that the first run put back.
+
+## Recovering from an interrupted run
+
+A run that stops before it completes does not reach its cleanup. It can leave
+these files behind:
+
+* `.yama.wire_gen.go` — your `wire_gen.go`, if you committed one.
+* `.yama.lifecycle_gen.go` — your committed `lifecycle_gen.go`.
+* `wire_gen.go` — Wire's output from that run, not yours.
+* `yama_wireinject.go` — Yama's derived injectors.
+
+Generate again. The next run repairs the directory before it reads anything:
+
+```bash
+go generate ./...
+```
+
+It puts both `.yama.` files back under their original names first, and discards
+the output the interrupted run left. You lose nothing. Yama creates a `.yama.`
+file only to hold a file of yours.
+
+## Example
 
 [`examples/hello`](examples/hello) is a working application built this way. It
 is its own Go module, so it reaches Yama the way an application does.
+
+## Design
 
 For the design, see:
 

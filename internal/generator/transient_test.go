@@ -104,12 +104,17 @@ var _ = Describe("a run over a package Wire generates for", func() {
 		}
 	})
 
-	Context("when the package already holds a Wire output", func() {
-		JustBeforeEach(func() {
-			Expect(os.WriteFile(gen, []byte(sentinelWireGen), 0o600)).To(Succeed())
-		})
+	// Both starting points end the same way. The second is the state an
+	// interrupted run leaves: it moved the caller's file aside and never put it
+	// back.
+	DescribeTable("returning a Wire output the package already holds",
+		func(startUnderBackupName bool) {
+			start := gen
+			if startUnderBackupName {
+				start = backup
+			}
+			Expect(os.WriteFile(start, []byte(sentinelWireGen), 0o600)).To(Succeed())
 
-		It("returns that file untouched and consumes the backup", func() {
 			pkg, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
 			Expect(err).NotTo(HaveOccurred())
 			Expect(pkg.Injectors).To(HaveLen(1), "the graph came from Wire's output, not the sentinel")
@@ -120,8 +125,10 @@ var _ = Describe("a run over a package Wire generates for", func() {
 			Expect(string(content)).To(Equal(sentinelWireGen), "the caller's file must survive unchanged")
 
 			Expect(backup).NotTo(BeAnExistingFile(), "the backup must be consumed by the restore")
-		})
-	})
+		},
+		Entry("from its own name", false),
+		Entry("from the backup name an interrupted run left it under", true),
+	)
 
 	Context("when the package holds no Wire output", func() {
 		JustBeforeEach(func() {
@@ -181,28 +188,6 @@ var _ = Describe("a run over a package Wire generates for", func() {
 		})
 	})
 
-	// A real package, not a bare temp directory: a run resolves the package
-	// before opening any scope, exactly as Google Wire loads before generating,
-	// so a directory outside a module fails at resolution and never reaches the
-	// guard under test.
-	Context("when a backup from an interrupted run is present", func() {
-		JustBeforeEach(func() {
-			Expect(os.WriteFile(backup, []byte("original\n"), 0o600)).To(Succeed())
-		})
-
-		// That backup holds the caller's original, so proceeding would overwrite
-		// the only copy.
-		It("refuses loudly and touches nothing", func() {
-			_, err := generateFixture(ctx, NewGenerator(opts), dir, []string{"InitRoot"})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(backupNameFor(opts.wireGenName())))
-			Expect(err.Error()).To(ContainSubstring("interrupted run"))
-
-			content, err := os.ReadFile(backup)
-			Expect(err).NotTo(HaveOccurred(), "the stale backup must be left untouched")
-			Expect(string(content)).To(Equal("original\n"))
-		})
-	})
 })
 
 var _ = Describe("wireGenScope", func() {
@@ -219,68 +204,116 @@ var _ = Describe("wireGenScope", func() {
 		gen, backup = wireGenPathsFor(dir, Options{})
 	})
 
-	Context("when a file of that name already exists", func() {
-		BeforeEach(func() {
-			Expect(os.WriteFile(gen, []byte("original\n"), 0o600)).To(Succeed())
-		})
+	// Wire writing its own output into the slot the scope prepared.
+	generate := func() {
+		GinkgoHelper()
 
-		It("moves it aside and puts it back verbatim", func() {
+		Expect(os.WriteFile(gen, []byte("generated\n"), 0o600)).To(Succeed())
+	}
+
+	Context("when neither the file nor a backup exists", func() {
+		It("takes no backup, and removes what it generated", func() {
 			scope, err := openWireGenScope(dir, name)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scope.preserved).To(BeTrue())
-			Expect(gen).NotTo(BeAnExistingFile(), "the original is moved aside for the duration")
-			Expect(backup).To(BeAnExistingFile())
+			Expect(backup).NotTo(BeAnExistingFile(), "there is no file to hold")
 
-			// Stand in for Wire writing its own output into the vacated slot.
-			Expect(os.WriteFile(gen, []byte("generated\n"), 0o600)).To(Succeed())
-			Expect(scope.restore()).To(Succeed())
-
-			content, err := os.ReadFile(gen)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(content)).To(Equal("original\n"))
-			Expect(backup).NotTo(BeAnExistingFile())
-		})
-
-		// Claiming the backup name is the serialization point: without it, two runs
-		// would each rename a file onto the same backup and os.Rename would silently
-		// replace the first one's preserved original.
-		It("turns away a second scope over the same directory", func() {
-			first, err := openWireGenScope(dir, name)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(first.preserved).To(BeTrue())
-
-			second, err := openWireGenScope(dir, name)
-			Expect(err).To(HaveOccurred())
-			Expect(second).To(BeNil())
-			Expect(err.Error()).To(ContainSubstring(backupNameFor(name)))
-
-			Expect(first.restore()).To(Succeed())
-
-			content, err := os.ReadFile(gen)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(content)).To(Equal("original\n"), "the first scope's original survives the second attempt")
-		})
-	})
-
-	Context("when no file of that name exists", func() {
-		// The placeholder must not masquerade as a stranded backup and block the
-		// next run.
-		It("releases the claim it took", func() {
-			scope, err := openWireGenScope(dir, name)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(scope.preserved).To(BeFalse())
-			Expect(backup).To(BeAnExistingFile(), "the claim is held for the life of the scope")
-
-			Expect(os.WriteFile(gen, []byte("generated\n"), 0o600)).To(Succeed())
+			generate()
 			Expect(scope.restore()).To(Succeed())
 
 			Expect(gen).NotTo(BeAnExistingFile())
 			Expect(backup).NotTo(BeAnExistingFile())
-
-			next, err := openWireGenScope(dir, name)
-			Expect(err).NotTo(HaveOccurred(), "the directory is usable again")
-			Expect(next.restore()).To(Succeed())
 		})
+	})
+
+	Context("when the file exists and no backup does", func() {
+		BeforeEach(func() {
+			Expect(os.WriteFile(gen, []byte("original\n"), 0o600)).To(Succeed())
+		})
+
+		It("backs it up, and puts it back verbatim", func() {
+			scope, err := openWireGenScope(dir, name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(gen).NotTo(BeAnExistingFile(), "the file is moved aside for the duration")
+			Expect(backup).To(BeAnExistingFile())
+
+			generate()
+			Expect(scope.restore()).To(Succeed())
+
+			Expect(os.ReadFile(gen)).To(Equal([]byte("original\n")))
+			Expect(backup).NotTo(BeAnExistingFile())
+		})
+	})
+
+	// A backup is taken only to hold a caller's file, so one found here is a
+	// caller's file an interrupted run moved aside.
+	Context("when a backup exists and the file does not", func() {
+		BeforeEach(func() {
+			Expect(os.WriteFile(backup, []byte("original\n"), 0o600)).To(Succeed())
+		})
+
+		It("keeps the backup, and puts it back", func() {
+			scope, err := openWireGenScope(dir, name)
+			Expect(err).NotTo(HaveOccurred())
+
+			generate()
+			Expect(scope.restore()).To(Succeed())
+
+			Expect(os.ReadFile(gen)).To(Equal([]byte("original\n")))
+			Expect(backup).NotTo(BeAnExistingFile())
+		})
+	})
+
+	// The interrupted run left its own output behind under the name it had
+	// already vacated, so the file here is Wire's, not a caller's.
+	Context("when both the file and a backup exist", func() {
+		BeforeEach(func() {
+			Expect(os.WriteFile(gen, []byte("junk\n"), 0o600)).To(Succeed())
+			Expect(os.WriteFile(backup, []byte("original\n"), 0o600)).To(Succeed())
+		})
+
+		It("keeps the backup, discards the file, and puts the backup back", func() {
+			scope, err := openWireGenScope(dir, name)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(gen).NotTo(BeAnExistingFile(), "the interrupted run's output is gone")
+			Expect(os.ReadFile(backup)).To(Equal([]byte("original\n")))
+
+			generate()
+			Expect(scope.restore()).To(Succeed())
+
+			Expect(os.ReadFile(gen)).To(Equal([]byte("original\n")))
+			Expect(backup).NotTo(BeAnExistingFile())
+		})
+	})
+})
+
+var _ = Describe("openWireGenScopes", func() {
+	// A partial open would leave the directories already scoped holding their
+	// callers' files under backup names, with no caller left to put them back.
+	It("rolls back the scopes it opened when a later one fails", func() {
+		root := GinkgoT().TempDir()
+		opts := Options{}
+
+		first := filepath.Join(root, "first")
+		Expect(os.Mkdir(first, 0o750)).To(Succeed())
+		firstGen, firstBackup := wireGenPathsFor(first, opts)
+		Expect(os.WriteFile(firstGen, []byte("original\n"), 0o600)).To(Succeed())
+
+		// A backup makes the scope remove the file beside it, and a directory
+		// holding an entry cannot be removed.
+		second := filepath.Join(root, "second")
+		Expect(os.Mkdir(second, 0o750)).To(Succeed())
+		secondGen, secondBackup := wireGenPathsFor(second, opts)
+		Expect(os.Mkdir(secondGen, 0o750)).To(Succeed())
+		Expect(os.WriteFile(filepath.Join(secondGen, "keep.txt"), []byte("x"), 0o600)).To(Succeed())
+		Expect(os.WriteFile(secondBackup, []byte("second original\n"), 0o600)).To(Succeed())
+
+		scopes, err := openWireGenScopes([]string{first, second}, opts.wireGenName())
+		Expect(err).To(HaveOccurred())
+		Expect(scopes).To(BeNil())
+
+		Expect(os.ReadFile(firstGen)).To(Equal([]byte("original\n")),
+			"the directory opened before the failure is rolled back")
+		Expect(firstBackup).NotTo(BeAnExistingFile())
 	})
 })
 

@@ -393,7 +393,7 @@ providers do not reach it, or because a dependency cycle exists among them. Eith
 is a generation failure, reported against the stub rather than against the derived
 injector the application never sees.
 
-Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory. Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and restored afterward, so generation never overwrites or deletes a file Yama does not own. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
+Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory. Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and put back afterward. ADR-008 states the exceptions. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
 
 A CI check regenerates `lifecycle_gen.go` and diffs it against the committed copy to catch drift. A change in Yama's parser, analysis, or emitter changes the lifecycle file's content.
 

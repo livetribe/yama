@@ -258,8 +258,8 @@ new tag name, not a new file convention.
 * A run that ends without restoring leaves the constructor declared in Wire's
   output, with a `panic` body. Three costs follow. An ordinary build then
   compiles and panics when the constructor is called. The next Yama run fails in
-  the load that reads the stubs, before the scope reports the backup that holds
-  the application's original. An application that runs Google Wire itself gets
+  the load that reads the stubs, before it opens the scope that would put the
+  application's original back. An application that runs Google Wire itself gets
   the placeholder copied into its own committed `wire_gen.go`.
 * A `wireinject`-tagged file of the application that declares a lifecycle
   constructor's name now fails the run.

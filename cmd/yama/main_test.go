@@ -168,9 +168,9 @@ var taggedPattern = "./" + filepath.ToSlash(filepath.Join("testdata", "tagged"))
 //
 // This fixture is dedicated to cmd/yama, kept separate from internal/generator's
 // own fixture of the same shape so the two packages' tests never touch the same
-// directory — wireGenScope's exclusive claim would otherwise correctly, but
-// flakily, reject whichever test lost the race when `go test ./...` runs
-// packages concurrently.
+// directory. `go test ./...` runs packages concurrently, and two runs over one
+// directory do not lock against each other: the second one's cleanup can delete
+// a file the first one put back.
 func TestRunGeneratesTheCommittedFile(t *testing.T) {
 	requireGo(t)
 
