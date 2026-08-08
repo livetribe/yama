@@ -16,11 +16,11 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -242,35 +242,33 @@ func TestRunSkipsAPackageWithNoStub(t *testing.T) {
 	assert.Equal(t, []string{"components.go"}, dirNames(t, dir))
 }
 
-// TestWriteFilesReportsADefectAWriteFailureHides asserts a rendering defect
-// reaches the caller even when the write of that same file fails.
-//
-// The two arrive by different routes — the defect on the emitted file, the
-// failure from the write — and reporting only the second would leave the
-// malformed content undiagnosed until the write succeeded.
-func TestWriteFilesReportsADefectAWriteFailureHides(t *testing.T) {
+// TestWriteFilesWritesPastAFailure asserts a write that fails reaches the
+// caller and leaves the writes after it to run.
+func TestWriteFilesWritesPastAFailure(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Windows does not apply the permission bits of a directory, so the failure cannot be staged")
+	}
+
 	if os.Geteuid() == 0 {
 		t.Skip("the superuser writes to a read-only directory, so the failure cannot be staged")
 	}
 
-	dir := t.TempDir()
-	require.NoError(t, os.Chmod(dir, 0o500))
+	readOnly := t.TempDir()
+	require.NoError(t, os.Chmod(readOnly, 0o500))
 	t.Cleanup(func() {
-		_ = os.Chmod(dir, 0o700)
+		_ = os.Chmod(readOnly, 0o700)
 	})
 
-	defect := errors.New("the emitter built source Go cannot format")
-	file := &generator.LifecycleFile{
-		Dir:     dir,
-		PkgPath: "example.com/p",
-		Name:    "lifecycle_gen.go",
-		Content: []byte("package p\n"),
-		Errs:    []error{defect},
+	writable := t.TempDir()
+
+	files := []*generator.LifecycleFile{
+		{Dir: readOnly, PkgPath: "example.com/p", Name: "lifecycle_gen.go", Content: []byte("package p\n")},
+		{Dir: writable, PkgPath: "example.com/q", Name: "lifecycle_gen.go", Content: []byte("package q\n")},
 	}
 
-	err := writeFiles(io.Discard, []*generator.LifecycleFile{file})
+	err := writeFiles(io.Discard, files)
 	require.Error(t, err)
-	assert.ErrorIs(t, err, defect)
+	assert.Equal(t, []string{"lifecycle_gen.go"}, dirNames(t, writable))
 }
 
 // TestRunRejectsAPatternThatMatchesNothing asserts a pattern resolving to no

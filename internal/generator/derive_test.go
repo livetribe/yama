@@ -333,10 +333,6 @@ func TestEmitResolvesASiblingPackagesConstructor(t *testing.T) {
 	files, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"./..."})
 	require.NoError(t, err)
 	require.Len(t, files, 2)
-
-	for _, file := range files {
-		assert.Empty(t, file.Errs, "%s: rendering reported a defect in the emitter", file.PkgPath)
-	}
 }
 
 // declarationOf is the source text of one function declaration in src, from its

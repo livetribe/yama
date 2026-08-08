@@ -82,14 +82,11 @@ func run(ctx context.Context, stderr io.Writer, args []string) error {
 // The line names Yama's own artifact in the shape Wire uses for its own,
 // `yama: <import path>: wrote <path>`, on the stream Wire writes its own to.
 //
-// A file whose rendering reported a defect is written and then reported: the
-// artifact on disk is the diagnostic.
+// A write that fails does not stop the writes that follow it. Every failure
+// reaches the caller together.
 func writeFiles(progress io.Writer, files []*generator.LifecycleFile) error {
 	var errs []error
 	for _, file := range files {
-		// Collected before the write, so a write that fails reports the defect too.
-		errs = append(errs, file.Errs...)
-
 		path, err := file.Write()
 		if err != nil {
 			errs = append(errs, err)

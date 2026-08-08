@@ -61,11 +61,10 @@ const (
 // from Wire.
 //
 // Every way Emit can fail is a Yama bug rather than a problem with the
-// application's input. A mismatch it cannot render around panics: a run reaches
-// Emit only after Wire succeeded, and Wire writes one injector per declaration,
-// so the analysis holds one entry per stub. Source this emitter built that Go
-// cannot format is reported through the returned file's Errs, with the
-// unformatted source in Content.
+// application's input, and every one of them panics. A run reaches Emit only
+// after Wire succeeded, and Wire writes one injector per declaration, so the
+// analysis holds one entry per stub. Source this emitter built that Go cannot
+// format panics for the same reason.
 func Emit(sp *StubPackage, pkg *LoadedPackage, analysis *Analysis) *LifecycleFile {
 	constructors := pairStubs(sp, analysis)
 
@@ -82,14 +81,9 @@ func Emit(sp *StubPackage, pkg *LoadedPackage, analysis *Analysis) *LifecycleFil
 	imports.yama = imports.claim(scope, yamaPkgName, yamaPkgPath)
 	imports.rt = imports.claim(scope, rtPkgName, rtPkgPath)
 
-	content, err := renderFile(sp, pkg, imports, constructors)
+	content := renderFile(sp, pkg, imports, constructors)
 
-	file := &LifecycleFile{Dir: sp.Dir, PkgPath: sp.PkgPath, Name: lifecycleGenName, Content: content}
-	if err != nil {
-		file.Errs = append(file.Errs, err)
-	}
-
-	return file
+	return &LifecycleFile{Dir: sp.Dir, PkgPath: sp.PkgPath, Name: lifecycleGenName, Content: content}
 }
 
 // constructor is one emitted constructor: the stub that names it beside the
@@ -411,11 +405,9 @@ func freeName(want string, collides func(string) bool) string {
 	return name
 }
 
-// renderFile assembles the whole lifecycle file and gofmts it. Text this
-// emitter built that Go cannot parse is a defect in the emitter, and the
-// unformatted text is what shows where the defect is, so it comes back beside
-// the error rather than being dropped.
-func renderFile(sp *StubPackage, pkg *LoadedPackage, imports *importSet, constructors []constructor) ([]byte, error) {
+// renderFile assembles the whole lifecycle file and gofmts it. Text Go cannot
+// parse panics, and the panic carries that text.
+func renderFile(sp *StubPackage, pkg *LoadedPackage, imports *importSet, constructors []constructor) []byte {
 	var buf bytes.Buffer
 
 	fmt.Fprintf(&buf, "%s\n\n", generatedHeader)
@@ -429,12 +421,14 @@ func renderFile(sp *StubPackage, pkg *LoadedPackage, imports *importSet, constru
 		writeConstructor(&buf, pkg.Fset, imports, c)
 	}
 
-	formatted, err := format.Source(buf.Bytes())
+	source := buf.Bytes()
+
+	formatted, err := format.Source(source)
 	if err != nil {
-		return buf.Bytes(), fmt.Errorf("yama: emitted invalid Go for %s: %w", sp.Dir, err)
+		panic(fmt.Sprintf("generator: emitted invalid Go for %s: %v\n%s", sp.Dir, err, source))
 	}
 
-	return formatted, nil
+	return formatted
 }
 
 // writeEmittedImports writes the import declaration, standard-library packages
