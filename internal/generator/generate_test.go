@@ -276,9 +276,9 @@ func TestEmitSkipsAPackageWithNoStub(t *testing.T) {
 	assert.Empty(t, files)
 }
 
-// TestRunWireGenerateError asserts that a Wire input problem surfaces as a
-// *GenerateError carrying Wire's own diagnostic, distinct from a toolchain error.
-func TestRunWireGenerateError(t *testing.T) {
+// TestRunWireToolError asserts that a Wire input problem surfaces as a
+// *ToolError carrying Wire's own diagnostic, distinct from a toolchain error.
+func TestRunWireToolError(t *testing.T) {
 	requireGo(t)
 
 	ctx := context.Background()
@@ -287,8 +287,8 @@ func TestRunWireGenerateError(t *testing.T) {
 	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."}, nil)
 	require.Error(t, err)
 
-	var genErr *GenerateError
-	require.Truef(t, errors.As(err, &genErr), "want *GenerateError, got %T: %v", err, err)
+	var toolErr *ToolError
+	require.Truef(t, errors.As(err, &toolErr), "want *ToolError, got %T: %v", err, err)
 
 	assert.Contains(t, err.Error(), "wire generation failed")
 	assert.Contains(t, err.Error(), "no provider found", "the underlying Wire diagnostic is surfaced")
@@ -296,7 +296,7 @@ func TestRunWireGenerateError(t *testing.T) {
 
 // TestRunWireToolchainError asserts that a failure to launch the tool at all —
 // here, a directory that does not exist — surfaces as a *ToolchainError, not a
-// *GenerateError, so the two causes stay distinct.
+// *ToolError, so the two causes stay distinct.
 func TestRunWireToolchainError(t *testing.T) {
 	requireGo(t)
 
@@ -306,11 +306,11 @@ func TestRunWireToolchainError(t *testing.T) {
 	err := NewGenerator(Options{}).runWire(ctx, dir, []string{"."}, nil)
 	require.Error(t, err)
 
-	var toolErr *ToolchainError
-	assert.Truef(t, errors.As(err, &toolErr), "want *ToolchainError, got %T: %v", err, err)
+	var toolchainErr *ToolchainError
+	assert.Truef(t, errors.As(err, &toolchainErr), "want *ToolchainError, got %T: %v", err, err)
 
-	var genErr *GenerateError
-	assert.Falsef(t, errors.As(err, &genErr), "must not be a *GenerateError: %v", err)
+	var toolErr *ToolError
+	assert.Falsef(t, errors.As(err, &toolErr), "must not be a *ToolError: %v", err)
 }
 
 // TestNoWireInternalImport verifies, from the dependency graph itself, that the

@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/token"
+	"strconv"
 )
 
 // packageValueVars maps each package-level variable to its initializer. Google
@@ -220,4 +221,35 @@ func assignValueName(s *ast.AssignStmt) string {
 	}
 
 	return "a value"
+}
+
+// importName is the local name a file refers to an imported package by: the
+// explicit alias when the import carries one, and the package's own declared
+// name otherwise.
+func importName(file *ast.File, path, pkgName string) (string, bool) {
+	for _, spec := range file.Imports {
+		unquoted, err := strconv.Unquote(spec.Path.Value)
+		if err != nil || unquoted != path {
+			continue
+		}
+		if spec.Name != nil {
+			return spec.Name.Name, true
+		}
+
+		return pkgName, true
+	}
+
+	return "", false
+}
+
+// isSelector reports whether expr is the qualified identifier pkg.name.
+func isSelector(expr ast.Expr, pkg, name string) bool {
+	sel, ok := expr.(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != name {
+		return false
+	}
+
+	id, ok := sel.X.(*ast.Ident)
+
+	return ok && id.Name == pkg
 }

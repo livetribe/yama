@@ -45,8 +45,8 @@ func TestWireDiagnosticNamesTheStub(t *testing.T) {
 
 	_, err := NewGenerator(Options{}).EmitAll(context.Background(), dir, []string{"."})
 
-	var genErr *GenerateError
-	require.ErrorAs(t, err, &genErr)
+	var toolErr *ToolError
+	require.ErrorAs(t, err, &toolErr)
 
 	line := declLine(t, stub, "NewLifecycle")
 	want := fmt.Sprintf("lifecycle.go:%d:1: inject NewLifecycle:", line)
