@@ -60,9 +60,9 @@ const wireInjectMarker = "inject "
 // diagnostic name the stub the application wrote. Pass nil when a run derives
 // none.
 //
-// A Wire input problem surfaces as a *ToolError naming Wire's own diagnostic;
-// an inability to launch the tool surfaces as a *ToolchainError. The two are
-// distinct so a build failure points at the right cause.
+// A Wire input problem surfaces as a *ToolError naming Wire's own
+// diagnostic. An inability to launch the tool surfaces as a *ToolchainError.
+// The two are distinct so a build failure points at the right cause.
 func (g *Generator) runWire(ctx context.Context, wd string, patterns, derived []string) error {
 	var stdout, stderr bytes.Buffer
 
@@ -91,20 +91,22 @@ func (g *Generator) runWire(ctx context.Context, wd string, patterns, derived []
 	return &ToolchainError{Stderr: diagnostics, Err: err}
 }
 
-// wireDiagnostics is Wire's output with its per-output success lines removed and
-// each name in derived replaced by the stub name it was derived from.
+// wireDiagnostics is Wire's output with its per-output success lines removed
+// and each name in derived replaced by the stub name that it was derived
+// from.
 //
-// Wire reports `wrote <path>` for each file it produced, but those files are
-// transient here and gone by the time anything is printed. Passing the lines
-// through would tell the caller Yama wrote files it had already deleted, so only
-// the diagnostics that remain true are kept.
+// Wire reports `wrote <path>` for each file that it produced, but those
+// files are transient here and gone by the time anything is printed. If the
+// lines passed through, the caller would learn that Yama wrote files that it
+// had already deleted, so only the diagnostics that remain true are kept.
 //
-// Wire names the injector it rejects, and that name is one Yama invented. A
-// rewrite applies to the name that follows Wire's own injector marker, and to
-// nothing else. Every other text in the same diagnostic keeps the characters it
-// has, including a path that carries the reserved prefix: the transient file is
-// named for the tag it declares, so a stub named for that tag too derives an
-// injector whose name is the whole stem of that file.
+// Wire names the injector that it rejects, and that name is one Yama
+// invented. A rewrite applies to the name that follows Wire's own injector
+// marker, and to nothing else. Every other text in the same diagnostic keeps
+// the characters that it has, including a path that carries the reserved
+// prefix: the transient file is named for the tag that it declares, so a
+// stub named for that tag too derives an injector with a name that is the
+// whole stem of that file.
 func wireDiagnostics(logged string, derived []string) string {
 	var kept []string
 	for _, line := range strings.Split(logged, "\n") {
@@ -135,18 +137,19 @@ func wireReported(diagnostic string) bool {
 	return false
 }
 
-// LoadInjectors type-checks the package in dir and parses the named injectors out
-// of Wire's output. It assumes that output already exists, and that names holds
-// at least one injector: a load asking for none yields a package with none.
+// LoadInjectors type-checks the package in dir and parses the named injectors
+// out of Wire's output. It assumes that output already exists, and that
+// names holds at least one injector: a load asking for none yields a
+// package with none.
 //
-// Syntax and type information are loaded for the package in dir alone; its
+// Syntax and type information are loaded for the package in dir alone. Its
 // dependencies contribute types through export data.
 func (g *Generator) LoadInjectors(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
 	return g.load(ctx, dir, names)
 }
 
-// load type-checks the package in dir and parses the injectors names holds out
-// of Wire's output.
+// load type-checks the package in dir and parses the injectors that names
+// holds out of Wire's output.
 func (g *Generator) load(ctx context.Context, dir string, names []string) (*LoadedPackage, error) {
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
@@ -188,9 +191,9 @@ func (g *Generator) load(ctx context.Context, dir string, names []string) (*Load
 }
 
 // parseWithoutLineDirectives parses one file of the package under load. In
-// g.wireGenName, every line directive is blanked first, so a position Yama
-// reports out of that file names the file itself. Every other file parses
-// unchanged.
+// g.wireGenName, parseWithoutLineDirectives blanks every line directive
+// first, so a position that Yama reports out of that file names the file
+// itself. Every other file parses unchanged.
 //
 // A nil src means the loader read nothing, and the file is read here.
 func (g *Generator) parseWithoutLineDirectives(fset *token.FileSet, filename string, src []byte) (*ast.File, error) {
@@ -211,9 +214,9 @@ func (g *Generator) parseWithoutLineDirectives(fset *token.FileSet, filename str
 	return parser.ParseFile(fset, filename, clean, parser.AllErrors|parser.ParseComments)
 }
 
-// findWireGen returns the package's Wire output — the file named name, which
-// runWire's invocation produces — or nil if the package has none. A directory
-// holds at most one such file.
+// findWireGen returns the package's Wire output: the file named name, which
+// runWire's invocation produces. It returns nil if the package has none. A
+// directory holds at most one such file.
 func findWireGen(pkg *packages.Package, fset *token.FileSet, name string) *ast.File {
 	for _, file := range pkg.Syntax {
 		if filepath.Base(fset.Position(file.Pos()).Filename) == name {

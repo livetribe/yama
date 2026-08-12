@@ -27,9 +27,9 @@ const (
 	contextTypeName = "Context"
 )
 
-// capabilityMethods pairs each capability's method with the bit it sets and with
-// whether the method returns an error, which is the only way the three signatures
-// differ.
+// capabilityMethods pairs each capability's method with the bit that it sets
+// and with whether the method returns an error, which is the only way the
+// three signatures differ.
 var capabilityMethods = []struct {
 	name         string
 	bit          Capabilities
@@ -44,10 +44,11 @@ var capabilityMethods = []struct {
 // declares, and the one a Quiesce or Stop method must not.
 var errorType = types.Universe.Lookup("error").Type()
 
-// AnalysisError reports a component whose lifecycle capabilities cannot be
-// determined. It names the injector and the offending source position, so the
-// failure is a locatable build-time error rather than a component silently
-// treated as having no capability.
+// AnalysisError reports a component that Yama cannot determine the lifecycle
+// capabilities of. AnalysisError names the injector and the offending source
+// position. Because of this, the failure is a build-time error with a
+// location, rather than a component that Yama silently treats as having no
+// capability.
 type AnalysisError struct {
 	Injector string
 	Pos      token.Position
@@ -60,7 +61,7 @@ func (e *AnalysisError) Error() string {
 
 // Analyze resolves every component's lifecycle capabilities against the package's
 // type information and computes one dependency-ordered level list per injector.
-// Startup runs a list forward; quiesce and stop run it back.
+// Startup runs a list forward. Quiesce and stop run it back.
 func Analyze(pkg *LoadedPackage) (*Analysis, error) {
 	analysis := &Analysis{Injectors: make([]*InjectorAnalysis, 0, len(pkg.Injectors))}
 	for _, inj := range pkg.Injectors {

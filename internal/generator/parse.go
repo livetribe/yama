@@ -27,19 +27,20 @@ const cleanupResultIndex = 1
 // ParseInjectors walks the AST of a generated wire_gen.go and extracts one
 // independent dependency graph per named injector function. Every other
 // declaration in the file is left unread. It performs no type analysis and
-// derives no lifecycle levels; it records the ordered creation events, their
+// derives no lifecycle levels. It records the ordered creation events, their
 // dependency edges, each injector's returned root, and any Google Wire cleanup
 // functions.
 //
-// A shape it cannot derive ordering from is reported as a *ParseError naming the
-// injector and source position, never a panic and never a silent omission.
+// A shape that it cannot derive ordering from is reported as a *ParseError
+// naming the injector and source position, never a panic and never a silent
+// omission.
 //
 // Not every function in a generated wire_gen.go is an injector. Google Wire
 // copies the non-injector declarations of a wire.go into its output, since that
 // file is build-tagged out of the normal build and those declarations would
 // otherwise be lost. A package that holds both a lifecycle stub and an
-// application's own wire.go therefore yields a file with functions Yama never
-// asked for, which it cannot read as injectors and has no reason to.
+// application's own wire.go therefore yields a file with functions that Yama
+// never asked for, which it cannot read as injectors and has no reason to.
 func ParseInjectors(fset *token.FileSet, file *ast.File, names []string) (*ParsedFile, error) {
 	want := make(map[string]bool, len(names))
 	for _, name := range names {
@@ -49,8 +50,9 @@ func ParseInjectors(fset *token.FileSet, file *ast.File, names []string) (*Parse
 	return extractInjectors(fset, file, want)
 }
 
-// extractInjectors extracts the injectors of one generated file. A nil want reads
-// every function; otherwise only the functions want names are read.
+// extractInjectors extracts the injectors of one generated file. A nil want
+// reads every function. Otherwise only the functions that want names are
+// read.
 func extractInjectors(fset *token.FileSet, file *ast.File, want map[string]bool) (*ParsedFile, error) {
 	valueVars := packageValueVars(file)
 
@@ -78,9 +80,9 @@ func extractInjectors(fset *token.FileSet, file *ast.File, want map[string]bool)
 	return &ParsedFile{Fset: fset, Syntax: file, Injectors: injectors}, nil
 }
 
-// parseInjector extracts one injector's graph. The body's final statement must be
-// the return; every earlier statement is a creation event, an error guard that is
-// skipped, or an unsupported shape that fails.
+// parseInjector extracts one injector's graph. The body's final statement
+// must be the return. Every earlier statement is a creation event, an error
+// guard that is skipped, or an unsupported shape that fails.
 func parseInjector(fset *token.FileSet, fn *ast.FuncDecl, valueVars map[string]ast.Expr) (*Injector, error) {
 	inj := &Injector{
 		Name:     fn.Name.Name,
@@ -124,9 +126,9 @@ func parseInjector(fset *token.FileSet, fn *ast.FuncDecl, valueVars map[string]a
 	return inj, nil
 }
 
-// parseStatement classifies one non-final body statement. It returns a component
-// for a creation event, nil for a skipped error guard, or an error for any shape
-// the parser cannot derive ordering from.
+// parseStatement classifies one non-final body statement. It returns a
+// component for a creation event, nil for a skipped error guard, or an error
+// for any shape that the parser cannot derive ordering from.
 func parseStatement(fset *token.FileSet, injector string, stmt ast.Stmt) (*Component, error) {
 	switch s := stmt.(type) {
 	case *ast.AssignStmt:
@@ -144,9 +146,9 @@ func parseStatement(fset *token.FileSet, injector string, stmt ast.Stmt) (*Compo
 	}
 }
 
-// parseProviderForm turns a `:=` statement into a component. The first left-hand
-// identifier is the value; the right-hand side must be a shape one of the four
-// provider kinds Google Wire emits.
+// parseProviderForm turns a `:=` statement into a component. The first
+// left-hand identifier is the value. The right-hand side must be a shape
+// that one of Google Wire's four provider kinds emits.
 //
 // Its errors report an unrecognized provider *form* rather than an unrecognized
 // provider: no provider has been identified when they fire, and the shape itself
@@ -174,7 +176,7 @@ func parseProviderForm(fset *token.FileSet, injector string, s *ast.AssignStmt) 
 }
 
 // classifyProvider maps a creation right-hand side to the provider kind that
-// emitted it. A struct literal may be address-taken (`&T{...}`); every other
+// emitted it. A struct literal can be address-taken (`&T{...}`). Every other
 // recognized kind is its bare node.
 func classifyProvider(rhs ast.Expr) (ProviderKind, bool) {
 	switch e := rhs.(type) {
@@ -198,9 +200,9 @@ func classifyProvider(rhs ast.Expr) (ProviderKind, bool) {
 	}
 }
 
-// deriveEdges links each component to the components it consumes as inputs, kind
-// by kind. Consumed identifiers that name a parameter or a package-level value
-// are not components and contribute no edge.
+// deriveEdges links each component to the components that it consumes as
+// inputs, kind by kind. Consumed identifiers that name a parameter or a
+// package-level value are not components and contribute no edge.
 func deriveEdges(components []*Component, byName map[string]*Component) {
 	for _, c := range components {
 		seen := map[*Component]bool{}
@@ -215,10 +217,10 @@ func deriveEdges(components []*Component, byName map[string]*Component) {
 	}
 }
 
-// consumedIdents returns the identifiers a component's creation consumes as
-// inputs, kind by kind. For a call, only the arguments are consumed, never the
-// callee. collectIdents excludes field names, so a struct literal contributes its
-// bound values and a field selection its base value.
+// consumedIdents returns the identifiers that a component's creation consumes
+// as inputs, kind by kind. For a call, only the arguments are consumed, never
+// the callee. collectIdents excludes field names, so a struct literal
+// contributes its bound values and a field selection its base value.
 func consumedIdents(c *Component) []*ast.Ident {
 	switch c.Provider {
 	case ProviderCall:
@@ -234,14 +236,15 @@ func consumedIdents(c *Component) []*ast.Ident {
 	}
 }
 
-// detectCleanups pairs each Google Wire cleanup function with the value it cleans
-// up. The authoritative signal is membership in the aggregated cleanup closure the
-// injector returns: every identifier that closure calls is a cleanup, and it
-// belongs to the component bound in the same statement.
+// detectCleanups pairs each Google Wire cleanup function with the value that
+// it cleans up. The authoritative signal is membership in the aggregated
+// cleanup closure that the injector returns: every identifier that the
+// closure calls is a cleanup, and it belongs to the component bound in the
+// same statement.
 //
-// A cleanup the closure calls but that pairs with no component is a shape the
-// model cannot represent. It is reported rather than dropped, so a teardown is
-// never silently lost.
+// A cleanup that the closure calls but that pairs with no component is a
+// shape that the model cannot represent. It is reported rather than
+// dropped, so a teardown is never silently lost.
 func detectCleanups(fset *token.FileSet, injector string, components []*Component, ret *ast.ReturnStmt) error {
 	if len(ret.Results) <= cleanupResultIndex {
 		return nil
@@ -274,14 +277,14 @@ func detectCleanups(fset *token.FileSet, injector string, components []*Componen
 	return nil
 }
 
-// resolveValueExprs attaches to each ProviderValue component the initializer of the
-// package-level _wire*Value variable it reads, so the value can be re-emitted
-// directly rather than referencing that private variable.
+// resolveValueExprs attaches to each ProviderValue component the initializer
+// of the package-level _wire*Value variable that it reads, so the value can
+// be re-emitted directly rather than referencing that private variable.
 //
-// A read the file declares no value for is reported rather than left unresolved.
-// Generated code cannot name that variable, because the file declaring it is
-// removed, so an unresolved read is a creation event this parser classified as a
-// value and cannot reproduce.
+// A read that the file declares no value for is reported rather than left
+// unresolved. Generated code cannot name that variable, because the file
+// that declares it is removed, so an unresolved read is a creation event
+// that this parser classified as a value and cannot reproduce.
 func resolveValueExprs(fset *token.FileSet, injector string, components []*Component, valueVars map[string]ast.Expr) error {
 	for _, c := range components {
 		if c.Provider != ProviderValue {
@@ -302,11 +305,11 @@ func resolveValueExprs(fset *token.FileSet, injector string, components []*Compo
 	return nil
 }
 
-// checkResultNameCollisions rejects a file whose injectors return results that
-// share an unqualified type name but denote different types: Yama's generated
-// namespace derives from the unqualified name and cannot deterministically tell
-// them apart. Injectors returning the identical result type are legal and share
-// generated types.
+// checkResultNameCollisions rejects a file with injectors that return
+// results that share an unqualified type name but denote different types:
+// Yama's generated namespace derives from the unqualified name and cannot
+// deterministically tell them apart. Injectors that return the identical
+// result type are legal and share generated types.
 func checkResultNameCollisions(fset *token.FileSet, injectors []*Injector) error {
 	firstByName := map[string]*Injector{}
 	for _, inj := range injectors {

@@ -40,8 +40,8 @@ func backupNameFor(name string) string {
 //
 // Wire writes its output into the package directory and offers no way to redirect
 // it, so a file of that name already there is moved aside for the life of the scope
-// and put back by restore. Only a file that appeared while the scope was open —
-// Yama's own — is ever removed.
+// and put back by restore. Only a file that appeared while the scope was open, which
+// is Yama's own, is ever removed.
 //
 // A directory that holds no file of that name gets no backup. A backup is taken
 // only to hold a caller's file, so one already there is a caller's file an earlier
@@ -54,16 +54,16 @@ type wireGenScope struct {
 	backup     string
 }
 
-// openWireGenScope prepares dir for a transient Wire output named name, moving any
-// existing file of that name aside.
+// openWireGenScope prepares dir for a transient Wire output named name. It
+// moves any existing file of that name aside.
 //
 // A backup already in dir holds a caller's file. The scope keeps it and removes
-// any file at the name it came from, which an earlier run generated and did not
-// remove. Leaving that file would put a stale copy in the load that Google Wire
-// and Yama both run over the package.
+// any file at the name that it came from, which an earlier run generated and
+// did not remove. That removed file would otherwise leave a stale copy in the
+// load that Google Wire and Yama both run over the package.
 //
-// Otherwise a file of that name is moved onto the backup name, and a directory
-// with no such file gets no backup at all.
+// Otherwise, when dir holds no backup yet, a file of that name is moved onto
+// the backup name, and a directory with no such file gets no backup at all.
 func openWireGenScope(dir, name string) (*wireGenScope, error) {
 	s := &wireGenScope{
 		dir:        dir,
@@ -101,11 +101,11 @@ func openWireGenScope(dir, name string) (*wireGenScope, error) {
 // back, over every directory in dirs, for every transient file name.
 //
 // A directory that holds no backup is left as it is. Only a move back happens
-// here, never a move aside, so a directory this run goes on to skip is never left
-// short of a file it holds.
+// here, never a move aside, so a directory that this run goes on to skip is
+// never left short of a file that it holds.
 //
-// The rename replaces the file at the name it moves back to, which an earlier run
-// generated after it vacated that name.
+// The rename replaces the file at the name that it moves back to, which an
+// earlier run generated after it vacated that name.
 func putBackInterrupted(dirs []string, names ...string) error {
 	var errs []error
 	for _, dir := range dirs {
@@ -122,8 +122,8 @@ func putBackInterrupted(dirs []string, names ...string) error {
 	return errors.Join(errs...)
 }
 
-// wireGenScopes is a set of scopes held together, one per transient file a
-// single generation run may write into a directory.
+// wireGenScopes is a set of scopes held together, one per transient file
+// that a single generation run can write into a directory.
 type wireGenScopes []*wireGenScope
 
 // openWireGenScopes opens a scope over every directory, for every transient file
@@ -131,7 +131,7 @@ type wireGenScopes []*wireGenScope
 //
 // A partial open is rolled back rather than returned: the directories already
 // scoped would otherwise keep their originals stranded under backup names, with
-// no caller holding the scopes needed to put them back.
+// no caller that holds the scopes needed to put them back.
 func openWireGenScopes(dirs []string, names ...string) (wireGenScopes, error) {
 	var scopes wireGenScopes
 	for _, dir := range dirs {
@@ -147,7 +147,7 @@ func openWireGenScopes(dirs []string, names ...string) (wireGenScopes, error) {
 	return scopes, nil
 }
 
-// restore restores every scope, reporting the failures together. Each is
+// restore restores every scope, and reports the failures together. Each is
 // attempted even after an earlier one fails, so one stuck directory cannot
 // strand the originals held for all the others.
 func (s wireGenScopes) restore() error {
@@ -161,12 +161,13 @@ func (s wireGenScopes) restore() error {
 	return errors.Join(errs...)
 }
 
-// restore returns the directory to the state openWireGenScope found it in.
+// restore returns the directory to the state that openWireGenScope found it
+// in.
 //
-// A backup is moved back to the name it came from. The rename replaces whatever
-// occupies that name, which is the file generated inside the scope, so the two
-// steps are one. A scope over a directory that held no file of that name has no
-// backup, and removes the generated file instead.
+// A backup is moved back to the name that it came from. The rename replaces
+// whatever occupies that name, which is the file generated inside the scope,
+// so the two steps are one. A scope over a directory that held no file of
+// that name has no backup, and removes the generated file instead.
 func (s *wireGenScope) restore() error {
 	err := os.Rename(s.backup, s.path)
 	if err == nil {

@@ -38,8 +38,8 @@ type Options struct {
 	// prefix of "foo_" yields foo_wire_gen.go.
 	OutputFilePrefix string
 
-	// HeaderFile is handed to Google Wire's -header_file flag: a file whose
-	// content is inserted at the top of wire_gen.go. Since wire_gen.go is
+	// HeaderFile is handed to Google Wire's -header_file flag: a file with
+	// content that is inserted at the top of wire_gen.go. Since wire_gen.go is
 	// transient, the header itself is never seen by anyone. A malformed header
 	// surfaces as a diagnostic from Wire, not from Yama.
 	HeaderFile string
@@ -52,15 +52,15 @@ type Options struct {
 	Tags string
 }
 
-// wireGenName is the file Google Wire writes under these options. It is built by
-// Wire's own rule, so the file Yama looks for, preserves, and removes is always
-// exactly the file Wire wrote.
+// wireGenName is the file that Google Wire writes under these options. It is
+// built by Wire's own rule, so the file that Yama looks for, preserves, and
+// removes is always exactly the file that Wire wrote.
 func (o Options) wireGenName() string {
 	return o.OutputFilePrefix + wireGenBaseName
 }
 
-// wireArgs is the `wire gen` flag list these options produce. Built as its own
-// method so it can be asserted on directly, without a subprocess.
+// wireArgs is the `wire gen` flag list that these options produce, built as
+// its own method so it can be asserted on directly, without a subprocess.
 func (o Options) wireArgs() []string {
 	var args []string
 	if o.OutputFilePrefix != "" {
@@ -92,7 +92,7 @@ func (o Options) stubBuildFlags() []string {
 // parseBuildFlags are the build flags for loading Wire's generated output. They
 // deliberately omit the wireinject tag: the generated file is
 // `//go:build !wireinject`, so it is invisible under the tag that makes the
-// injector it was generated from visible.
+// injector that it was generated from visible.
 func (o Options) parseBuildFlags() []string {
 	if o.Tags == "" {
 		return nil
@@ -103,7 +103,7 @@ func (o Options) parseBuildFlags() []string {
 
 // ToolError reports that Google Wire ran, failed, and logged a diagnostic of its
 // own. The diagnostic names the fault: a problem in the injector definitions, or
-// a problem Wire found elsewhere. It carries Wire's output so the underlying
+// a problem that Wire found elsewhere. It carries Wire's output so the underlying
 // failure is visible, and is distinct from a ToolchainError.
 type ToolError struct {
 	Dir    string
@@ -119,9 +119,10 @@ func (e *ToolError) Unwrap() error {
 	return e.Err
 }
 
-// ToolchainError reports that the Google Wire tool could not be run at all — it
-// is not installed as a Go tool, or the go command itself failed to launch it.
-// It is distinct from a ToolError, which means Wire ran and found a problem.
+// ToolchainError reports that the Google Wire tool could not be run at all.
+// Either it is not installed as a Go tool, or the go command itself failed
+// to launch it. It is distinct from a ToolError, which means Wire ran and
+// found a problem.
 type ToolchainError struct {
 	Stderr string
 	Err    error

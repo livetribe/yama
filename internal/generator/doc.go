@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package generator implements yama's build-time code generator: it runs
+// Package generator implements yama's build-time code generator. It runs
 // Google Wire, walks the AST of the resulting wire_gen.go, computes
 // lifecycle ordering, and emits lifecycle_gen.go into the target
 // application package.
@@ -22,17 +22,19 @@
 // only Google Wire's public types, never Google Wire's unexported
 // implementation packages.
 //
-// A Generator, built from Options with NewGenerator, runs Google Wire over one
-// or more packages and parses each injector into a graph of creation events,
-// dependency edges, results, and cleanup functions. Wire's wire_gen.go is
-// transient — a run leaves the directory as it found it, preserving a
-// wire_gen.go it did not create and removing the one it did.
+// A Generator, built from Options with NewGenerator, runs Google Wire over
+// one or more packages. It parses each injector into a graph of creation
+// events, dependency edges, results, and cleanup functions. Wire's
+// wire_gen.go is transient. A run leaves the directory as it found it: the
+// run preserves a wire_gen.go that it did not create, and removes the one
+// that it did.
 //
 // Analyze turns a parsed package into one Analysis per injector: each
-// component's lifecycle capabilities, resolved by static type analysis of the
-// package, and the single dependency-ordered level list computed over them.
+// component's lifecycle capabilities, which static type analysis of the
+// package resolves, and the single dependency-ordered level list that Yama
+// computes over them.
 //
-// The parser is coupled to the shape of Google Wire's generated output and is
-// validated against Google Wire v0.7.0, pinned in go.mod. Google Wire is
-// archived, so that shape does not move.
+// The parser is coupled to the shape of Google Wire's generated output. The
+// parser is validated against Google Wire v0.7.0, which go.mod pins. Google
+// Wire is archived, so that shape does not move.
 package generator

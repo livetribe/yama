@@ -31,10 +31,11 @@ import (
 	"strings"
 )
 
-// derivedFileName is the transient file Yama writes the derived injectors to.
-// It is in the package directory, alongside the stub file. Wire's loader
-// resolves a Go package by directory; a derived injector outside sp.Dir
-// would not be part of the package Wire loads, and would not be generated.
+// derivedFileName is the transient file that Yama writes the derived
+// injectors to. It is in the package directory, alongside the stub file.
+// Wire's loader resolves a Go package by directory. A derived injector
+// outside sp.Dir would not be part of the package that Wire loads, and Wire
+// would not generate it.
 const derivedFileName = "yama_wireinject.go"
 
 // derivedFileMode is the permission for the transient derived-injector file.
@@ -131,9 +132,9 @@ func deriveInjectors(sp *StubPackage) ([]byte, error) {
 	return formatted, nil
 }
 
-// writePlaceholder writes one declaration of the constructor a stub names. The
-// declaration carries the stub's own name, its whole parameter list and its
-// whole result list.
+// writePlaceholder writes one declaration of the constructor that a stub
+// names. The declaration carries the stub's own name, its whole parameter
+// list and its whole result list.
 func writePlaceholder(buf *bytes.Buffer, fset *token.FileSet, stub *Stub) {
 	params := printFields(fset, stub.Params)
 	results := printFields(fset, stub.Results)
@@ -145,12 +146,12 @@ func writePlaceholder(buf *bytes.Buffer, fset *token.FileSet, stub *Stub) {
 	fmt.Fprintf(buf, "\tpanic(%s)\n}\n", quoted)
 }
 
-// lineDirectivePrefix begins a Go line directive. It moves every position after
-// it to the file the directive names.
+// lineDirectivePrefix begins a Go line directive. It moves every position
+// after it to the file that the directive names.
 const lineDirectivePrefix = "//line "
 
-// writeLineDirective binds the derived injector that follows it to the stub the
-// injector comes from.
+// writeLineDirective binds the derived injector that follows it to the stub
+// that the injector comes from.
 //
 // Google Wire loads the derived file through go/packages, which applies the
 // directive. Wire then reports the stub's own file and position, in a file the
@@ -231,9 +232,9 @@ func derivedNodes(s *Stub) []ast.Node {
 	return nodes
 }
 
-// stubImports maps each package name a transient file refers to onto its import
-// path. nodesOf gives the parts of one stub that the file reproduces, so an
-// import a stub file carries for another purpose is left out.
+// stubImports maps each package name that a transient file refers to onto its
+// import path. nodesOf gives the parts of one stub that the file reproduces,
+// so an import that a stub file carries for another purpose is left out.
 //
 // Two stub files can give one name to two different packages. One transient file
 // cannot use that name for both. stubImports reports that conflict as a
@@ -261,8 +262,8 @@ func stubImports(sp *StubPackage, nodesOf func(*Stub) []ast.Node) (map[string]st
 }
 
 // writeImportBlock writes an import declaration that names each package, ordered
-// by path. Every import carries an explicit name. A path whose last element is
-// not the package name therefore still resolves.
+// by path. Every import carries an explicit name. A path with a last element
+// that is not the package name therefore still resolves.
 func writeImportBlock(buf *bytes.Buffer, imports map[string]string) {
 	if len(imports) == 0 {
 		return
@@ -286,10 +287,11 @@ func writeImportBlock(buf *bytes.Buffer, imports map[string]string) {
 // fileImports maps each package name that a file refers to onto the path that
 // file imports.
 //
-// known gives an un-aliased import the name its own package declares, which the
-// import path does not always carry: a path ending in a major-version suffix
-// names no package at all. The loader maps every path a package imports, so
-// known holds an entry for every import of a file in that package.
+// known gives an un-aliased import the name that its own package declares,
+// which the import path does not always carry: a path ending in a
+// major-version suffix names no package at all. The loader maps every path
+// that a package imports, so known holds an entry for every import of a file
+// in that package.
 func fileImports(file *ast.File, known map[string]string) map[string]string {
 	imports := map[string]string{}
 	for _, spec := range file.Imports {

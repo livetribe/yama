@@ -210,9 +210,9 @@ func assignKind(s *ast.AssignStmt) string {
 	return "variable"
 }
 
-// assignValueName names the value an untraceable assignment places, for an error
-// message; it falls back to a generic word when the right-hand side is not a bare
-// identifier.
+// assignValueName names the value that an untraceable assignment places, for
+// an error message. It falls back to a generic word when the right-hand side
+// is not a bare identifier.
 func assignValueName(s *ast.AssignStmt) string {
 	if len(s.Rhs) == 1 {
 		if id, ok := s.Rhs[0].(*ast.Ident); ok {
@@ -223,9 +223,9 @@ func assignValueName(s *ast.AssignStmt) string {
 	return "a value"
 }
 
-// importName is the local name a file refers to an imported package by: the
-// explicit alias when the import carries one, and the package's own declared
-// name otherwise.
+// importName is the local name that a file refers to an imported package by:
+// the explicit alias when the import carries one, and the package's own
+// declared name otherwise.
 func importName(file *ast.File, path, pkgName string) (string, bool) {
 	for _, spec := range file.Imports {
 		unquoted, err := strconv.Unquote(spec.Path.Value)

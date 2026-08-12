@@ -25,27 +25,28 @@ import (
 // EmitAll runs the whole generation pipeline over patterns, from dir, and
 // returns one lifecycle file per package that declares lifecycle stubs.
 //
-// It reads each package's stubs, writes the injectors it derives from them,
-// runs Google Wire once over those packages, parses and analyzes what Wire
-// produced, and renders the lifecycle file. It returns the files rather than
-// writing them, so a caller decides what to do with a package whose committed
-// file already matches.
+// It reads each package's stubs, writes the injectors that it derives from
+// them, runs Google Wire once over those packages, parses and analyzes what
+// Wire produced, and renders the lifecycle file. It returns the files rather
+// than writing them, so a caller decides what to do with a package that
+// already has a matching committed file.
 //
-// Wire's output is scoped before Wire runs and removed after, so a file of that
-// name that Yama did not create is preserved and restored. The committed
-// lifecycle file is scoped with it, and put back afterward. The derived file has
-// no scope. Yama owns that name, writes over a file already at that path, and
-// removes the file after the run.
+// Wire's output is scoped before Wire runs and removed after, so a file of
+// that name that Yama did not create is preserved and restored. The
+// committed lifecycle file is scoped with it, and put back afterward. The
+// derived file has no scope. Yama owns that name, writes over a file already
+// at that path, and removes the file after the run.
 //
-// A run puts back what an earlier run moved aside and left, over every package it
-// resolves, before it reads any stub. It never moves a file aside at that point,
-// so a package it goes on to skip keeps every file it holds.
+// A run puts back what an earlier run moved aside and left, over every
+// package that it resolves, before it reads any stub. It never moves a file
+// aside at that point, so a package that it goes on to skip keeps every file
+// that it holds.
 //
-// The derived file declares each constructor beside its injector. The committed
-// lifecycle file declares the same constructors, and the two are never visible
-// together. Scoping also keeps a stale committed copy out of both Wire's load
-// and Yama's own. A package that declares no stub is skipped in silence, the way
-// Wire skips a package with no injector.
+// The derived file declares each constructor beside its injector. The
+// committed lifecycle file declares the same constructors, and the two are
+// never visible together. Scoping also keeps a stale committed copy out of
+// both Wire's load and Yama's own. A package that declares no stub is
+// skipped in silence, the way Wire skips a package with no injector.
 func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) (files []*LifecycleFile, err error) {
 	resolved, err := ResolvePackages(ctx, dir, patterns, g.stubBuildFlags)
 	if err != nil {
@@ -86,7 +87,7 @@ func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) 
 		}
 	}()
 
-	// Covers every stub package, including one whose write failed partway.
+	// Covers every stub package, including one where the write failed partway.
 	defer func() {
 		if removeErr := removeDerivedInjectors(stubPkgs); removeErr != nil {
 			files, err = nil, errors.Join(err, removeErr)
@@ -121,9 +122,9 @@ func (g *Generator) EmitAll(ctx context.Context, dir string, patterns []string) 
 	return results, nil
 }
 
-// derivedNames are the injectors a run derives, over every stub package it
-// covers. A diagnostic Google Wire reports against one of them is rewritten to
-// name the stub instead.
+// derivedNames are the injectors that a run derives, over every stub package
+// that it covers. A diagnostic that Google Wire reports against one of them
+// is rewritten to name the stub instead.
 func derivedNames(stubPkgs []*StubPackage) []string {
 	var names []string
 	for _, sp := range stubPkgs {
@@ -135,8 +136,8 @@ func derivedNames(stubPkgs []*StubPackage) []string {
 	return names
 }
 
-// loadStubPackages reads the lifecycle stubs of every package in dirs, skipping
-// the packages that declare none.
+// loadStubPackages reads the lifecycle stubs of every package in dirs. It
+// skips the packages that declare none.
 func (g *Generator) loadStubPackages(ctx context.Context, dirs []string) ([]*StubPackage, error) {
 	var stubPkgs []*StubPackage
 	for _, d := range dirs {
@@ -174,8 +175,8 @@ func (g *Generator) emitPackage(ctx context.Context, sp *StubPackage) (*Lifecycl
 	return Emit(sp, pkg, analysis), nil
 }
 
-// dirPatterns turns the directories a run generates for into package patterns
-// relative to wd.
+// dirPatterns turns the directories that a run generates for into package
+// patterns relative to wd.
 //
 // Wire is told the stub packages rather than the caller's own patterns, so a
 // package that matched those patterns but declares no stub is left alone. An

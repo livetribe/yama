@@ -14,28 +14,28 @@
 
 package generator
 
-// Generator holds the resolved configuration for a generation run. Each of
-// Google Wire's flag forms is projected from Options once, so a run that touches
-// several packages derives each one a single time.
+// Generator holds the resolved configuration for a generation run.
+// NewGenerator projects each of Google Wire's flag forms from Options once,
+// so a run that touches several packages derives each one a single time.
 type Generator struct {
-	// wireGenName is the file Google Wire writes: the file a run looks for,
-	// preserves, and removes.
+	// wireGenName is the file that Google Wire writes: the file that a run
+	// looks for, preserves, and removes.
 	wireGenName string
 
-	// wireArgs is the `wire gen` flag list handed to the tool.
+	// wireArgs is the `wire gen` flag list that a run hands to the tool.
 	wireArgs []string
 
 	// stubBuildFlags load a package's lifecycle stubs, under the tag that makes
 	// them visible.
 	stubBuildFlags []string
 
-	// parseBuildFlags load Wire's generated output, without the wireinject tag that
-	// makes its injector visible.
+	// parseBuildFlags load Wire's generated output, without the wireinject tag
+	// that makes its injector visible.
 	parseBuildFlags []string
 }
 
-// NewGenerator resolves opts into the values a generation run reads, projecting
-// each of Wire's flag forms once up front.
+// NewGenerator resolves opts into the values that a generation run reads. It
+// projects each of Wire's flag forms once, up front.
 func NewGenerator(opts Options) *Generator {
 	return &Generator{
 		wireGenName:     opts.wireGenName(),

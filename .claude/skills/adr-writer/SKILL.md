@@ -1,6 +1,6 @@
 ---
 name: adr-writer
-description: Draft a new Architecture Decision Record (ADR) for this project, or restructure a rough decision into one. Use whenever asked to write, draft, or create an ADR, to document an architectural decision, or to capture a design choice as a formal record. Also use before treating any hand-drafted ADR as done, even one not created through this skill. Pair with the "ste100" skill for prose and the "adr-validate" workflow for a final adversarial check.
+description: Draft a new Architecture Decision Record (ADR) for this project, or restructure a rough decision into one. Use whenever asked to write, draft, or create an ADR, to document an architectural decision, or to capture a design choice as a formal record. Also use before treating any hand-drafted ADR as done, even one not created through this skill. Pair with the "asd-ste100" skill for prose and the "adr-validate" workflow for a final adversarial check.
 ---
 
 # Writing an ADR for this project
@@ -110,11 +110,11 @@ of Y — not a restatement of a point made elsewhere dressed in new words.
 
 ## Write the prose in STE from the start
 
-Load the **`ste100`** skill and write to its checklist as you draft, rather
-than drafting normally and converting afterward. Converting after the fact
-is the higher-risk mode — it risks losing meaning at exactly the sentences
-that mattered — and it's avoidable here, since you're generating the text
-rather than translating someone else's.
+Load the **`asd-ste100`** skill and write to its checklist as you draft,
+rather than drafting normally and converting afterward. Converting after
+the fact is the higher-risk mode — it risks losing meaning at exactly the
+sentences that mattered — and it's avoidable here, since you're generating
+the text rather than translating someone else's.
 
 ## Before calling it done
 

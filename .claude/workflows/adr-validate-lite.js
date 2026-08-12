@@ -1,7 +1,7 @@
 export const meta = {
   name: 'adr-validate-lite',
   description: 'Adversarial review of an ADR for provenance, self-consistency, and structural/self-containment issues, without the style dimension',
-  whenToUse: 'Use in place of adr-validate when the token cost of the full run is not warranted. It drops the Style dimension, which produces the most candidates and so the most verification fan-out, and it verifies each candidate with two skeptics rather than three. Run the "ste100" skill over the ADR separately: it is a single pass with no fan-out, so it costs a fraction of the Style dimension it replaces.',
+  whenToUse: 'Use in place of adr-validate when the token cost of the full run is not warranted. It drops the Style dimension, which produces the most candidates and so the most verification fan-out, and it verifies each candidate with two skeptics rather than three. Run the "asd-ste100" skill over the ADR separately: it is a single pass with no fan-out, so it costs a fraction of the Style dimension it replaces.',
   phases: [
     { title: 'Precheck', detail: 'cheap mechanical fact-check: ADR number references actually exist' },
     { title: 'Find', detail: 'three independent reviewers scan the ADR from different angles' },

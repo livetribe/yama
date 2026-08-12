@@ -29,9 +29,9 @@ type LifecycleFile struct {
 	Content []byte
 }
 
-// lifecycleFileMode is the permission a write requests for the committed
+// lifecycleFileMode is the permission that a write requests for the committed
 // lifecycle file. The umask applies to it, and a file already in the package
-// keeps the permission it carries.
+// keeps the permission that it carries.
 const lifecycleFileMode = 0o666
 
 // Write writes f into its package directory and returns the path it wrote.

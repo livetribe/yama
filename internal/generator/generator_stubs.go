@@ -31,15 +31,16 @@ import (
 // no stub yields ErrNoStubs.
 //
 // A stub file that fails to parse is reported as a load error rather than
-// folded into ErrNoStubs: the two mean different things, a package with nothing
-// to generate versus one Yama cannot read, and only the first is safe to skip
-// in silence.
+// folded into ErrNoStubs: the two mean different things, a package with
+// nothing to generate versus one that Yama cannot read, and only the first
+// is safe to skip in silence.
 //
 // The load type-checks. This load is the only one that sees the stubs beside
 // the application's other files, so it is where the Go compiler catches a
-// constructor whose name the package already declares. Yama cannot rename a
-// constructor, because the application calls it, so reporting is the only
-// answer available and the type checker gives it without a check of Yama's own.
+// constructor with a name that the package already declares. Yama cannot
+// rename a constructor, because the application calls it, so reporting is
+// the only answer available, and the type checker gives it without a check
+// of Yama's own.
 func (g *Generator) LoadStubs(ctx context.Context, dir string) (*StubPackage, error) {
 	fset := token.NewFileSet()
 	cfg := &packages.Config{
@@ -92,8 +93,9 @@ func (g *Generator) LoadStubs(ctx context.Context, dir string) (*StubPackage, er
 	return sp, nil
 }
 
-// fileStubs extracts the stubs one file declares. A file that does not import
-// Google Wire declares none, since a stub states its providers with wire.Build.
+// fileStubs extracts the stubs that one file declares. A file that does not
+// import Google Wire declares none, since a stub states its providers with
+// wire.Build.
 func fileStubs(fset *token.FileSet, file *ast.File) ([]*Stub, error) {
 	wireName, ok := importName(file, wirePkgPath, wirePkgName)
 	if !ok {
@@ -153,9 +155,10 @@ func stubBuildCall(fn *ast.FuncDecl, wireName string) (*ast.CallExpr, bool) {
 	return build, true
 }
 
-// newStub validates one stub's signature and records it. A stub whose signature
-// Yama cannot derive an injector from is a *StubError rather than a silently
-// skipped declaration, since the application wrote it expecting a constructor.
+// newStub validates one stub's signature and records it. When Yama cannot
+// derive an injector from a stub's signature, newStub returns a *StubError
+// rather than silently skipping the declaration, since the application
+// wrote the stub expecting a constructor.
 func newStub(fset *token.FileSet, file *ast.File, fn *ast.FuncDecl, build *ast.CallExpr) (*Stub, error) {
 	s := &Stub{
 		Name:     fn.Name.Name,
@@ -212,9 +215,9 @@ func hasOptsDeclared(fset *token.FileSet, s *Stub, yamaName string) (bool, error
 	return false, nil
 }
 
-// checkResults requires the three results the emitted constructor returns: the
-// value the graph builds, the Lifecycle that orchestrates it, and the
-// construction error.
+// checkResults requires the three results that the emitted constructor
+// returns: the value that the graph builds, the Lifecycle that orchestrates
+// it, and the construction error.
 func checkResults(fset *token.FileSet, s *Stub, yamaName string) error {
 	want := fmt.Sprintf("results of the form (T, %s.%s, error)", yamaName, lifecycleTypeName)
 
@@ -233,8 +236,9 @@ func checkResults(fset *token.FileSet, s *Stub, yamaName string) error {
 	return nil
 }
 
-// sortStubs orders stubs by file name, then by position, so a package's emitted
-// constructors do not depend on the order the loader returned its files in.
+// sortStubs orders stubs by file name, then by position, so a package's
+// emitted constructors do not depend on the order that the loader returned
+// its files in.
 func sortStubs(fset *token.FileSet, stubs []*Stub) {
 	sort.SliceStable(stubs, func(i, j int) bool {
 		pi := fset.Position(stubs[i].FuncDecl.Pos())

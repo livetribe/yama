@@ -24,14 +24,15 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-// ResolvePackages expands package patterns to the directories of the packages
-// they match, using Go's own package-pattern syntax (for example "./..."). No
-// patterns defaults to ".", matching `wire gen`'s own default.
+// ResolvePackages expands package patterns to the directories of the
+// packages that they match, using Go's own package-pattern syntax (for
+// example "./..."). No patterns defaults to ".", matching `wire gen`'s own
+// default.
 //
 // buildFlags are applied to the package load. Pass Options.stubBuildFlags, so
 // resolution loads under the tag that reveals a lifecycle stub and arrives at
-// the package set a run generates for; a build tag can otherwise change which
-// packages exist under a pattern.
+// the package set that a run generates for. A build tag can otherwise change
+// which packages exist under a pattern.
 //
 // Resolution runs before any Wire invocation. A transient-output scope must be
 // open for a directory before Wire writes to it, which requires the concrete
@@ -48,11 +49,12 @@ func ResolvePackages(ctx context.Context, dir string, patterns, buildFlags []str
 		BuildFlags: buildFlags,
 	}
 
-	// Patterns are escaped exactly as Google Wire escapes them, forcing pattern
-	// interpretation rather than letting an argument be read as a file list. Wire
-	// resolves the set of packages it writes to this way, and Yama must arrive at
-	// the same set: a directory Yama fails to resolve is one it does not scope,
-	// and so one Wire would write to unprotected.
+	// Patterns are escaped exactly as Google Wire escapes them. This forces
+	// pattern interpretation rather than letting an argument be read as a file
+	// list. Wire resolves the set of packages that it writes to this way, and
+	// Yama must arrive at the same set: a directory that Yama fails to resolve
+	// is one that it does not scope, and so one that Wire would write to
+	// unprotected.
 	escaped := make([]string, len(patterns))
 	for i, pattern := range patterns {
 		escaped[i] = "pattern=" + pattern
