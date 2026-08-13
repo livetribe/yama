@@ -437,42 +437,6 @@ sentence can pass every rule above and still fail this one. Flag:
 - A deleted causal or conditional connective (see C4).
 - A discourse adverb that no longer refers to anything (see C5).
 
-# Report what you did not change, with the check it passed
-
-An STE pass fails silently when it declares a passage clean without looking
-at it. This is the harder failure to see, because the output looks correct
-and the report asserts that it is.
-
-Never write "the rest was already compliant." Report against the inventory
-you built before you started, with one line per passage and no passage
-missing. For every passage you leave unchanged, name the constructions you
-checked it against. If you cannot name them, you did not check it.
-
-This applies with full force to text you did not touch. Unchanged text gets
-the same scan as rewritten text.
-
-# Output format
-
-```markdown
-| Rule | Original | Rewritten |
-|---|---|---|
-| A4 simple tense | "We have received your request." | "We received your request." |
-| A9 noun cluster | "the agent task queue priority handler" | "the handler that sets task-queue priority" |
-```
-
-Follow the table with two lists:
-
-1. **Left unchanged, and why.** One line per passage, naming the rules it
-   was checked against. "`stubResults` doc: checked A3, A5, A6, A8, B2. The
-   colon introduces a list of three items, which A8 permits."
-2. **Not simplified on purpose.** One line per passage where the STE rewrite
-   would have cost required precision (a safety condition, a scope
-   qualifier, a number). Keep the longer phrasing and flag the trade-off.
-   Never drop the precision silently.
-
-If the input already complies, say so. Do not force changes onto compliant
-text.
-
 # Scale: single edit against batch rewrite
 
 For one sentence or paragraph, apply the checklist inline and move on.
