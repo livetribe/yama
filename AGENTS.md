@@ -18,7 +18,8 @@ run in the actual working tree, not a scratch copy or worktree.
 ## Code comments
 All code comments must follow ASD-STE100 (Simplified Technical English):
 short sentences, one instruction per sentence, active voice, approved
-vocabulary, no jargon or idioms.
+vocabulary, no jargon or idioms. Use the `asd-ste100` skill to write or check
+comments against this standard — do not rely on general-purpose simplifying.
 
 ## Code comments state facts, never rationale or future phases
 
