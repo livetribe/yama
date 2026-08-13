@@ -115,26 +115,11 @@ An application may instead give Yama sole ownership of generation. It then point
 
 Google Wire writes `wire_gen.go` into the package directory. It offers no way to redirect the file. Yama therefore removes `wire_gen.go` after it emits the lifecycle file. The derived-injector file is transient on the same terms. Google Wire generates from a package, so Yama writes the derived injector into the package directory. Yama removes that file with `wire_gen.go`.
 
-Removal is non-destructive for `wire_gen.go`, if a file of that name is already present. Yama removes only a `wire_gen.go` it wrote. Yama moves the file it found to `.yama.wire_gen.go` before generation. Yama moves that file back afterward. Generation therefore never overwrites or deletes a `wire_gen.go` Yama does not own. Both removals run even when a later step fails, so a failed run leaves no transient file behind.
+Removal is non-destructive for `wire_gen.go`, if a file of that name is already present. Yama removes only a `wire_gen.go` it wrote. Yama moves the file it found to `.yama.wire_gen.go` before generation. Yama moves that file back afterward. Generation therefore never overwrites or deletes a `wire_gen.go` Yama does not own.
 
-Yama scopes the committed lifecycle file on the same terms (ADR-011).
+Yama moves the committed lifecycle file aside as well (ADR-011). The two files settle on different terms. Yama always puts `wire_gen.go` back, because the application owns that file whatever the run did. Yama keeps the lifecycle file that a run emitted, and it puts the previous one back only when that package failed. ADR-014 states the rule for each package.
 
-A run can end without restoring. It then leaves `.yama.wire_gen.go` in the package directory. The next run puts that file back before it reads any stub. It puts the file back over every package it resolves, and it moves no file aside at that point, so a package it goes on to skip keeps every file it holds. The load that reads the stubs type-checks each package, and the output the interrupted run left declares the constructors the stubs declare, so the repair cannot wait for the scope.
-
-Yama makes the backup only when `wire_gen.go` is present and `.yama.wire_gen.go` is absent:
-
-| `wire_gen.go` | `.yama.wire_gen.go` | Yama makes a backup | State |
-|---|---|---|---|
-| absent | absent | no | The package holds no Wire output. |
-| absent | present | no | An interrupted run moved the application's file to the backup name. |
-| present | absent | yes | The usual state. |
-| present | present | no | An interrupted run moved the application's file to the backup name. Google Wire then wrote the `wire_gen.go` that is present. Yama removes that file. |
-
-Yama takes the backup name only to hold a file that the application owns. A backup that is already present is therefore the application's file.
-
-This holds while nothing else changes the package directory between runs. Yama does not protect a `wire_gen.go` that something wrote after an interrupted run. The next run moves the backup over that file.
-
-At the end of a run, Yama moves `.yama.wire_gen.go` back to `wire_gen.go`, if that backup is present. That move replaces the `wire_gen.go` the run generated, in one step. No point in the run has neither file present. Yama removes the generated `wire_gen.go` only when it holds no backup to move.
+A run puts back every file it moved, for every package, whether that package generated or failed. A run that stops without reaching that step leaves a file at its backup name, and the Go toolchain does not read a file whose name starts with a dot. ADR-014 records that hazard and the reason Yama does not guard it.
 
 A CI check regenerates the lifecycle file and diffs it against the committed copy to catch drift. A change in Yama's parser, its analysis, or its emitter changes the lifecycle file's content, so it surfaces at that diff.
 

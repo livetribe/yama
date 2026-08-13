@@ -378,22 +378,28 @@ constructor out of the load that reads the stubs, since those declare the same
 function. It states no other tool's build condition (ADR-011).
 
 A run also moves the committed `lifecycle_gen.go` aside, beside the two
-transient files, and puts it back afterward. The committed file and the
-derived-injector file declare the same constructors, and the scope keeps the two
-apart. An application file that calls a lifecycle constructor therefore compiles
-during Google Wire's run and during Yama's own load of Wire's output, in the
+transient files. The committed file and the derived-injector file declare the
+same constructors, and moving the committed file aside keeps the two apart. An
+application file that calls a lifecycle constructor therefore compiles during
+Google Wire's run and during Yama's own load of Wire's output, in the
 constructor's own package and in a sibling package alike.
 
-The scope covers a second hazard. Google Wire type-checks the whole package, and
-so does Yama's load of Wire's output. A committed file left stale by a provider
-rename would otherwise fail the step that produces its replacement (ADR-011).
+Moving the file aside covers a second hazard. Google Wire type-checks the whole
+package, and so does Yama's load of Wire's output. A committed file left stale by
+a provider rename would otherwise fail the step that produces its replacement
+(ADR-011).
+
+A run settles each package on its own. It keeps the lifecycle file it emitted for
+a package that generated, and it puts the previous file back for a package that
+failed. One package's failure therefore leaves every other package's output in
+place (ADR-014).
 
 Google Wire may be unable to build a stub's declared result. This can happen because
 providers do not reach it, or because a dependency cycle exists among them. Either case
 is a generation failure, reported against the stub rather than against the derived
 injector the application never sees.
 
-Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory. Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and put back afterward. ADR-008 states the exceptions. Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
+Google Wire's `wire_gen.go` is a transient intermediate. Google Wire writes it into the package directory. Yama parses it and then removes it, and it is not committed. Removal is non-destructive: Yama removes only a `wire_gen.go` it generated, and a pre-existing one is moved aside before generation and put back afterward, whether that package generated or failed (ADR-008, ADR-014). Because `wire_gen.go` is absent from the built package, the application constructs and runs through the generated lifecycle constructor, not through Google Wire's injector.
 
 A CI check regenerates `lifecycle_gen.go` and diffs it against the committed copy to catch drift. A change in Yama's parser, analysis, or emitter changes the lifecycle file's content.
 

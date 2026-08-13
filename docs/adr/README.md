@@ -23,6 +23,7 @@ are intended to preserve design rationale for future maintainers and reviewers.
 | [ADR-011](ADR-011-lifecycle-constructor-stubs.md) | Lifecycle Stubs Declare the Constructor and Its Providers | Proposed |
 | [ADR-012](ADR-012-wire-gen-cli-parity.md) | The Yama Command Mirrors `wire gen` | Proposed |
 | [ADR-013](ADR-013-derived-identifiers.md) | Derived Identifiers in Generated Code | Proposed |
+| [ADR-014](ADR-014-per-package-generation-states.md) | A Run Generates One Package at a Time | Proposed |
 
 ## Conventions
 

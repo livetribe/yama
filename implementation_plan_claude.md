@@ -811,7 +811,7 @@ emitted code supplies no interceptor input of its own.
 behind `//go:build yamainject` supplies the constructor's name, signature,
 and provider set. No application injector supplies any of these. This phase
 adds a third package-load mode to `internal/generator/wire.go`, alongside the
-existing `discoveryBuildFlags` and `parseBuildFlags` modes. The new mode
+existing `stubBuildFlags` and `parseBuildFlags` modes. The new mode
 loads the package under the `yamainject` tag. It collects each function whose
 body is `panic(wire.Build(…))`. It derives one Wire injector per stub. Each
 derived injector takes its name from the stub's name, in the `yama`-prefixed
@@ -997,8 +997,9 @@ cleanly when the target package is malformed.
   package holds an injector). A package pattern resolves to nothing → a
   clear error, since `wire gen` also fails there. The committed
   `lifecycle_gen.go` is read-only → a clear error, and the file keeps its
-  content. A read-only output directory does not stop the write, because
-  the write opens a file that is already there.
+  content. A read-only output directory fails that package: the work item
+  moves the file aside before it writes the replacement, and the move needs
+  directory write permission (ADR-014).
 
 **Regression note.** The example app becomes a living integration fixture
 reused by Phase 10. Keep it minimal, but ensure it covers at least 2

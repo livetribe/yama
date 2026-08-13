@@ -36,6 +36,11 @@ in the same commit that introduces it.
 - **Cleanup** — a Google Wire cleanup function returned by a provider. Yama
   supports one for backward compatibility; it is not a lifecycle capability in
   its own right. See ADR-008.
+- **Target package** — a package that a run generates for, named by the
+  command's package-pattern argument. See ADR-012.
+- **Work item** — one target package's participation in one run. It records
+  what that package moved aside, and its type states the package's outcome.
+  See ADR-014.
 - **Plan** (rejected term) — a description of execution, separate from the
   code that performs it, that an engine would read. Yama's ordered level
   list is not a plan: see ADR-004.

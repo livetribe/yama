@@ -160,16 +160,16 @@ the constructor in the load Yama makes over Wire's output, which sets neither
 tag. Yama depends on this behaviour of Google Wire. The end-to-end tests over a
 package with a caller are the only check on it.
 
-Yama scopes the committed `lifecycle_gen.go` for the run. It moves the file aside
-before Wire runs. It puts the file back afterward, on the same terms as Wire's
-output. The committed file and the placeholder declare the same
-constructors, and the scope keeps the two apart.
+Yama moves the committed `lifecycle_gen.go` aside before Wire runs. The committed
+file and the placeholder declare the same constructors, and moving the file aside
+keeps the two apart. Wire's output settles on different terms from this file, and
+ADR-014 states the rule for each package.
 
-The scope covers a second hazard. A committed `lifecycle_gen.go` can stop
-compiling on its own. A provider rename leaves it referring to a symbol that no
-longer exists. Google Wire type-checks the whole package, and so does Yama's own
-load of Wire's output. A stale file would therefore fail the step that produces
-its replacement.
+Moving the file aside covers a second hazard. A committed `lifecycle_gen.go` can
+stop compiling on its own. A provider rename leaves it referring to a symbol that
+no longer exists. Google Wire type-checks the whole package, and so does Yama's
+own load of Wire's output. A stale file would therefore fail the step that
+produces its replacement.
 
 ## Rationale
 
@@ -255,12 +255,11 @@ new tag name, not a new file convention.
   `wire_gen.go`. Yama tolerated that behaviour before and now requires it. No
   unit test pins it. The end-to-end tests over a package with a caller fail if it
   changes.
-* A run that ends without restoring leaves the constructor declared in Wire's
-  output, with a `panic` body. Three costs follow. An ordinary build then
-  compiles and panics when the constructor is called. The next Yama run fails in
-  the load that reads the stubs, before it opens the scope that would put the
-  application's original back. An application that runs Google Wire itself gets
-  the placeholder copied into its own committed `wire_gen.go`.
+* A run that stops before it puts files back leaves the constructor declared in
+  Wire's output, with a `panic` body. Two costs follow. An ordinary build then
+  compiles and panics when the constructor is called. An application that runs
+  Google Wire itself gets the placeholder copied into its own committed
+  `wire_gen.go`. ADR-014 states why Yama does not repair that state.
 * A `wireinject`-tagged file of the application that declares a lifecycle
   constructor's name now fails the run.
 * Each constructor's name is in the package scope while Google Wire runs. Google
@@ -347,15 +346,15 @@ An earlier form of this decision gave the emitted file both tags. `!wireinject`
 kept a stale `lifecycle_gen.go` out of Google Wire's input, which is what Wire's
 own `wire_gen.go` uses that tag for.
 
-It buys one case that scoping cannot cover. An application may keep its own
-`wire.go` and its own directive naming Wire's command (ADR-008). A stale
+It buys one case that moving the file aside cannot cover. An application may keep
+its own `wire.go` and its own directive naming Wire's command (ADR-008). A stale
 lifecycle file then fails that application's Wire run, which Yama is not
-executing and cannot scope around.
+executing and cannot move a file around.
 
 The cost is a permanent line in every application's committed source. The tag
 names a third party's build condition, written there by Yama rather than by the
 application, to pay for a state that is already broken and that one command
-repairs. Scoping the file covers the same hazard for every run Yama does
+repairs. Moving the file aside covers the same hazard for every run Yama does
 execute, and it leaves the emitted file stating one condition of Yama's own.
 
 ### A third transient file carries the placeholders
@@ -363,15 +362,15 @@ execute, and it leaves the emitted file stating one condition of Yama's own.
 Yama could write the placeholders into their own file, under the emitted file's
 name and build constraint, rather than beside the derived injectors. Google Wire
 copies nothing from a file that holds no injector. The placeholders would
-therefore not reach `wire_gen.go`, and the interrupted-run costs above would not
-arise.
+therefore not reach `wire_gen.go`, and the costs above would not arise.
 
 Rejected. Google Wire's run is one stage of a generation run, and one file
-supports that stage. A second file for the same stage adds a name to the scope
-protocol. It also writes a transient file at the path of a committed one. A run
-that ends without restoring then leaves a file that a reader takes for the
-application's own committed output. Every cost this alternative avoids follows
-from a run that does not finish, and one ordinary Yama run repairs that state.
+supports that stage. A second file for the same stage adds a name that every
+package must move aside and put back. It also writes a transient file at the path
+of a committed one. A run that stops before it puts files back then leaves a file
+that a reader takes for the application's own committed output. Every cost this
+alternative avoids follows from a run that does not finish, and one ordinary Yama
+run repairs that state.
 
 ### A marker of Yama's own replaces `wire.Build` in the stub
 
