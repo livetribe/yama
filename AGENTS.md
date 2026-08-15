@@ -58,6 +58,17 @@ of writing it, and fix the real gap — update the implementation plan, or
 draft a new ADR if this phase settled a non-obvious decision nothing
 captures yet.
 
+## Where the package doc comment lives
+
+Every non-`main` package has a package comment, in exactly one file, starting
+with the package name: `// Package graph ...`.
+
+A package with more than one source file puts that comment in `doc.go`. That
+file holds the package comment and nothing else, except `//go:generate`
+directives. A package with exactly one source file puts the comment at the top
+of that file; the filename does not matter, and a file named after the package
+does not exempt a multi-file package from `doc.go`.
+
 ## Testing
 
 **Match the framework to the test.** Ginkgo (`ginkgo/v2`) for complicated
