@@ -46,7 +46,7 @@ type lcRecorder struct {
 	calls []lcCall
 }
 
-func (r *lcRecorder) add(label string, ctx context.Context) {
+func (r *lcRecorder) add(ctx context.Context, label string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -100,7 +100,7 @@ func lcHeld(
 	m := execmocks.NewMockCompleteLifecycle(ctrl)
 
 	m.EXPECT().Start(gomock.Any()).DoAndReturn(func(ctx context.Context) error {
-		rec.add(name+".start", ctx)
+		rec.add(ctx, name+".start")
 
 		if holdStart != nil {
 			<-holdStart
@@ -110,7 +110,7 @@ func lcHeld(
 	}).AnyTimes()
 
 	m.EXPECT().Quiesce(gomock.Any()).Do(func(ctx context.Context) {
-		rec.add(name+".quiesce", ctx)
+		rec.add(ctx, name+".quiesce")
 
 		if holdQuiesce != nil {
 			<-holdQuiesce
@@ -118,7 +118,7 @@ func lcHeld(
 	}).AnyTimes()
 
 	m.EXPECT().Stop(gomock.Any()).Do(func(ctx context.Context) {
-		rec.add(name+".stop", ctx)
+		rec.add(ctx, name+".stop")
 	}).AnyTimes()
 
 	return m
@@ -381,16 +381,16 @@ var _ = Describe("Lifecycle state machine", func() {
 
 			waiter := execmocks.NewMockCompleteLifecycle(ctrl)
 			waiter.EXPECT().Start(gomock.Any()).DoAndReturn(func(c context.Context) error {
-				rec.add("waiter.start", c)
+				rec.add(c, "waiter.start")
 				<-c.Done()
 
 				return c.Err()
 			})
 			waiter.EXPECT().Quiesce(gomock.Any()).Do(func(c context.Context) {
-				rec.add("waiter.quiesce", c)
+				rec.add(c, "waiter.quiesce")
 			})
 			waiter.EXPECT().Stop(gomock.Any()).Do(func(c context.Context) {
-				rec.add("waiter.stop", c)
+				rec.add(c, "waiter.stop")
 			})
 
 			deadline, cancel := context.WithTimeout(ctx, 20*time.Millisecond)

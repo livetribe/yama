@@ -8,7 +8,10 @@ linters:
     - dogsled
     - dupl
     - errcheck
+    - errname
+    - errorlint
     - exhaustive
+    - funcorder
     - funlen
     - gochecknoinits
     - goconst
@@ -24,6 +27,7 @@ linters:
     - nakedret
     - noctx
     - nolintlint
+    - revive
     - rowserrcheck
     - staticcheck
     - unconvert
@@ -53,6 +57,9 @@ linters:
       threshold: 100
     exhaustive:
       default-signifies-exhaustive: false
+    funcorder:
+      constructor: true
+      struct-method: true
     funlen:
       lines: 100
       statements: 50
@@ -89,6 +96,12 @@ linters:
       line-length: 140
     misspell:
       locale: US
+    revive:
+      rules:
+        - name: context-as-argument
+        - name: error-strings
+        - name: indent-error-flow
+        - name: receiver-naming
     mnd:
       # don't include the "operation" and "assign"
       checks:

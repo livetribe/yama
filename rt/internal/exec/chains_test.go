@@ -128,7 +128,7 @@ type chnOp struct {
 	// arrange makes the component's method for this operation run body.
 	arrange func(*execmocks.MockCompleteLifecycle, func())
 	// invoke runs this operation on a wrapped component.
-	invoke func(CompleteLifecycle, context.Context)
+	invoke func(context.Context, CompleteLifecycle)
 }
 
 // interceptor builds an interceptor for this operation whose behavior is body and
@@ -195,7 +195,7 @@ var chnStartOp = chnOp{
 			return nil
 		}).AnyTimes()
 	},
-	invoke: func(c CompleteLifecycle, ctx context.Context) {
+	invoke: func(ctx context.Context, c CompleteLifecycle) {
 		_ = c.Start(ctx)
 	},
 }
@@ -220,7 +220,7 @@ var chnQuiesceOp = chnOp{
 			body()
 		}).AnyTimes()
 	},
-	invoke: func(c CompleteLifecycle, ctx context.Context) {
+	invoke: func(ctx context.Context, c CompleteLifecycle) {
 		c.Quiesce(ctx)
 	},
 }
@@ -245,7 +245,7 @@ var chnStopOp = chnOp{
 			body()
 		}).AnyTimes()
 	},
-	invoke: func(c CompleteLifecycle, ctx context.Context) {
+	invoke: func(ctx context.Context, c CompleteLifecycle) {
 		c.Stop(ctx)
 	},
 }
@@ -298,9 +298,9 @@ func chnSilentAll(ctrl *gomock.Controller) []any {
 }
 
 // chnRunAll drives a wrapper through all three operations under ctx.
-func chnRunAll(c CompleteLifecycle, ctx context.Context) {
+func chnRunAll(ctx context.Context, c CompleteLifecycle) {
 	for _, op := range chnOps {
-		op.invoke(c, ctx)
+		op.invoke(ctx, c)
 	}
 }
 
@@ -341,7 +341,7 @@ var _ = Describe("Chains interceptor registration", func() {
 				comp := execmocks.NewMockCompleteLifecycle(ctrl)
 				chnRecordAll(comp, log)
 
-				chnRunAll(NewChains([]any{op.record(ctrl, log, "only")}).WrapComponent(comp), context.Background())
+				chnRunAll(context.Background(), NewChains([]any{op.record(ctrl, log, "only")}).WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal(want))
 			},
@@ -357,7 +357,7 @@ var _ = Describe("Chains interceptor registration", func() {
 			comp := execmocks.NewMockCompleteLifecycle(ctrl)
 			chnRecordAll(comp, log)
 
-			chnRunAll(NewChains([]any{chnEveryInterceptor(ctrl, log, "all")}).WrapComponent(comp), context.Background())
+			chnRunAll(context.Background(), NewChains([]any{chnEveryInterceptor(ctrl, log, "all")}).WrapComponent(comp))
 
 			Expect(log.seen()).To(Equal([]string{
 				"all enter", "start", "all exit",
@@ -376,7 +376,7 @@ var _ = Describe("Chains interceptor registration", func() {
 					chains = NewChains([]any{build(ctrl)})
 				}).NotTo(Panic())
 
-				chnRunAll(chains.WrapComponent(comp), context.Background())
+				chnRunAll(context.Background(), chains.WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal([]string{"start", "quiesce", "stop"}))
 			},
@@ -403,7 +403,7 @@ var _ = Describe("Chains interceptor registration", func() {
 					op.record(ctrl, log, "second"),
 				})
 
-				op.invoke(chains.WrapComponent(comp), context.Background())
+				op.invoke(context.Background(), chains.WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal([]string{
 					"first enter", "second enter", op.name, "second exit", "first exit",
@@ -457,7 +457,7 @@ var _ = Describe("Chains interceptor registration", func() {
 
 				comp := execmocks.NewMockCompleteLifecycle(ctrl)
 
-				op.invoke(NewChains([]any{op.blocking(ctrl, log)}).WrapComponent(comp), expired())
+				op.invoke(expired(), NewChains([]any{op.blocking(ctrl, log)}).WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal([]string{chnBlocked}))
 				Expect(logs.records()).To(BeEmpty())
@@ -480,7 +480,7 @@ var _ = Describe("Chains interceptor registration", func() {
 					seen = len(logs.records())
 				})
 
-				op.invoke(NewChains([]any{outer}).WrapComponent(comp), expired())
+				op.invoke(expired(), NewChains([]any{outer}).WrapComponent(comp))
 
 				Expect(seen).To(Equal(1))
 				Expect(logs.records()).To(HaveLen(1))
@@ -524,7 +524,7 @@ var _ = Describe("Chains interceptor registration", func() {
 					next(context.WithoutCancel(ctx))
 				})
 
-				op.invoke(NewChains([]any{undated}).WrapComponent(comp), expired())
+				op.invoke(expired(), NewChains([]any{undated}).WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal([]string{op.name}))
 				Expect(logs.records()).To(BeEmpty())
@@ -563,7 +563,7 @@ var _ = Describe("Chains interceptor registration", func() {
 				wrapped := NewChains([]any{op.silent(ctrl)}).WrapComponent(comp)
 				Expect(wrapped.Start(context.Background())).NotTo(Succeed())
 
-				op.invoke(wrapped, expired())
+				op.invoke(expired(), wrapped)
 
 				recs := logs.records()
 				Expect(recs).To(HaveLen(1))
@@ -584,7 +584,7 @@ var _ = Describe("Chains interceptor registration", func() {
 				wrapped := NewChains(nil).WrapComponent(build(m))
 				Expect(wrapped.Start(context.Background())).NotTo(Succeed())
 
-				op.invoke(wrapped, context.Background())
+				op.invoke(context.Background(), wrapped)
 
 				recs := logs.records()
 				Expect(recs).To(HaveLen(1))
@@ -615,7 +615,7 @@ var _ = Describe("Chains interceptor registration", func() {
 				comp := execmocks.NewMockCompleteLifecycle(ctrl)
 				chnRecordAll(comp, log)
 
-				op.invoke(NewChains([]any{op.record(ctrl, log, "i")}).WrapComponent(comp), context.Background())
+				op.invoke(context.Background(), NewChains([]any{op.record(ctrl, log, "i")}).WrapComponent(comp))
 
 				Expect(log.seen()).To(Equal([]string{"i enter", op.name, "i exit"}))
 				Expect(logs.records()).To(BeEmpty())
@@ -699,7 +699,7 @@ var _ = Describe("Chains component wrapping", func() {
 			chnStopOp.silent(ctrl),
 		})
 
-		chnRunAll(chains.WrapComponent(comp), expired())
+		chnRunAll(expired(), chains.WrapComponent(comp))
 
 		Expect(log.seen()).To(Equal([]string{"start-i enter", "start", "start-i exit"}))
 
@@ -716,7 +716,7 @@ var _ = Describe("Chains component wrapping", func() {
 				chnStopOp.recordTimes(ctrl, log, "stop-i", calls.stop),
 			})
 
-			chnRunAll(chains.WrapComponent(build(ctrl, log)), context.Background())
+			chnRunAll(context.Background(), chains.WrapComponent(build(ctrl, log)))
 
 			Expect(log.seen()).To(Equal(want))
 		},
@@ -805,7 +805,7 @@ var _ = Describe("Chains component wrapping", func() {
 				next(ctx)
 			})
 
-			op.invoke(NewChains([]any{outer}).WrapComponent(comp), context.Background())
+			op.invoke(context.Background(), NewChains([]any{outer}).WrapComponent(comp))
 
 			Expect(ok).To(BeTrue())
 			Expect(got).To(BeIdenticalTo(comp))
@@ -1114,7 +1114,7 @@ var _ = Describe("Chains outcomes", func() {
 			wrapped := NewChains(arrange(op, ctrl, comp)).WrapComponent(comp)
 
 			Expect(func() {
-				op.invoke(wrapped, context.Background())
+				op.invoke(context.Background(), wrapped)
 			}).To(PanicWith("boom"))
 		},
 		Entry("start, from an interceptor", chnStartOp, chnPanickingInterceptor),

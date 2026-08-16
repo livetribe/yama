@@ -58,7 +58,7 @@ type itcIntercept func(ctrl *gomock.Controller, before func(context.Context) con
 type itcBuild func(ctrl *gomock.Controller) any
 
 // itcInvoke runs one operation on a wrapped component.
-type itcInvoke func(c CompleteLifecycle, ctx context.Context)
+type itcInvoke func(ctx context.Context, c CompleteLifecycle)
 
 // itcPass hands the context to next unchanged.
 func itcPass(ctx context.Context) context.Context { return ctx }
@@ -188,15 +188,15 @@ func itcSilentStop(ctrl *gomock.Controller) any {
 	return apimocks.NewMockStopInterceptor(ctrl)
 }
 
-func itcInvokeStart(c CompleteLifecycle, ctx context.Context) {
+func itcInvokeStart(ctx context.Context, c CompleteLifecycle) {
 	_ = c.Start(ctx)
 }
 
-func itcInvokeQuiesce(c CompleteLifecycle, ctx context.Context) {
+func itcInvokeQuiesce(ctx context.Context, c CompleteLifecycle) {
 	c.Quiesce(ctx)
 }
 
-func itcInvokeStop(c CompleteLifecycle, ctx context.Context) {
+func itcInvokeStop(ctx context.Context, c CompleteLifecycle) {
 	c.Stop(ctx)
 }
 
@@ -247,7 +247,7 @@ var _ = Describe("Interceptor view of the wrapped component", func() {
 				return ctx
 			}, itcNoop)
 
-			invoke(NewChains([]any{i}).WrapComponent(comp), context.Background())
+			invoke(context.Background(), NewChains([]any{i}).WrapComponent(comp))
 
 			Expect(itcComponent(interceptorSaw)).To(BeIdenticalTo(comp))
 			Expect(itcComponent(componentSaw)).To(BeIdenticalTo(comp))
@@ -268,7 +268,7 @@ var _ = Describe("Interceptor view of the wrapped component", func() {
 
 			arrange(comp.MockCompleteLifecycle, func(ctx context.Context) { componentSaw = ctx })
 
-			invoke(NewChains(nil).WrapComponent(comp), context.Background())
+			invoke(context.Background(), NewChains(nil).WrapComponent(comp))
 
 			Expect(itcComponent(componentSaw)).To(BeIdenticalTo(comp))
 		},
@@ -438,7 +438,7 @@ var _ = Describe("Interceptor control of the operation context", func() {
 				return ctx
 			}, itcNoop)
 
-			invoke(NewChains([]any{outer, inner}).WrapComponent(comp), context.Background())
+			invoke(context.Background(), NewChains([]any{outer, inner}).WrapComponent(comp))
 
 			Expect(innerSaw.Value(itcOuterKey)).To(Equal("outer-value"))
 			Expect(componentSaw.Value(itcOuterKey)).To(Equal("outer-value"))
@@ -458,7 +458,7 @@ var _ = Describe("Interceptor control of the operation context", func() {
 			i := intercept(ctrl, itcPass, itcNoop)
 
 			ctx := context.WithValue(context.Background(), itcCallerKey, "caller-value")
-			invoke(NewChains([]any{i}).WrapComponent(comp), ctx)
+			invoke(ctx, NewChains([]any{i}).WrapComponent(comp))
 
 			Expect(componentSaw.Value(itcCallerKey)).To(Equal("caller-value"))
 		},
@@ -486,7 +486,7 @@ var _ = Describe("Interceptor control of the operation context", func() {
 				return context.WithValue(ctx, itcInnerKey, "inner-value")
 			}, itcNoop)
 
-			invoke(NewChains([]any{outer, inner}).WrapComponent(comp), context.Background())
+			invoke(context.Background(), NewChains([]any{outer, inner}).WrapComponent(comp))
 
 			Expect(componentSaw.Value(itcInnerKey)).To(Equal("inner-value"))
 			Expect(outerAfter).To(BeNil())
@@ -510,7 +510,7 @@ var _ = Describe("Interceptor control of the operation context", func() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Hour)
 			DeferCleanup(cancel)
 
-			invoke(NewChains([]any{i}).WrapComponent(comp), context.WithValue(ctx, itcCallerKey, "caller-value"))
+			invoke(context.WithValue(ctx, itcCallerKey, "caller-value"), NewChains([]any{i}).WrapComponent(comp))
 
 			Expect(itcComponent(componentSaw)).To(BeNil())
 			Expect(componentSaw.Value(itcCallerKey)).To(BeNil())
@@ -578,7 +578,7 @@ var _ = Describe("Interceptor control of the operation outcome", func() {
 		func(suppress, silent itcBuild, invoke itcInvoke) {
 			comp := execmocks.NewMockCompleteLifecycle(ctrl)
 
-			invoke(NewChains([]any{suppress(ctrl), silent(ctrl)}).WrapComponent(comp), expired())
+			invoke(expired(), NewChains([]any{suppress(ctrl), silent(ctrl)}).WrapComponent(comp))
 
 			Expect(logs.records()).To(BeEmpty())
 		},
@@ -800,7 +800,7 @@ var _ = Describe("Chain panic layering", func() {
 
 			w := NewChains(nil).WrapComponent(comp)
 
-			Expect(func() { invoke(w, context.Background()) }).To(PanicWith(BeIdenticalTo(boom)))
+			Expect(func() { invoke(context.Background(), w) }).To(PanicWith(BeIdenticalTo(boom)))
 		},
 		Entry("start", itcPanicStart, itcInvokeStart),
 		Entry("quiesce", itcPanicQuiesce, itcInvokeQuiesce),
@@ -818,7 +818,7 @@ var _ = Describe("Chain panic layering", func() {
 
 			w := NewChains([]any{i}).WrapComponent(comp)
 
-			Expect(func() { invoke(w, context.Background()) }).To(PanicWith(BeIdenticalTo(boom)))
+			Expect(func() { invoke(context.Background(), w) }).To(PanicWith(BeIdenticalTo(boom)))
 		},
 		Entry("start", itcInterceptStart, itcInvokeStart),
 		Entry("quiesce", itcInterceptQuiesce, itcInvokeQuiesce),
@@ -837,7 +837,7 @@ var _ = Describe("Chain panic layering", func() {
 
 			w := NewChains([]any{i}).WrapComponent(comp)
 
-			Expect(func() { invoke(w, context.Background()) }).To(PanicWith(BeIdenticalTo(boom)))
+			Expect(func() { invoke(context.Background(), w) }).To(PanicWith(BeIdenticalTo(boom)))
 		},
 		Entry("start", itcArrangeStart, itcInterceptStart, itcInvokeStart),
 		Entry("quiesce", itcArrangeQuiesce, itcInterceptQuiesce, itcInvokeQuiesce),
@@ -866,7 +866,7 @@ var _ = Describe("Chain panic layering", func() {
 
 			w := NewChains([]any{outer, inner}).WrapComponent(comp)
 
-			Expect(func() { invoke(w, context.Background()) }).To(PanicWith(BeIdenticalTo(boom)))
+			Expect(func() { invoke(context.Background(), w) }).To(PanicWith(BeIdenticalTo(boom)))
 			Expect(trace).To(Equal([]string{"outer entered", "inner entered"}))
 		},
 		Entry("start", itcPanicStart, itcInterceptStart, itcInvokeStart),
@@ -883,7 +883,7 @@ var _ = Describe("Chain panic layering", func() {
 
 			w := NewChains(nil).WrapComponent(comp)
 
-			Expect(func() { invoke(w, expired()) }).To(PanicWith(BeIdenticalTo(boom)))
+			Expect(func() { invoke(expired(), w) }).To(PanicWith(BeIdenticalTo(boom)))
 			Expect(logs.records()).To(BeEmpty())
 		},
 		Entry("start", itcPanicStart, itcInvokeStart),

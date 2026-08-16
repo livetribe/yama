@@ -4,13 +4,29 @@ These apply to anyone — human or AI, on any model — working in this repo. Th
 are conventions about *how* to work here, not a description of what the code
 does; read `docs/PRD.md`, `docs/adr/`, and `docs/Architecture.md` for that.
 
+## Go style baseline
+
+This repo's Go style baseline is the
+[Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
+Follow it for anything this file doesn't cover — method and function ordering,
+error handling and naming, receiver types, struct literals, and so on. Where a
+rule below conflicts with Uber's guide, this file wins; treat everything below
+as this project's stated exceptions and additions, not a full restatement.
+
+`.golangci.yml` enforces the subset of the guide a linter can check
+mechanically (`unparam`, `unconvert`, `ineffassign`, `gosec`, `gocritic`'s
+`opinionated`/`style` tags, and similar). The rest — ordering, naming,
+grouping — isn't linter-checkable and depends on the `/code-review` pass
+below.
+
 ## Before declaring work complete
 
 For any change of nontrivial size, run a review pass against this file's
 conventions before calling it done — comment content, test framework choice,
-formatting, everything above and below this section. Use `/code-review`
-against the diff rather than relying on writing-time self-checking alone; a
-dedicated review pass catches drift a single pass of authoring misses.
+formatting, adherence to the Go style baseline above, everything above and
+below this section. Use `/code-review` against the diff rather than relying
+on writing-time self-checking alone; a dedicated review pass catches drift a
+single pass of authoring misses.
 
 A change that touches code is not proposed as done until `make check` passes,
 run in the actual working tree, not a scratch copy or worktree.
@@ -119,6 +135,20 @@ pass.
 gofmt does not enforce these; apply them by hand, in production and test code
 alike.
 
+- **Method ordering.** This intentionally deviates from Uber's guide, which
+  sorts by call order and allows an unexported helper to sit next to its one
+  caller; this project instead partitions every type's methods into exported
+  before unexported, favoring breadth-first reading of a type's public
+  surface over call-order locality. Group methods by receiver, with a
+  `NewXYZ` constructor immediately after its type definition. Place every
+  exported method before any unexported one, so a reader can take in the
+  type's public surface breadth-first without an unexported implementation
+  detail interrupting it; order the exported methods themselves in rough
+  call order (e.g., `Start` before `Stop`). If the type implements more than
+  one interface, group its exported methods by the interface they satisfy
+  rather than interleaving them. Unexported helpers follow, each ordered
+  near the exported method it supports. Unattached utility functions go
+  last in the file.
 - **Single-line bodies.** A method/function body shares the signature's line only
   when it is empty (`{}`) or a single `return` of a bare value — a field,
   identifier, or literal with no call. Anything that does work — a `return`/`panic`

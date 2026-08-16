@@ -150,7 +150,7 @@ func (r *lvlRecorder) note(name string) {
 	r.seen[name]++
 }
 
-func (r *lvlRecorder) noteCtx(name string, ctx context.Context) {
+func (r *lvlRecorder) noteCtx(ctx context.Context, name string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -320,7 +320,7 @@ var _ = Describe("Level", func() {
 
 				lv := lvlMembers(ctrl, pass, []string{"alpha", "bravo"},
 					func(name string, got context.Context) {
-						rec.noteCtx(name, got)
+						rec.noteCtx(got, name)
 					})
 
 				pass.invoke(lv, ctx)
