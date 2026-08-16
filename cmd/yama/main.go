@@ -29,7 +29,8 @@ import (
 	"io"
 	"os"
 
-	"l7e.io/yama/v2/internal/generator"
+	"l7e.io/yama/v2/internal/generator/sketch"
+	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
 // The exit codes are `wire gen`'s own, measured against it: 2 for arguments it
@@ -60,44 +61,18 @@ func main() {
 
 // run generates for the packages args names, writing progress and diagnostics
 // to stderr.
+//
+// A package that fails does not stop the packages after it. Every failure
+// reaches the caller together.
 func run(ctx context.Context, stderr io.Writer, args []string) error {
 	parsed, err := parseArgs(stderr, args)
 	if err != nil {
 		return err
 	}
 
-	g := generator.NewGenerator(parsed.opts)
+	d := sketch.NewDriver(".", parsed.patterns, parsed.args)
 
-	files, err := g.EmitAll(ctx, ".", parsed.patterns)
-	if err != nil {
-		return err
-	}
-
-	return writeFiles(stderr, files)
-}
-
-// writeFiles commits each emitted lifecycle file and reports one progress line
-// for each one written.
-//
-// The line names Yama's own artifact in the shape Wire uses for its own,
-// `yama: <import path>: wrote <path>`, on the stream Wire writes its own to.
-//
-// A write that fails does not stop the writes that follow it. Every failure
-// reaches the caller together.
-func writeFiles(progress io.Writer, files []*generator.LifecycleFile) error {
-	var errs []error
-	for _, file := range files {
-		path, err := file.Write()
-		if err != nil {
-			errs = append(errs, err)
-
-			continue
-		}
-
-		fmt.Fprintf(progress, "yama: %s: wrote %s\n", file.PkgPath, path)
-	}
-
-	return errors.Join(errs...)
+	return d.Run(ctx)
 }
 
 // usageError reports arguments the command cannot parse. It carries what the
@@ -119,7 +94,7 @@ func (e *usageError) Unwrap() error {
 // separate from execution so flag parsing is testable without touching the
 // filesystem or running Wire.
 type parsedArgs struct {
-	opts     generator.Options
+	args     wire.Args
 	patterns []string
 }
 
@@ -132,11 +107,11 @@ func parseArgs(out io.Writer, args []string) (parsedArgs, error) {
 	fs.SetOutput(out)
 
 	var parsed parsedArgs
-	fs.StringVar(&parsed.opts.HeaderFile, "header_file", "",
+	fs.StringVar(&parsed.args.HeaderFile, "header_file", "",
 		"path to file to insert as a header in the generated output")
-	fs.StringVar(&parsed.opts.OutputFilePrefix, "output_file_prefix", "",
+	fs.StringVar(&parsed.args.Prefix, "output_file_prefix", "",
 		"string to prepend to output file names")
-	fs.StringVar(&parsed.opts.Tags, "tags", "", "append build tags to the default yama build")
+	fs.StringVar(&parsed.args.Tags, "tags", "", "append build tags to the default yama build")
 
 	fs.Usage = func() {
 		fmt.Fprintln(fs.Output(), "Usage: yama [flags] [packages]")

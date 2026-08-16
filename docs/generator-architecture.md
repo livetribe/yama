@@ -28,13 +28,13 @@ Terms used throughout:
 
 No question is open.
 
-A directory that declares no lifecycle stub stays in the run and needs no state of its own. It reaches
-every phase as a `Happy` item. `Prepare` sets both generated names aside, so Google Wire cannot
-overwrite a `wire_gen.go` that the directory already held. Google Wire receives the directory, finds
-no injector, writes nothing, and reports nothing. `Generate` writes no lifecycle file, and `Complete`
-puts back what `Prepare` set aside. The directory leaves the run exactly as it entered, and the run
-reports nothing about it. §6.7 states the one condition that keeps such a directory out of the Wire
-conversion.
+A directory that declares no lifecycle stub stays in the run and needs no state of its own. `Prepare`
+sets both generated names aside, so Google Wire cannot overwrite a `wire_gen.go` that the directory
+already held. Google Wire receives the directory, finds no injector, writes nothing, and reports
+nothing. `Generate` finds no Google Wire output, writes no lifecycle file, and settles the item as a
+`NoWireGen`. `Complete` puts back what `Prepare` set aside and returns nil. The directory leaves the
+run exactly as it entered, and the run reports nothing about it. §7.6 states why that state is shared
+with a package that Google Wire rejected.
 
 ---
 
@@ -155,7 +155,7 @@ func NewConfig(opts Options, progress io.Writer) (*work.Config, error)
 func NewDriver(dir string, patterns []string, cfg *work.Config) *Driver
 
 func (d *Driver) Run(ctx context.Context) error
-func (d *Driver) RunWire(ctx context.Context, items work.Items) work.Items
+func (d *Driver) RunWire(ctx context.Context, items work.Items) error
 ```
 
 `NewConfig` projects `opts` into the `*work.Config` that a run shares, and it reads the header file
@@ -167,26 +167,29 @@ header bytes are.
 `work.CreateItems`. It then runs three loops over the items, in this order. The first loop calls
 `Prepare` on each item, and it stores the returned `State` at that item's index. The second loop
 calls `Generate` the same way. The third loop calls `Complete` on each item, and it collects the
-errors. `Run` returns `errors.Join` over the collected errors.
+errors.
 
-Between the first loop and the second, `Run` writes `items = d.RunWire(ctx, items)`. `RunWire`
-returns one result, and the run's only error channel is the third loop.
+Between the first loop and the second, `Run` invokes `d.RunWire(ctx, items)` and keeps the error that
+call returns. `Run` returns `errors.Join` over that error and the errors the third loop collected. A
+run therefore has two error channels, and both of them are bare signals.
 
 `CreateItems` gives every item the run's configuration, which carries the two generated filenames,
 the header bytes, and the progress writer. Every item starts in the `Happy` state, so the driver
 performs no classification of its own.
 
-`RunWire` has a complete contract, and it returns the items that the rest of the run uses. It asks
-the items for their directories, and it invokes Google Wire once over those directories. It then
-classifies what came back. An item is converted to a `WireFailed` when its directory holds no Wire
-output, and that conversion restores the package's committed `lifecycle_gen.go` at once. §4.6 states
-why that restore cannot wait for `Complete`.
+`RunWire` has a small contract. It asks the items for their directories, and it invokes Google Wire
+once over those directories. It prints Google Wire's own diagnostic when Wire produced one, at the
+point where it happened. It converts no item, and it inspects no directory.
 
-`RunWire` classifies the items on a tier-A failure too, and this is why it needs no error result. A
-tool that could not run wrote no output in any directory. Every prepared package therefore converts to
-a `WireFailed`, every converted package gets its committed file back, and every `Complete` returns an
-error. The run's joined error is not nil, so the exit code is 1. `RunWire` prints Google Wire's own
-diagnostic when Wire produced one, at the point where it happened.
+`RunWire` returns an error when Google Wire failed, at either grain. That error is what makes the run
+exit 1. It carries no detail, because Google Wire already printed the diagnostic that names the
+rejected package and states the reason. Q-K states the rule that keeps every error in this design a
+bare signal.
+
+An item classifies itself instead. `Happy.Generate` reads its own directory, and it returns a
+`NoWireGen` when it finds no Google Wire output. The classification therefore happens at the point
+where it first matters, and no pass over the items runs between Google Wire and the `Generate` loop.
+Q-H states why that is enough.
 
 ### 4.2 The work item and its states
 
@@ -221,21 +224,29 @@ states.
 |---|---|---|---|
 | `Happy` | every phase so far succeeded | the directory, the config pointer, the source package, the names it prepared, the path it wrote | drops the lifecycle backup, restores the `wire_gen.go` backup, removes the derived-injector file, prints one progress line, returns nil |
 | `PrepareFailed` | a file could not be set aside, the stub load failed, or the derived file could not be built or written | the directory, the config pointer, the names it prepared, the error | restores every name in its record, removes the derived-injector file, returns the error |
-| `WireFailed` | Google Wire produced no output for this directory | the directory, the config pointer, the import path, the names it still holds | restores the `wire_gen.go` backup, removes the derived-injector file, returns a "not generated" error |
+| `NoWireGen` | `Generate` found no Google Wire output in this directory | the directory, the config pointer, the names it prepared | restores every name in its record, removes the derived-injector file, returns nil |
 | `GenerateFailed` | the load, the analysis, the render or the write failed | the directory, the config pointer, the names it prepared, the error | restores every name in its record, removes the derived-injector file, returns the error |
 
-`WireFailed` returns a short error that names the package. Google Wire already reported the real
-diagnostic, and Wire's own commit loop also prints one short line for each rejected package.
+`NoWireGen` returns nil, and it is the one terminal state that does. It covers two directories that
+look the same on disk. Google Wire rejected the first, and the second declared no stub, so Google
+Wire had nothing to generate for it. Neither directory can be told from the other by what it holds,
+and neither needs to be: `RunWire` already returned the error that makes a rejected run exit 1, so
+`NoWireGen` owes the run nothing beyond putting the package's files back.
 
-Three properties hold across the three failed states. `PackagePath` returns `"", false`, so no failed
-state reaches Google Wire. `Prepare` and `Generate` return the receiver unchanged, so no failed state
-panics when a loop visits it. `Complete` restores what its own phase set aside, and it returns this
-package's error. "The names it prepared" is the record of the filenames that the package set aside,
-and §7.1 defines that record exactly.
+Two properties hold across the three terminal states. `Complete` restores every name in the state's
+own record, and "the names it prepared" is the record of the filenames that the package set aside,
+which §7.1 defines exactly. `PackagePath` reports `"", false` on any terminal state that the
+`Items.Paths` call can still reach.
 
-A directory that declares no lifecycle stub stays `Happy` for the whole run. It reaches every phase,
-and every phase finds nothing to do for it. §6.7 states the one condition that keeps such a directory
-out of the Wire conversion, and §7.6 states what each of its three phases does.
+A terminal state declares only the methods the driver still calls after that state can exist. Every
+other method panics. `PrepareFailed` can exist before `Items.Paths` runs, so it answers `PackagePath`
+and it answers `Generate` with itself. `NoWireGen` and `GenerateFailed` first exist inside the
+`Generate` loop, so `Complete` is the only call either one ever receives, and their other three
+methods panic. §7.2 states the loop order those panics depend on.
+
+A directory that declares no lifecycle stub reaches `Generate` as a `Happy`, and `Generate` settles
+it as a `NoWireGen`, because Google Wire wrote nothing there. §7.6 states what each of its phases
+does.
 
 ### 4.3 The three phases
 
@@ -252,8 +263,9 @@ package that failed to render therefore keeps Google Wire's output for the rest 
 loop. Google Wire copied the placeholder constructors into that output, so a package that imports the
 failed package still resolves them. §7.5 states which call clears those files afterward.
 
-`Generate` needs no branch for a directory that holds no Wire output. `RunWire` already converted
-every such directory into a `WireFailed`, and a `WireFailed` returns itself from `Generate`.
+`Generate` reads the directory for Google Wire's output before it does anything else. It returns a
+`NoWireGen` when it finds none. That branch is the whole of the design's response to a rejected
+package, and it is also the whole of its response to a package that had nothing to generate.
 
 **`Complete`** settles the backups, it removes the derived-injector file, and it returns this
 package's error. The derived-injector removal is a plain removal of `wire.DerivedFileName`, not a
@@ -313,9 +325,9 @@ holds its committed file on disk, so it must report no path and must stay out of
 bounds the damage of a failed move. Under this order, a failure on the first move leaves nothing set
 aside, so the package loses nothing. A failure on the second move leaves `lifecycle_gen.go` under a
 backup name. A later failure to put that file back costs the user a file, and the next successful run
-recreates it. Under the opposite order, a failure on the first move would leave the user's hand-owned
-`wire_gen.go` under a backup name, and Yama cannot recreate that file. The order therefore risks only
-the file that Yama can recreate.
+recreates it. Under the opposite order, a failure on the first move would leave a legacy
+`wire_gen.go` under a backup name, and Yama cannot recreate that file. The order therefore risks
+only the file that Yama can recreate.
 
 **Rule 3. `Happy.Generate` writes the lifecycle file and removes Wire's output before it returns.** By
 the time `Generate` returns, the directory holds `lifecycle_gen.go` and holds neither `wire_gen.go`
@@ -325,18 +337,21 @@ constructors without ambiguity. The later package loads with type information, a
 same-module import from source rather than from export data. One loop that visits one package at a
 time is what makes the removal sufficient. A concurrent `Generate` loop would break this rule.
 
-**Rule 4. `RunWire` restores a rejected package's committed lifecycle file at once.** A package that
-Google Wire rejected holds no Wire output, so it holds no lifecycle placeholder either. If its
-committed file stays under the dotted backup name, an importing package that `Generate` visits later
-fails to type-check. A measurement over `internal/generator/testdata/crosspkg` confirms this. That
-fixture's `app/use.go` is untagged, and it calls `lib.NewLibLifecycle`. With `lib`'s
-`lifecycle_gen.go` present and no `wire_gen.go` beside it, `app` loads with zero errors. With `lib`'s
-`lifecycle_gen.go` held at the dotted name, `app` fails at `app/use.go:26:13` with
-`undefined: lib.NewLibLifecycle`. The restore cannot be the first act of `Generate`, because a
-package earlier in the slice would load before a later package restored itself.
+**Rule 4. A rejected package holds its committed lifecycle file at the backup name until `Complete`.**
+A package that Google Wire rejected holds no Wire output, so it holds no lifecycle placeholder
+either. Its committed file stays under the dotted backup name for the whole `Generate` loop. A
+package that imports it, and that `Generate` visits later, therefore fails to type-check. This
+design accepts that second failure.
 
-Rule 4 helps a refresh only. On a first run the package has no committed lifecycle file to restore,
-and the importing package fails to type-check either way.
+A measurement over `internal/generator/testdata/crosspkg` gives the cost a number. That fixture's
+`app/use.go` is untagged, and it calls `lib.NewLibLifecycle`. With `lib`'s `lifecycle_gen.go`
+present and no `wire_gen.go` beside it, `app` loads with zero errors. With `lib`'s
+`lifecycle_gen.go` held at the dotted name, `app` fails at `app/use.go:26:13` with
+`undefined: lib.NewLibLifecycle`.
+
+The cost is one message, and the run already fails. Google Wire rejected `lib`, so the run exits 1
+whatever `app` does. `app` settles as a `GenerateFailed`, and that state restores its backup names,
+so `app` loses no committed file. Q-H states why an earlier restore does not pay for itself.
 
 ---
 
@@ -367,7 +382,7 @@ sequenceDiagram
     W2-->>DRV: Happy
     DRV->>WIR: Run over both directories
     WIR-->>DRV: no diagnostic and no error
-    Note over DRV: both directories hold Wire output<br/>so RunWire converts no item
+    Note over DRV: RunWire returns nil<br/>and both directories hold Wire output
     DRV->>W1: Generate
     Note over W1: load then analyze then render<br/>write lifecycle_gen.go<br/>remove wire_gen.go and yama_wireinject.go
     W1-->>DRV: Happy
@@ -385,7 +400,7 @@ sequenceDiagram
     Note over CMD: the exit code is decided here<br/>so the exit code is 0
 ```
 
-### 5.2 Refresh, with a legacy hand-owned `wire_gen.go` in one package
+### 5.2 Refresh, with a legacy `wire_gen.go` in one package
 
 ```mermaid
 sequenceDiagram
@@ -406,7 +421,7 @@ sequenceDiagram
     DRV->>W2: Prepare
     W2->>CUS: SetAside lifecycle_gen.go
     W2->>CUS: SetAside wire_gen.go
-    Note over CUS: P2's hand-owned file moves to the dotted name
+    Note over CUS: P2's legacy wire_gen.go moves to the dotted name
     W2-->>DRV: Happy
     DRV->>WIR: Run over both directories
     Note over WIR: no committed lifecycle file<br/>collides with the placeholders
@@ -421,7 +436,7 @@ sequenceDiagram
     W1-->>DRV: nil
     DRV->>W2: Complete
     W2->>CUS: Discard the lifecycle backup and Restore wire_gen.go
-    Note over CUS: P2's hand-owned file returns byte for byte
+    Note over CUS: P2's legacy wire_gen.go returns byte for byte
     W2-->>DRV: nil
 ```
 
@@ -439,24 +454,22 @@ sequenceDiagram
     Note over DRV: all three items prepared cleanly<br/>and all three are Happy
     DRV->>WIR: Run over P1 and P2 and P3
     Note over WIR: Wire committed output for P1 and P3<br/>and rejected P2 by naming P2's stub file
-    WIR-->>DRV: diagnostic printed and no error
-    Note over DRV: RunWire classifies what came back
-    DRV->>W2: P2 holds no Wire output so convert it
-    W2->>CUS: Restore lifecycle_gen.go
-    Note over W2,CUS: the restore happens now<br/>so that P3 can still resolve P2's constructors
-    W2-->>DRV: WireFailed
+    WIR-->>DRV: diagnostic printed, and an error
+    Note over DRV: RunWire keeps the error and converts nothing
     DRV->>W2: Generate
-    W2-->>DRV: WireFailed and unchanged
+    Note over W2: P2 holds no Wire output
+    W2-->>DRV: NoWireGen
     DRV->>W3: Generate
-    Note over W3: P3 imports P2<br/>and type-checks against P2's restored committed file
-    W3-->>DRV: Happy
+    Note over W3: P3 imports P2<br/>P2's committed file is still set aside<br/>so the load fails on an undefined constructor
+    W3-->>DRV: GenerateFailed
     DRV->>W2: Complete
-    W2->>CUS: Restore the wire backup
+    W2->>CUS: Restore lifecycle_gen.go and wire_gen.go
     Note over W2: then removes the derived file
-    W2-->>DRV: error saying P2 was not generated
+    W2-->>DRV: nil
     DRV->>W3: Complete
-    W3-->>DRV: nil
-    Note over DRV: P1 and P3 wrote their files<br/>the joined error is non-nil so the exit code is 1
+    W3->>CUS: Restore every name in its record
+    W3-->>DRV: its own error
+    Note over DRV: P1 wrote its file<br/>P2 and P3 kept every committed file<br/>Wire's error makes the exit code 1
 ```
 
 ### 5.4 The render fails in one package of three
@@ -710,10 +723,11 @@ output into the caller's own directory.
 Wire-invocation knowledge, and it stays invisible outside this function.
 
 The `error` that `Run` returns is tier A. It carries a `*ToolchainError`, meaning the tool could not
-run at all. Everything that Google Wire itself reported is data on `Result`. `RunWire` prints what it
-holds and discards the error itself. A tool that could not run wrote no output in any directory, so
-every prepared item converts to a `WireFailed`, and the run reports the failure once for each package
-through the third loop. The driver therefore never inspects an error to decide whether to continue.
+run at all. Everything that Google Wire itself reported is data on `Result`. `RunWire` prints what
+`Result` holds, and it reports a failure of either grain to its own caller as one bare error. A
+tier-A failure is that error being non-nil. A tier-B failure is `Result` naming at least one rejected
+package. `RunWire` therefore reads `Result` to decide whether a run failed, and it reads no error
+value to decide anything.
 
 May not import: `custody`, `graph`, `emit`, `work`, `go/types`.
 
@@ -865,7 +879,7 @@ learns a backup name. It returns the path that it wrote.
 May not import: `go/ast`, `go/token`, `go/types`, `go/printer`, `golang.org/x/tools/go/packages`,
 `custody`, `wire`, `work`.
 
-### 6.6 `internal/generator/work`
+### 6.6 `../internal/generator/sketch/work`
 
 ```go
 type Config struct {
@@ -888,13 +902,12 @@ type State interface {
 type Items []State
 
 func (items Items) Paths() []string
-func (items Items) ConvertUngenerated(cfg *Config) Items
 
 func CreateItems(dirs []string, cfg *Config) Items
 
 type Happy struct{ /* unexported */ }
 type PrepareFailed struct{ /* unexported */ }
-type WireFailed struct{ /* unexported */ }
+type NoWireGen struct{ /* unexported */ }
 type GenerateFailed struct{ /* unexported */ }
 ```
 
@@ -919,27 +932,24 @@ to capture it. `NewConfig` fills this field from the stream its caller passed. `
 `os.Stderr`, and a test passes a buffer. Output happens where it is produced, and the error that `Run`
 returns is a signal for the exit code rather than a message.
 
-`ConvertUngenerated` inspects each item's directory for Google Wire's output. A `Happy` item becomes a
-`WireFailed` when it declares at least one stub and its directory holds no such file. That conversion
-restores the package's committed lifecycle file at once. The conversion reads the converted item's own
-fields, which is legal because both types live in this package. `ConvertUngenerated` leaves an item
-that reports `ok` as false as it is.
+`Happy.Generate` inspects its own directory for Google Wire's output, and it returns a `NoWireGen`
+when it finds none. That check is the first act of `Generate`, before the load and before any write.
+No other function in the package classifies an item, and no `Items` method does.
 
-**The stub count is what makes the conversion correct.** A directory that declares no stub gives
-Google Wire nothing to generate, so Google Wire writes no output there and reports no failure. Such a
-directory is not a rejected package, and it must stay `Happy`. Its `Generate` writes nothing, and its
-`Complete` returns nil. Without the stub-count condition, every stub-free directory under a wildcard
-pattern would convert to a `WireFailed`, and a run over a repository would exit 1 because of packages
-that had no work to do.
+**The state needs no stub count.** A directory that declares no stub gives Google Wire nothing to
+generate, so Google Wire writes no output there. A directory that Google Wire rejected also holds no
+output. Both reach `NoWireGen`, and `NoWireGen` settles both the same way: it restores every name in
+its record and it returns nil. The two cases need no telling apart, because the run's exit code comes
+from the error `RunWire` returned rather than from a per-package error. Q-K states that rule.
 
-**Only `Happy` transitions.** `Prepare` and `Generate` on the three other states return the receiver
-unchanged. `PackagePath` on any of those three returns `"", false`. No state panics in any of its four
-methods, so the driver can call them in any order without changing the result.
+**Only `Happy` transitions.** The three terminal states each declare only the methods the driver can
+still call on them, and every other method panics. §4.2 states which method that is for each state,
+and §7.2 states the loop order those panics depend on.
 
-**Only `work` moves a file in a package directory.** Five state methods call `custody`, and
-`ConvertUngenerated` calls it once more. Two of those five methods call `custody` once for each name
-in the state's record. The number of calls a run makes therefore varies with what each package set
-aside. No other package in the tree calls `custody`, and that property is checkable by grep.
+**Only `work` moves a file in a package directory.** Six state methods call `custody`. Three of them
+call `custody` once for each name in the state's record. The number of calls a run makes therefore
+varies with what each package set aside. No other package in the tree calls `custody`, and that
+property is checkable by grep.
 
 **Only `work` removes the two transient files.** `Happy.Generate` removes them after it wrote the
 lifecycle file, and every `Complete` removes the derived-injector file. Both removals take the live
@@ -969,7 +979,7 @@ type Driver struct{ /* unexported */ }
 func NewDriver(dir string, patterns []string, cfg *work.Config) *Driver
 
 func (d *Driver) Run(ctx context.Context) error
-func (d *Driver) RunWire(ctx context.Context, items work.Items) work.Items
+func (d *Driver) RunWire(ctx context.Context, items work.Items) error
 ```
 
 `wireArguments` carries a name `Options` itself did not free. The pre-existing `internal/generator`
@@ -1001,16 +1011,16 @@ therefore never holds an `Options` value, and it never chooses a stream on its o
 the `*work.Config` that `NewConfig` already built.
 
 `RunWire` invokes `wire.Run` over `items.Paths()`, using the `wire.Args` that `d.cfg.WireArgs` already
-holds, and it prints Google Wire's diagnostic when there is one. It then returns
-`items.ConvertUngenerated(d.cfg)`. If `Paths` is empty, `RunWire` returns the items unchanged and
-invokes no subprocess. `RunWire` returns the items, because the classification of a rejected package
-must land before the driver calls `Generate` on any item. `RunWire` reads `d.cfg` rather than
-projecting `Options` again, so a run builds its configuration exactly once.
+holds, and it prints Google Wire's diagnostic when there is one. If `Paths` is empty, `RunWire`
+invokes no subprocess and returns nil. `RunWire` reads `d.cfg` rather than projecting `Options`
+again, so a run builds its configuration exactly once.
 
-`RunWire` needs no error result. A `wire.Run` failure of either grain leaves at least one directory
-without Google Wire's output, `ConvertUngenerated` turns each of those items into a `WireFailed`, and
-each `WireFailed.Complete` returns an error. Every Wire failure therefore reaches the run's joined
-error through the packages it affected.
+`RunWire` takes the items only to ask them for their directories. It returns no items, because it
+converts none. An item that Google Wire rejected classifies itself, at the top of its own `Generate`.
+
+`RunWire` returns an error when Google Wire failed at either grain, and that error is the run's
+signal to exit 1. It names nothing and wraps nothing. `Run` joins it with what the third loop
+returned.
 
 May not import: `go/ast`, `go/token`, `go/types`, `golang.org/x/tools/go/packages`, `custody`,
 `graph`.
@@ -1034,7 +1044,7 @@ own files in `Complete`.
 |---|---|---|
 | `Happy` | the directory, the config pointer, the loaded `*source.Package`, the names it prepared, the path it wrote | the run did not fail for this package |
 | `PrepareFailed` | the directory, the config pointer, the names it prepared, the error | the stub load failed, a set-aside failed, `wire.Derive` failed, or the write of the derived file failed |
-| `WireFailed` | the directory, the config pointer, the import path, the names it still holds | Google Wire generated no output for this directory |
+| `NoWireGen` | the directory, the config pointer, the names it prepared | `Generate` found no Google Wire output in this directory |
 | `GenerateFailed` | the directory, the config pointer, the names it prepared, the error | the load, the analysis, the render, or the write failed |
 
 "The names it prepared" is the ordered record of the filenames for which `custody.SetAside` returned
@@ -1046,18 +1056,25 @@ The record holds two names when `wire.Derive` or the derived-file write is what 
 set-asides already succeeded. That `PrepareFailed` can also hold a partly written derived file. Its
 `Complete` removes that file, as every `Complete` does.
 
-`WireFailed` holds a shorter record than the state it replaced. The conversion already restored the
-lifecycle file, so the conversion removes that name from the record it hands on.
+`NoWireGen` holds the same record as the `Happy` it replaced, and it holds no error. Nothing about
+the package changed when `Generate` looked at the directory. The record is what it set aside during
+`Prepare`, and `NoWireGen.Complete` restores all of it.
 
 ### 7.2 Every legal transition
 
-| State | `PackagePath` | `Prepare` | Wire conversion | `Generate` | `Complete` |
-|---|---|---|---|---|---|
-| `Happy`, before `Prepare` | the directory, true | `Happy` or `PrepareFailed` | not reached | not reached | not reached |
-| `Happy`, after `Prepare` | the directory, true | not called again | `Happy` or `WireFailed` | `Happy` or `GenerateFailed` | drops the lifecycle backup, restores the Wire backup, removes the derived file, prints one progress line, returns nil |
-| `PrepareFailed` | `"", false` | itself | not converted | itself | restores every name in its record, removes the derived file, returns its error |
-| `WireFailed` | `"", false` | itself | not converted again | itself | restores the Wire backup, removes the derived file, returns an error naming the package |
-| `GenerateFailed` | `"", false` | itself | not converted | itself | restores every name in its record, removes the derived file, returns its error |
+| State | `PackagePath` | `Prepare` | `Generate` | `Complete` |
+|---|---|---|---|---|
+| `Happy`, before `Prepare` | the directory, true | `Happy` or `PrepareFailed` | not reached | not reached |
+| `Happy`, after `Prepare` | the directory, true | not called again | `Happy`, `NoWireGen`, or `GenerateFailed` | drops the lifecycle backup, restores the Wire backup, removes the derived file, prints one progress line, returns nil |
+| `PrepareFailed` | `"", false` | panics | itself | restores every name in its record, removes the derived file, returns its error |
+| `NoWireGen` | panics | panics | panics | restores every name in its record, removes the derived file, returns nil |
+| `GenerateFailed` | panics | panics | panics | restores every name in its record, removes the derived file, returns its error |
+
+The panics in that table are safe because `Run` calls the phases in one fixed order: the `Prepare`
+loop, then `RunWire`, then the `Generate` loop, then the `Complete` loop. `Items.Paths` runs inside
+`RunWire`, so it reaches a `PrepareFailed` and never reaches the two states that `Generate` creates.
+`Prepare` runs once for each item, so no state that `Prepare` produced receives `Prepare` again. A
+change to that order turns each of these panics into a crash, which is the report the design wants.
 
 `Prepare` loads the package's lifecycle stubs first, and it moves no file before that load returns. It
 then sets `lifecycle_gen.go` aside, and then it sets Google Wire's output name aside. It renders the
@@ -1074,21 +1091,21 @@ package that helps, and §7.5 states which call clears the two files afterward.
 The removal of Google Wire's output and the removal of the derived-injector file both take the live
 name, not the backup name. Both are therefore plain removals rather than custody calls.
 
-`Generate` needs no branch for a directory that holds no Google Wire output. The conversion inside
-`RunWire` already turned every such item into a `WireFailed`, and a `WireFailed` answers `Generate`
-with itself.
+`Generate` tests the directory for Google Wire's output before it loads anything, and it returns a
+`NoWireGen` when it finds none. That test is one branch in one method, and it is the only place in
+the tree that asks the question.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Happy: CreateItems
     Happy --> Happy: Prepare sets both names aside
     Happy --> PrepareFailed: one of the four Prepare acts fails
-    Happy --> WireFailed: RunWire finds no Wire output
+    Happy --> NoWireGen: Generate finds no Wire output
     Happy --> Happy: Generate writes the lifecycle file
     Happy --> GenerateFailed: the load, the analysis or the render fails
     Happy --> [*]: Complete returns nil
     PrepareFailed --> [*]: Complete returns its error
-    WireFailed --> [*]: Complete returns a not generated error
+    NoWireGen --> [*]: Complete returns nil
     GenerateFailed --> [*]: Complete returns its error
 ```
 
@@ -1099,14 +1116,14 @@ its own situation needs, and the compiler holds each one to the whole interface.
 know what a rejected package does with its files reads one type.
 
 This shape also removes the filtering step. Google Wire must receive the directories of the packages
-that are still in the run. `Items.Paths` builds that list from `PackagePath`, and the three terminal
-states report `ok` as false. The driver therefore hands `Paths` straight to `RunWire`, and it never
-tests a state for what kind it is.
+that are still in the run. `Items.Paths` builds that list from `PackagePath`, and the one terminal
+state that `Paths` can reach reports `ok` as false. The driver therefore hands `Paths` straight to
+`RunWire`, and it never tests a state for what kind it is.
 
 The rule that keeps the set of states small is simple. A new state is admitted only when it settles
-its files differently from every existing state. `WireFailed` restores the lifecycle file at
-conversion time and the Wire backup at `Complete`. No other state does that, so `WireFailed` is a
-type.
+its files differently from every existing state. `NoWireGen` restores every name in its record and
+returns nil. `Happy` discards its lifecycle backup, and the two failed states return an error. No
+other state restores everything and stays silent, so `NoWireGen` is a type.
 
 ### 7.4 The backup name and the set-aside order
 
@@ -1120,22 +1137,22 @@ states how that order bounds the damage of a failed move.
 ### 7.5 What each state settles
 
 `Happy.Complete` discards the lifecycle backup, because the freshly emitted file replaced it. It
-restores the Wire backup, so a hand-owned `wire_gen.go` returns byte for byte. It then prints one
+restores the Wire backup, so a legacy `wire_gen.go` returns byte for byte. It then prints one
 progress line and returns nil.
 
 `PrepareFailed.Complete` and `GenerateFailed.Complete` both restore. Each one moves every name in its
 record back over the live name. Neither one copies, so no dotted file survives the call. The package
-keeps its committed lifecycle file, and it keeps its hand-owned Wire output.
+keeps its committed lifecycle file, and it keeps its legacy Wire output.
 
 A name in the record can have no backup, and `custody.Restore` removes the live name in that case. A
 `GenerateFailed` package uses that removal. Google Wire wrote a fresh `wire_gen.go` over a name that
 was vacant, so that name has no backup. The restore therefore clears Wire's output from a package that
 reached no successful `Generate`.
 
-`WireFailed` settles in two steps, because its two files have different deadlines. The conversion
-inside `RunWire` restores the committed lifecycle file at once. A package that imports the rejected
-package can then still resolve its constructors during the `Generate` loop. `WireFailed.Complete`
-then restores the Wire backup and returns an error that names the package.
+`NoWireGen` settles in one step, at `Complete`, and it settles both names together. It restores the
+committed lifecycle file and the Wire backup, and it returns nil. Nothing it holds needs an earlier
+deadline: Rule 4 of §4.6 states the one cost of the late restore, and Q-H states why the design takes
+that cost.
 
 Every `Complete` removes the derived-injector file, whatever else it settles. That file has no backup,
 so the removal is a plain removal of `wire.DerivedFileName`. No failure path therefore leaves the file
@@ -1147,30 +1164,35 @@ code 1.
 
 ### 7.6 A package that declares no stub
 
-Such a package needs no state of its own. It stays `Happy` for the whole run, and each phase finds
-nothing to do for it.
+Such a package needs no state of its own. It shares `NoWireGen` with a package that Google Wire
+rejected, and it needs nothing that a rejected package does not also need.
 
 `Prepare` loads the stubs and finds none. It sets both generated names aside anyway. That set-aside
 is what protects a `wire_gen.go` the directory already held, because Google Wire receives the
 directory and would otherwise write over that file.
 
 Google Wire finds no injector in the directory. It writes nothing there, and it reports nothing, which
-matches the behavior ADR-012 measured. `ConvertUngenerated` reads the item's stub count, finds zero,
-and leaves the item as `Happy`.
+matches the behavior ADR-012 measured. The directory therefore holds no `wire_gen.go` when the
+`Generate` loop reaches it.
 
-`Generate` finds no stub to emit a constructor for. It writes no lifecycle file, and it returns the
-receiver.
+`Generate` tests for Google Wire's output, finds none, and returns a `NoWireGen`. It loads nothing
+and it writes nothing.
 
-`Complete` restores both names. A directory that held a hand-owned `wire_gen.go` gets that file back
-byte for byte. A directory that held neither file gets nothing back, because `custody.Restore` removes
-a live name that has no backup, and no live name exists. The package therefore leaves the run exactly
-as it entered, and the run reports nothing about it.
+`Complete` restores both names and returns nil. A directory that held a legacy `wire_gen.go` gets
+that file back byte for byte. A directory that held neither file gets nothing back, because
+`custody.Restore` removes a live name that has no backup, and no live name exists. The package
+therefore leaves the run exactly as it entered, and the run reports nothing about it.
+
+**This is why `NoWireGen` returns nil rather than an error.** The state cannot tell this package from
+a rejected one, and this package must not fail the run. A run over a whole repository reaches many
+such directories, and every one of them settles silently. The rejected package's exit code comes from
+`RunWire` instead, which learned of the rejection from Google Wire rather than from the filesystem.
 
 ---
 
 ## 8. Resolved questions
 
-The labels Q-A through Q-J name the questions that this design settles. Each label states one decision
+The labels Q-A through Q-K name the questions that this design settles. Each label states one decision
 and the reason for it.
 
 ### Q-A — the analysis-to-emission seam
@@ -1266,9 +1288,11 @@ The emission package is `emit`, not `render`, because the package writes the fil
 it. The golden corpus lives at `internal/generator/testdata/emit/<case>/want/`, across the sixteen
 directories that `emitCases` names. The package name keeps that path meaningful.
 
-Each state name reads as what that state is. Three names join a phase name to the word `Failed`:
-`PrepareFailed`, `WireFailed`, and `GenerateFailed`. Those three phase names are the interface's own
-method names. `Happy` names an item that failed no phase.
+Each state name reads as what that state is. Two names join a phase name to the word `Failed`:
+`PrepareFailed` and `GenerateFailed`. Both phase names are the interface's own method names. `Happy`
+names an item that failed no phase. `NoWireGen` names what its directory holds, not a phase, because
+the state is not a failure: it is also where a package that declares no stub settles. A name built on
+`Wire` and `Failed` would have claimed a failure for every stub-free directory in a repository.
 
 This design checked one hazard. `internal/generator/wire` sits beside `github.com/google/wire`. No
 file in this tree imports the Google package. The Wire vocabulary here is a set of string constants
@@ -1290,10 +1314,10 @@ the phase failed.
 A different return type records that fact once, at the moment the fact becomes true. `PrepareFailed`
 restores every name in its record, because a package that failed to prepare can hold either backup.
 `GenerateFailed` restores every name in its record, because a package that failed to render holds both.
-`WireFailed` restores the `wire_gen.go` backup only, because Q-H restores its `lifecycle_gen.go`
-backup earlier in the run. `Happy` discards its `lifecycle_gen.go` backup, because `Happy` wrote a
-replacement file. Each `Complete` makes at most two custody calls, one plain removal, and one return.
-None of them asks which phase ran.
+`NoWireGen` restores every name in its record and returns nil, because its package holds no generated
+file and owes the run no error. `Happy` discards its `lifecycle_gen.go` backup, because `Happy` wrote
+a replacement file. Each `Complete` makes at most two custody calls, one plain removal, and one
+return. None of them asks which phase ran.
 
 The states are exported, because a test constructs one directly and calls `Complete` on it. Their
 fields are unexported, so no caller outside `work` can build a state in an inconsistent condition.
@@ -1323,7 +1347,7 @@ error. `Load` is therefore tier B, and a work item calls it during `Prepare`.
 error, and no other caller ever sees it, which is what keeps the count at one site. A directory that
 declares no stubs must settle silently and must return no error, so a run over `./...` stays quiet for
 the packages that hold no stub. Google Wire behaves the same way, and ADR-012 requires that behavior.
-The item stays `Happy`, and §7.6 states what each of its phases does.
+The item settles as a `NoWireGen`, which returns nil, and §7.6 states what each of its phases does.
 
 ### Q-F — the surface that `custody` exposes
 
@@ -1340,9 +1364,9 @@ with a name that starts with a dot is a fact about Go. Neither fact is a fact ab
 run, so neither belongs in `work`. The prefix is a constant of `custody`, and no caller composes a
 backup name.
 
-Six call sites reach these three functions, and every one of them sits in `work`. Five of them are the
-states' own methods, and the sixth is the conversion that follows Google Wire. Two of the five iterate
-over a state's record, so the number of calls a run makes is not fixed. No other package in the tree
+Six call sites reach these three functions, and every one of them sits in `work`. All six are the
+states' own methods. Three of them iterate over a state's record, so the number of calls a run makes
+is not fixed. No other package in the tree
 calls `custody`, and a grep over the call sites confirms that property.
 
 `custody` holds no state between calls, so it needs no type, and no handle can carry anything the
@@ -1352,54 +1376,67 @@ package.
 
 ### Q-G — what `RunWire` returns
 
-**Decision: `RunWire` returns the classified items, and nothing else.**
+**Decision: `RunWire` returns one bare error, and no items.**
 
 ```go
-func (d *Driver) RunWire(ctx context.Context, items work.Items) work.Items
+func (d *Driver) RunWire(ctx context.Context, items work.Items) error
 ```
 
-`Run` writes `items = d.RunWire(ctx, items)`. `RunWire` invokes Google Wire once over `items.Paths()`.
-It prints Google Wire's diagnostic when there is one. It then classifies what came back, and it
-returns the classified items.
+`RunWire` invokes Google Wire once over `items.Paths()`. It prints Google Wire's diagnostic when there
+is one. It classifies nothing, it converts no item, and it reads no directory. It takes the items only
+to ask them for their paths.
 
-`RunWire` needs no error result, and this holds for both of Google Wire's failure grains. A failure of
-either grain leaves at least one directory without Google Wire's output. The classification turns each
-of those items into a `WireFailed`, and each `WireFailed.Complete` returns an error. A tier-A failure
-converts every prepared item, because a tool that could not run wrote no output anywhere. Every Wire
-failure therefore reaches the run's joined error through the packages it affected, and the run exits
-with code 1.
+The error is non-nil when Google Wire failed at either grain. A tier-A failure is `wire.Run` returning
+its `*ToolchainError`. A tier-B failure is `wire.Result` naming at least one rejected package. `Run`
+joins that error with the errors the `Complete` loop collected, so a Wire failure of either grain
+makes the run exit 1.
 
-The diagnostic that names the real cause is not lost, because it does not travel through the error at
-all. `RunWire` prints it where the failure happened. Q-J states the rule that puts every message at
-the point that produces it, and that leaves the run's error as a signal for the exit code.
+The error carries no detail, and nothing reads it. Google Wire already printed the diagnostic that
+names the rejected package and states the reason, and `RunWire` printed it at the point where it
+happened. Q-J states the rule that puts every message at the point that produces it. Q-K states why
+the error that remains stays a bare signal.
 
-The classification cannot be the first act of `Generate`. `Generate` runs once for each item, in slice
-order, and a package that `Generate` visits first loads before a later package classifies itself. Q-H
-states what that early load would read. Returning the items keeps `Run` at three loops over the slice,
-and it keeps the driver free of any branch on what is on disk.
+**Returning the items instead would buy one thing, and it is not worth a pass.** A pass between Google
+Wire and the `Generate` loop could hand a rejected package its committed lifecycle file back early,
+so a package that imports it could still load. Q-H measures what that is worth. The run already fails
+either way, the importing package loses no file, and the whole gain is one fewer error message on a
+re-run. `Happy.Generate` reading its own directory costs one branch instead.
 
 ### Q-H — when a package that Google Wire rejected gets its committed file back
 
-**Decision: the classification inside `RunWire` restores that package's committed `lifecycle_gen.go`
-at once, before any package generates.**
+**Decision: the package gets its committed `lifecycle_gen.go` back in `Complete`, with every other
+settlement. No pass runs between the Google Wire invocation and the `Generate` loop.**
+
+`Happy.Generate` reads its own directory. It returns a `NoWireGen` when it finds no `wire_gen.go`,
+and `NoWireGen.Complete` restores both backup names. The item classifies itself, at the point where
+the classification first matters, so no separate pass over the items needs to exist.
 
 A package that Google Wire rejected holds no Wire output, so it holds no placeholder constructors. Its
 stub file is invisible, because the generate-phase load sets neither build tag. Its committed file is
-set aside. The package therefore declares nothing at all, and any package that imports it fails to
-type-check. Restoring the committed file collides with nothing, exactly because the rejected package
-has no placeholder to collide with. Rule 4 of §4.6 states the measurement over `testdata/crosspkg`
-that settles this.
+set aside. The package therefore declares nothing for the whole `Generate` loop, and a package that
+imports it fails to type-check. Rule 4 of §4.6 states the measurement over `testdata/crosspkg` that
+gives this cost a number.
 
-**The restore helps a refresh, and it cannot help a first run.** A package that never had a committed
-lifecycle file has nothing to restore. The Go toolchain ignores a dot-prefixed file, so a load reads
-"set aside" and "never existed" as the same condition. On a first run, an importer of a rejected
-package still fails. Google Wire's own diagnostic names the rejected package and points at that
-package's hand-written stub, so the user reads the real cause first.
+**The design accepts that failure.** Google Wire already rejected a package, so the run exits 1
+whatever the importing package does. The importing package settles as a `GenerateFailed`, and that
+state restores its backup names, so it loses no committed file. Google Wire's own diagnostic names
+the rejected package and points at that package's hand-written stub, so the user reads the real cause
+first. The importing package's failure adds one message that the user does not need.
 
-This decision is also why a rejected package needs its own state. `Happy.Complete` discards the
-lifecycle backup, because `Happy` wrote a replacement file. A rejected package writes no replacement.
-A rejected package that stayed `Happy` would therefore lose a previously committed lifecycle file.
-`WireFailed` settles differently from every other state, which is the test that Q-D's rule applies.
+**An earlier restore costs a pass.** It cannot be the first act of `Generate`, because a package
+earlier in the slice would load before a later package restored itself. It therefore needs a loop of
+its own over the items, between the Google Wire invocation and the `Generate` loop, and a state for
+that loop to convert an item into. One message does not pay for that loop.
+
+**An earlier restore would also help a refresh only.** A package that never had a committed lifecycle
+file has nothing to restore. The Go toolchain ignores a dot-prefixed file, so a load reads "set
+aside" and "never existed" as the same condition. On a first run, an importer of a rejected package
+fails under either decision.
+
+**A rejected package still needs a state of its own.** `Happy.Complete` discards the lifecycle
+backup, because `Happy` wrote a replacement file. A rejected package writes no replacement. A
+rejected package that stayed `Happy` would therefore lose a previously committed lifecycle file.
+`NoWireGen` settles differently from every other state, which is the test that Q-D's rule applies.
 
 ### Q-I — the two output flags
 
@@ -1418,8 +1455,8 @@ header bytes as an input, and `emit` composes the emitted file's name from the p
 
 ### Q-J — the error surface, and the place that produces output
 
-**Decision: one error surface for each package. A per-package failure travels on the item, and the
-run's error is the join of what `Complete` returns.**
+**Decision: one error surface for each package, and one for Google Wire. A per-package failure travels
+on the item, a Google Wire failure travels on `RunWire`, and the run's error is the join of both.**
 
 `custody` returns a plain error that names the failed operation and the file. It declares no error
 type. The state that called `custody` knows which package it is, and that state wraps the failure with
@@ -1436,10 +1473,9 @@ consumes `ErrNoStubs`.
 `Unwrap`. ADR-008 requires a distinction between a toolchain failure and an input failure. The route
 each error travels carries that distinction here, and no type test carries it. `Run` returns a
 `*ToolchainError` through its error result when the tool could not run at all. A `*ToolError` is a
-field on `Result`, and it means that Wire ran and rejected some input. `RunWire` prints what it holds
-and keeps neither value. A failure of either grain leaves at least one directory without Google Wire's
-output, so the classification converts those items and each one reports itself through `Complete`. The
-driver never inspects an error to decide whether to continue.
+field on `Result`, and it means that Wire ran and rejected some input. `RunWire` prints what it holds,
+and it returns one bare error of its own when either grain failed. That error is the run's whole
+record of a Google Wire failure. The driver never inspects an error to decide whether to continue.
 
 `graph` uses `LoadError{Dir, Err}`, with `Unwrap`, for a load over Wire's output that does not
 type-check. That one type replaces four untyped errors. `graph` uses `ParseError{Injector, Pos, Msg}`
@@ -1452,9 +1488,31 @@ three test files.
 cases are a stub with no matching injector, source that `go/format` rejects, and an unknown member
 kind.
 
-**The driver holds no per-run result value.** `Run` returns `errors.Join` of what `Complete` returned,
-and `cmd/yama` maps a non-nil result to exit code 1. The error is a signal for the exit code rather
-than a message.
+**The driver holds no per-run result value.** `Run` returns `errors.Join` of what `RunWire` and
+`Complete` returned, and `cmd/yama` maps a non-nil result to exit code 1. The error is a signal for
+the exit code rather than a message.
+
+### Q-K — how much an error is allowed to carry
+
+**Decision: an error in this design is a signal, not a payload. It coordinates behavior. It is never
+a value that a developer reads fields out of.**
+
+Nothing in this tree branches on the contents of an error. `cmd/yama` maps non-nil to exit code 1.
+`Run` joins. `Complete` returns. No caller unwraps a value to decide what to do next, and no caller
+formats one for a person to read. The messages a person reads are Google Wire's own diagnostic and the
+`Progress` line, and Q-J puts each of those at the point that produces it.
+
+An error type therefore earns its fields only when a **test** asserts on them, or when a second
+production site tells two failures apart. `wire.ToolError` and `wire.ToolchainError` meet that bar,
+because ADR-008 requires the toolchain-versus-input distinction and the route each value travels is
+how the design carries it. `source.Error` and `graph.ParseError` meet it, because a position and a
+message are what their specs assert. `emit` declares no error type at all.
+
+**This rule bounds what the new code may add.** `RunWire` returns a bare error rather than a value
+naming every rejected directory, because nothing would read those names. `NoWireGen` returns nil
+rather than an error that explains which of its two cases it is, because nothing would read that
+either, and the state cannot tell the two apart in the first place. A design that reached for a richer
+error here would be building a report that this tree never prints.
 
 **Output happens where it is produced.** A `Happy` item writes its own progress line to
 `Config.Progress`, in the shape that Google Wire uses: `yama: <import path>: wrote <path>`.
@@ -1511,7 +1569,7 @@ for a test. `RunWire` prints Google Wire's diagnostic once, in the same way.
 Two specs in `transient_test.go` survive rather than go. The backup-name `DescribeTable`, lines
 324-337, moves into `custody`, because the leading-dot property and the prefix-tracking property are
 `custody`'s own facts. `Context("when Wire rejects the package")`, lines 178-189, over
-`testdata/badwire`, becomes the `WireFailed` spec.
+`testdata/badwire`, becomes the `NoWireGen` spec.
 
 ### Tests that move
 
@@ -1720,17 +1778,18 @@ same property at no cost, because the phases already run in separate loops.
 **Restoring the files of a package that failed to render, inside the `Generate` loop.** This would let
 an importer resolve that package's constructors. This design rejects it, because the restored file is
 the *old* file. The importer would then emit against a stale dependency, and nothing would report the
-staleness. A failure that names the wrong package is better than a result that is silently wrong. A
-package that Google Wire rejected is the one case that this design does restore. That package emitted
-no new file, so its restored committed file contradicts nothing. The importer of a render-failed
-package needs no restore either. That package keeps Google Wire's output through the loop, and that
-output declares the constructors.
+staleness. A failure that names the wrong package is better than a result that is silently wrong. This
+design restores no package inside the `Generate` loop, whatever its state. The importer of a
+render-failed package needs no restore in any case. That package keeps Google Wire's output through
+the loop, and that output declares the constructors.
 
-**Restoring a package that Google Wire rejected inside the `Generate` loop, rather than at the moment
-`RunWire` classifies it.** The restore and the load would then sit in one method. This design rejects
-it, because `Generate` runs once for each item, in slice order. A package early in the slice would
-load before a package later in the slice restored its own file, so the early package would still see
-an undefined constructor. Q-G returns the items from `RunWire` for exactly this reason.
+**A pass over the items between Google Wire and the `Generate` loop.** Such a pass could hand a
+rejected package its committed lifecycle file back before any package loads, so an importer of that
+package could still resolve its constructors. This design rejects it. The restore cannot move into
+`Generate` instead, because `Generate` runs once for each item in slice order, and a package early in
+the slice would load before a package later in the slice restored its own file. The pass is therefore
+the only way to buy that property, and Q-H prices it: the run already fails, the importing package
+loses no file, and the whole gain is one fewer message on a re-run.
 
 **Removing the derived-injector file in `Generate` alone.** `Happy.Generate` already removes it, so one
 call site looks like enough. This design rejects that, because three states never reach a successful
@@ -1738,9 +1797,9 @@ call site looks like enough. This design rejects that, because three states neve
 failed to prepare after the write would each keep the file. Every `Complete` removes it instead, and
 the call is a no-op for a `Happy` item.
 
-**Setting `wire_gen.go` aside before `lifecycle_gen.go`.** That order leaves the user's hand-owned file
-under a backup name when the second move fails. Yama cannot recreate that file, and Yama can recreate
-its own. Rule 2 of §4.6 states the order that this design uses.
+**Setting `wire_gen.go` aside before `lifecycle_gen.go`.** That order leaves a legacy `wire_gen.go`
+under a backup name when the second move fails. Yama cannot recreate that file, and Yama can
+recreate its own. Rule 2 of §4.6 states the order that this design uses.
 
 **Parsing Google Wire's output to decide which packages succeeded.** Yama already strips and rewrites
 Wire's `wrote` lines, which makes those lines the least stable part of Wire's output. A check for

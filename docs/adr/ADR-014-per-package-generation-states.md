@@ -91,11 +91,37 @@ whatever else happened in the run.
 A failure to move either file leaves the package out of the Google Wire
 invocation. The order decides which file a failed move leaves at the backup name.
 
-### A package that Google Wire rejected gets its lifecycle file back at once
+### A package that Google Wire rejected settles like every other package
 
-Yama puts that file back after Google Wire returns, and before any package reads
-Google Wire's output. The package that Google Wire rejected has no output of its
-own, so nothing else declares its constructors at that moment.
+Yama puts the files of a rejected package back in `Complete`. It puts them back
+together with the files of every other package. No step runs between Google Wire
+and the generate phase.
+
+A package that imports a rejected package therefore fails to type-check during
+the run. The run already reports a failure. The importer also keeps every file
+that it held when the run started.
+
+### A package states its own outcome from what its directory holds
+
+The generate phase reads the target directory first. It finds no Google Wire
+output for a rejected package. The work item then moves to a state that writes
+no file and returns no error.
+
+Two different packages reach that state. Google Wire rejected the first. The
+second declares no lifecycle stub, so Google Wire had nothing to generate for
+it. What the directory holds does not say which package it is. Neither package
+needs a count of its stubs, because neither one reports the outcome of the run.
+
+### An error signals that a run failed, and carries nothing else
+
+An error coordinates behaviour. Nothing reads a field out of an error. Nothing
+prints an error for a person to read. A caller maps a non-nil error to the exit
+code.
+
+Two things produce an error. A package produces one for its own failure. The
+Google Wire invocation produces one when Google Wire fails at either grain. A run
+joins the two. A rejected package therefore sets the exit code through the Google
+Wire invocation, and not through its own settlement.
 
 ### Custody exports functions and declares no type
 
@@ -160,7 +186,7 @@ A run that moves the lifecycle file first therefore risks only the recoverable
 file. A failure to move the lifecycle file leaves the application's `wire_gen.go`
 where it is, because Yama did not touch that file yet.
 
-### The rejected package must declare its constructors during the load
+### The importer of a rejected package fails, and that failure costs one message
 
 Yama's load over Google Wire's output type-checks the package. That load resolves
 an import of a sibling package from source, so a package that declares nothing
@@ -168,28 +194,36 @@ breaks every package that imports it.
 
 A package that Google Wire rejected declares nothing while its lifecycle file is
 aside. Its stub is behind a build tag that the load does not set. Google Wire
-wrote no output for it. Its committed file is at the backup name.
+wrote no output for it. Its committed file is at the backup name. An importer of
+that package therefore fails.
 
-The restore gives the package its constructors again. The constructor's signature
-comes from the lifecycle stub (ADR-011), and a run does not change a stub. An
-importer therefore type-checks against the same signature that a fresh file
-declares.
+That failure adds one message to a run that already fails. Google Wire rejected a
+package, so the run exits with a non-zero code whatever the importer does. The
+importer settles its own files, and it keeps every committed file that it held.
+Google Wire's own diagnostic names the rejected package and points at that
+package's stub, so the user reads the real cause first.
 
-The restore cannot wait for `Complete`, because `Complete` runs after every
-package has already read Google Wire's output. It cannot happen inside `Generate`
-either, because `Generate` visits one package at a time, and a package that
-`Generate` visits first reads Google Wire's output before a later package restores
-itself.
+A restore before the generate phase removes that one message. The restore cannot
+wait for `Complete`. `Complete` runs after every package reads Google Wire's
+output. The restore cannot run inside the generate phase either. That phase
+visits one package at a time. The package that it visits first reads Google
+Wire's output before a later package restores its own file.
 
-### A restore is safe only for a package that Google Wire rejected
+A restore therefore needs a step of its own, and a state for the items that the
+step converts. That gain does not justify a step and a state.
 
-A package that Google Wire generated for holds a `wire_gen.go` that carries the
-lifecycle placeholder. That placeholder and the committed lifecycle file declare
-the same constructors. A restore of the committed file would therefore declare
-them twice, and the package would not compile.
+### A restore is safe only for a package that wrote no lifecycle file
 
-A package that Google Wire rejected holds no such output. Nothing else declares
-its constructors, so the restore adds a declaration rather than duplicating one.
+The generate phase writes a fresh lifecycle file for each package that Google
+Wire accepted. That file and the committed lifecycle file declare the same
+constructors. A restore of the committed file would therefore declare those
+constructors twice, and the package would not compile. Such a package drops its
+backup instead of restoring it.
+
+A package that Google Wire rejected writes no lifecycle file, and nothing else
+declares its constructors. A restore of the committed file therefore adds a
+declaration rather than duplicating one. A package that declares no lifecycle
+stub also writes no lifecycle file, and it settles the same way.
 
 ### Functions state custody's contract more exactly than a handle does
 
@@ -224,19 +258,21 @@ to move text. The caller would then print what it received, and add nothing.
   subprocess, because the item holds its own state and its own record.
 * Custody is testable on its own, over a temporary directory, with no Yama
   vocabulary in the test.
-* An importer of a rejected package still emits its lifecycle file. Without this
-  restore, a run that continued past a failure would fail that importer. The
-  diagnostic would then name the importer rather than the package that Google
-  Wire rejected.
+* A package states its own outcome from what its directory holds. A run therefore
+  needs no step between Google Wire and the generate phase, and no count of a
+  package's stubs.
+* An error stays a signal. No type in the run carries a report that nothing
+  prints.
 
 ### Negative
 
 * A tree after a failed run is not uniform. Some packages hold a fresh lifecycle
   file, and others hold the file from the previous run. A reader of the tree
   cannot tell which is which without reading the run's output.
-* The restore for a rejected package helps a package that was generated before.
-  A package generated for the first time has no committed file to restore, so an
-  importer of it still fails to type-check.
+* An importer of a package that Google Wire rejected fails to type-check during
+  the run, and reports a missing constructor rather than the real cause. The
+  importer keeps every file that it held. Google Wire's own diagnostic names the
+  rejected package.
 * Yama does not put a file back when it stops without running `Complete`. A panic
   therefore leaves two files at their backup names, and the user moves them back
   by hand. Google Wire moves no file, so a panic in Google Wire costs the user
@@ -266,12 +302,35 @@ not read it does the wrong work for a failed package. The compiler checks none o
 those reads. The settlement for each kind of failure also ends up in one function
 that branches, rather than beside the failure it settles.
 
-### Restore a rejected package inside the `Generate` phase
+### Restore a rejected package inside the generate phase
 
-Rejected. `Generate` visits one package at a time. A package that it visits first
+Rejected. That phase visits one package at a time. A package that it visits first
 reads Google Wire's output before a package that it visits later restores itself.
 The restore would therefore help some importers and not others. The order of the
 package list would decide which importers it helps.
+
+### Restore a rejected package in a step before the generate phase
+
+Rejected. The step gives every importer the same answer. The alternative above
+cannot do this. The step costs a pass over the work items, between Google Wire
+and the generate phase. It also costs a state for the items that the pass
+converts. It removes one message from a run that already fails, and only for a
+package that a previous run generated. A package generated for the first time has
+no committed file to restore, so its importer fails in either design.
+
+### Report a rejected package through its own error
+
+Rejected. A directory that holds no Google Wire output belongs to one of two
+packages. Google Wire rejected the first. The second declares no lifecycle stub.
+What the directory holds does not say which one it is.
+
+An error from that package would therefore fail every stub-free directory in a
+repository. A run over `./...` would then report packages that had no work to do.
+A count of the package's stubs would tell the two apart, and it would add a count
+that nothing else needs.
+
+The Google Wire invocation already knows which packages it rejected. Its error
+already sets the exit code.
 
 ### Give custody a type that holds an open move
 
