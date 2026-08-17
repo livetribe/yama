@@ -44,115 +44,35 @@ const (
 	wireName      = "wire_gen.go"
 )
 
-// componentsFile is the package that the target directory holds. NewDB returns
-// a cleanup and declares no capability. App declares two.
-//
-// Boot calls the lifecycle constructor. The committed lifecycle file is set
-// aside while Generate type-checks the package, so the package needs the
-// placeholder that Prepare wrote to resolve that call.
-const componentsFile = `package app
+// fixtureRoot holds the files that a spec puts in the directory it runs
+// against. testdata/target holds the target package and its stub.
+// testdata/output holds one directory for each Google Wire output, and the
+// comment at the top of each one states what that output does to Generate.
+const fixtureRoot = "testdata"
 
-import "context"
+// targetFixture names the directory that holds the target package.
+const targetFixture = "target"
 
-func Boot(ctx context.Context) error {
-	_, _, err := NewAppLifecycle(ctx)
+// outputRoot holds one directory for each Google Wire output. Each constant
+// below names one of them.
+const outputRoot = "output"
 
-	return err
-}
-
-type Logger struct{}
-
-func NewLogger() *Logger { return &Logger{} }
-
-type DB struct{}
-
-func NewDB(l *Logger) (*DB, func()) { return &DB{}, func() {} }
-
-type App struct{}
-
-func NewApp(db *DB) *App { return &App{} }
-
-func (a *App) Start(_ context.Context) error { return nil }
-func (a *App) Stop(_ context.Context)        {}
-`
-
-// stubFile is the lifecycle stub that a person wrote.
-const stubFile = `//go:build yamainject
-
-package app
-
-import (
-	"context"
-
-	"github.com/google/wire"
-
-	yama "l7e.io/yama/v2"
+const (
+	emittableFixture   = "emittable"
+	unemittableFixture = "unemittable"
+	collidingFixture   = "colliding"
+	unparsableFixture  = "unparsable"
 )
 
-// NewAppLifecycle builds the app and its lifecycle.
-func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*App, yama.Lifecycle, error) {
-	panic(wire.Build(NewLogger, NewDB, NewApp))
+// fixture returns what testdata holds at name.
+func fixture(name string) string {
+	path := filepath.Join(fixtureRoot, name)
+
+	b, err := os.ReadFile(path)
+	Expect(err).NotTo(HaveOccurred())
+
+	return string(b)
 }
-`
-
-// emittableOutput is what Google Wire writes for the stub above. It parses and
-// it type-checks, so Generate reaches the lifecycle file.
-const emittableOutput = `//go:build !wireinject
-
-package app
-
-import "context"
-
-func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
-	logger := NewLogger()
-	db, cleanup := NewDB(logger)
-	app := NewApp(db)
-	return app, func() { cleanup() }, nil
-}
-`
-
-// unemittableOutput parses and does not type-check, so Generate fails at the
-// step that reads what each component's type declares.
-const unemittableOutput = `//go:build !wireinject
-
-package app
-
-import "context"
-
-func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
-	logger := NewMissing()
-	app := NewApp(logger)
-	return app, func() {}, nil
-}
-`
-
-// collidingOutput binds the name that the stub file binds to another path, so
-// Generate fails at the step that reads the output's import block.
-const collidingOutput = `//go:build !wireinject
-
-package app
-
-import context "example.com/other/context"
-
-func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
-	app := NewApp(nil)
-	return app, func() {}, nil
-}
-`
-
-// unparsableOutput states a statement that no provider writes, so Generate
-// fails at the step that reads the ordering out of the injector body.
-const unparsableOutput = `//go:build !wireinject
-
-package app
-
-import "context"
-
-func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
-	go NewLogger()
-	return nil, nil, nil
-}
-`
 
 var _ = Describe("a work item over one target package", func() {
 	var (
@@ -180,14 +100,29 @@ var _ = Describe("a work item over one target package", func() {
 
 	// writeTarget makes dir a module of its own and puts the package and its
 	// stub in it. Generate type-checks the package, and the replace resolves the
-	// stub's yama import against this repository.
+	// stub's yama import against this repository. The go.mod write comes last,
+	// so dir holds this go.mod and not one that the fixture directory holds.
 	writeTarget := func() {
+		entries, err := os.ReadDir(filepath.Join(fixtureRoot, targetFixture))
+		Expect(err).NotTo(HaveOccurred())
+
+		for _, entry := range entries {
+			content := fixture(filepath.Join(targetFixture, entry.Name()))
+			write(entry.Name(), content)
+		}
+
 		repo, err := filepath.Abs(filepath.Join("..", "..", "..", ".."))
 		Expect(err).NotTo(HaveOccurred())
 
 		write("go.mod", "module app\n\ngo 1.25.0\n\nrequire l7e.io/yama/v2 v2.0.0\n\nreplace l7e.io/yama/v2 => "+repo+"\n")
-		write("components.go", componentsFile)
-		write("lifecycle.go", stubFile)
+	}
+
+	// writeOutput puts the named fixture at the wire_gen.go name in dir. A spec
+	// calls this one between Prepare and Generate, where Google Wire would have
+	// written its own output.
+	writeOutput := func(name string) {
+		content := fixture(filepath.Join(outputRoot, name, wireName))
+		write(wireName, content)
 	}
 
 	// denyWrites takes writes away from the package directory, so the custodian
@@ -235,7 +170,7 @@ var _ = Describe("a work item over one target package", func() {
 	// Generate.
 	emitted := func() State {
 		state := prepared()
-		write(wireName, emittableOutput)
+		writeOutput(emittableFixture)
 
 		return state.Generate(context.Background())
 	}
@@ -244,7 +179,7 @@ var _ = Describe("a work item over one target package", func() {
 	// and runs Generate.
 	unemitted := func() State {
 		state := prepared()
-		write(wireName, unemittableOutput)
+		writeOutput(unemittableFixture)
 
 		return state.Generate(context.Background())
 	}
@@ -253,7 +188,7 @@ var _ = Describe("a work item over one target package", func() {
 	// stub file's in the directory, and runs Generate.
 	collided := func() State {
 		state := prepared()
-		write(wireName, collidingOutput)
+		writeOutput(collidingFixture)
 
 		return state.Generate(context.Background())
 	}
@@ -262,7 +197,7 @@ var _ = Describe("a work item over one target package", func() {
 	// directory, and runs Generate.
 	unparsed := func() State {
 		state := prepared()
-		write(wireName, unparsableOutput)
+		writeOutput(unparsableFixture)
 
 		return state.Generate(context.Background())
 	}
@@ -350,7 +285,7 @@ var _ = Describe("a work item over one target package", func() {
 
 				It("removes both transient files only after the write succeeds", func() {
 					state := prepared()
-					write(wireName, emittableOutput)
+					writeOutput(emittableFixture)
 					denyWrites()
 
 					settled := state.Generate(context.Background())
@@ -982,8 +917,9 @@ var _ = Describe("CreateWorkItems", func() {
 	// below is a directory that holds a package.
 	stubbed := func() string {
 		dir := GinkgoT().TempDir()
+		stub := fixture(filepath.Join(targetFixture, "lifecycle.go"))
 
-		err := os.WriteFile(filepath.Join(dir, "lifecycle.go"), []byte(stubFile), 0o600)
+		err := os.WriteFile(filepath.Join(dir, "lifecycle.go"), []byte(stub), 0o600)
 		Expect(err).NotTo(HaveOccurred())
 
 		return dir
