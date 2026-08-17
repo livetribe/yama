@@ -15,7 +15,6 @@
 package work
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
@@ -157,13 +156,13 @@ var _ = Describe("a work item over one target package", func() {
 
 	// prepared runs Prepare and returns what it produced.
 	prepared := func() State {
-		return item.Prepare(context.Background())
+		return item.Prepare()
 	}
 
 	// generated runs Prepare and then Generate, and returns what Generate
 	// produced. Google Wire wrote nothing between the two.
 	generated := func() State {
-		return prepared().Generate(context.Background())
+		return prepared().Generate()
 	}
 
 	// emitted runs Prepare, puts output that emits in the directory, and runs
@@ -172,7 +171,7 @@ var _ = Describe("a work item over one target package", func() {
 		state := prepared()
 		writeOutput(emittableFixture)
 
-		return state.Generate(context.Background())
+		return state.Generate()
 	}
 
 	// unemitted runs Prepare, puts output that fails to emit in the directory,
@@ -181,7 +180,7 @@ var _ = Describe("a work item over one target package", func() {
 		state := prepared()
 		writeOutput(unemittableFixture)
 
-		return state.Generate(context.Background())
+		return state.Generate()
 	}
 
 	// collided runs Prepare, puts output whose import block collides with the
@@ -190,7 +189,7 @@ var _ = Describe("a work item over one target package", func() {
 		state := prepared()
 		writeOutput(collidingFixture)
 
-		return state.Generate(context.Background())
+		return state.Generate()
 	}
 
 	// unparsed runs Prepare, puts output that states no ordering in the
@@ -199,19 +198,19 @@ var _ = Describe("a work item over one target package", func() {
 		state := prepared()
 		writeOutput(unparsableFixture)
 
-		return state.Generate(context.Background())
+		return state.Generate()
 	}
 
 	// complete runs Complete on what a phase produced and drops what it
 	// returned. A spec that reads the directory afterwards calls this one.
 	complete := func(state State) {
-		_ = state.Complete(context.Background())
+		_ = state.Complete()
 	}
 
 	// completed runs Complete on what a phase produced and returns what it
 	// produced. A spec that asserts on the error calls this one.
 	completed := func(state State) error {
-		return state.Complete(context.Background())
+		return state.Complete()
 	}
 
 	// A clean first run. The directory holds neither generated file. Yama has
@@ -288,7 +287,7 @@ var _ = Describe("a work item over one target package", func() {
 					writeOutput(emittableFixture)
 					denyWrites()
 
-					settled := state.Generate(context.Background())
+					settled := state.Generate()
 
 					Expect(exists(wireName)).To(BeTrue())
 					Expect(exists(wire.DerivedFileName)).To(BeTrue())
@@ -549,7 +548,7 @@ var _ = Describe("a work item over one target package", func() {
 				It("does not delete the file the application owns", func() {
 					settled := prepared()
 
-					Expect(settled.Complete(context.Background())).NotTo(Succeed())
+					Expect(settled.Complete()).NotTo(Succeed())
 					Expect(read(wireName)).To(Equal("legacy\n"))
 				})
 
@@ -978,7 +977,7 @@ var _ = Describe("CreateWorkItems", func() {
 
 		items := CreateWorkItems([]string{missing}, "", nil, nil, io.Discard)
 
-		Expect(items[0].Complete(context.Background())).To(HaveOccurred())
+		Expect(items[0].Complete()).To(HaveOccurred())
 	})
 })
 

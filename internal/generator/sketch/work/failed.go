@@ -15,8 +15,6 @@
 package work
 
 import (
-	"context"
-
 	"l7e.io/yama/v2/internal/generator/sketch/custody"
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
@@ -34,17 +32,17 @@ func (f *CreateFailed) PackagePath() (path string, ok bool) {
 	return "", false
 }
 
-func (f *CreateFailed) Prepare(_ context.Context) State {
+func (f *CreateFailed) Prepare() State {
 	return f
 }
 
-func (f *CreateFailed) Generate(_ context.Context) State {
+func (f *CreateFailed) Generate() State {
 	return f
 }
 
 // Complete returns the error that the read produced. It settles no file. The
 // run moved none in this package.
-func (f *CreateFailed) Complete(_ context.Context) error {
+func (f *CreateFailed) Complete() error {
 	return f.err
 }
 
@@ -60,18 +58,18 @@ func (f *PrepareFailed) PackagePath() (path string, ok bool) {
 	return "", false
 }
 
-func (f *PrepareFailed) Prepare(_ context.Context) State {
+func (f *PrepareFailed) Prepare() State {
 	panic("should never reach here")
 }
 
-func (f *PrepareFailed) Generate(_ context.Context) State {
+func (f *PrepareFailed) Generate() State {
 	// do nothing
 	return f
 }
 
 // Complete settles the package's files and returns the error that Prepare
 // produced.
-func (f *PrepareFailed) Complete(_ context.Context) error {
+func (f *PrepareFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }
 
@@ -87,16 +85,16 @@ func (f *GenerateFailed) PackagePath() (path string, ok bool) {
 	panic("should never reach here")
 }
 
-func (f *GenerateFailed) Prepare(_ context.Context) State {
+func (f *GenerateFailed) Prepare() State {
 	panic("should never reach here")
 }
 
-func (f *GenerateFailed) Generate(_ context.Context) State {
+func (f *GenerateFailed) Generate() State {
 	panic("should never reach here")
 }
 
 // Complete settles the package's files and returns the error that Generate
 // produced.
-func (f *GenerateFailed) Complete(_ context.Context) error {
+func (f *GenerateFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }

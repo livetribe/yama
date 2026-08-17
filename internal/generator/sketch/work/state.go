@@ -14,19 +14,17 @@
 
 package work
 
-import "context"
-
 type State interface {
 	PackagePath() (path string, ok bool)
 
 	// Prepare is called before Google Wire is called.
-	Prepare(ctx context.Context) State
+	Prepare() State
 
-	Generate(ctx context.Context) State
+	Generate() State
 
 	// Complete is called to perform any cleanup duties after all the
 	// lifecycle_gen.go files have been created.
-	Complete(ctx context.Context) error
+	Complete() error
 }
 
 type Items []State

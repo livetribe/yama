@@ -15,7 +15,6 @@
 package work
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -79,7 +78,7 @@ func (h *Happy) PackagePath() (path string, ok bool) {
 //
 // A package that fails a later step settles through Complete, which puts back
 // every name this run moved.
-func (h *Happy) Prepare(_ context.Context) State {
+func (h *Happy) Prepare() State {
 	if err := h.intermediates.Prepare(); err != nil {
 		return h.prepareFailed(err)
 	}
@@ -96,7 +95,7 @@ func (h *Happy) Prepare(_ context.Context) State {
 // Generate tests the directory for Google Wire's output. Google Wire writes
 // nothing for a package that it rejected. A directory with no output settles
 // as a NoWireGen.
-func (h *Happy) Generate(_ context.Context) State {
+func (h *Happy) Generate() State {
 	name := h.custodian.WireOutputName()
 	output := filepath.Join(h.path, name)
 
@@ -143,7 +142,7 @@ func (h *Happy) Generate(_ context.Context) State {
 }
 
 // Complete settles the package's files and removes the intermediate files.
-func (h *Happy) Complete(_ context.Context) error {
+func (h *Happy) Complete() error {
 	return settle(h.custodian, h.intermediates, nil)
 }
 

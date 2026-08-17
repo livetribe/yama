@@ -76,19 +76,19 @@ func (d *Driver) Run(ctx context.Context) error {
 	items := work.CreateWorkItems(targets, d.args.Prefix, header, tags, d.progress)
 
 	for i, item := range items {
-		items[i] = item.Prepare(ctx)
+		items[i] = item.Prepare()
 	}
 
 	wireErr := d.RunWire(ctx, items)
 
 	for i, item := range items {
-		items[i] = item.Generate(ctx)
+		items[i] = item.Generate()
 	}
 
 	errs := []error{wireErr}
 
 	for _, item := range items {
-		errs = append(errs, item.Complete(ctx))
+		errs = append(errs, item.Complete())
 	}
 
 	return errors.Join(errs...)
