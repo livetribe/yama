@@ -57,6 +57,10 @@ and `Complete`. Yama invokes Google Wire once, between `Prepare` and `Generate`.
 lifecycle file. `Complete` puts the package's files back, or drops the backup
 that the emitted file replaced.
 
+Each phase method takes no context. The run holds its context at the driver,
+which passes it to the package resolution and to the Google Wire invocation. A
+phase reads no deadline and stops no work early.
+
 ### A work item's type states its outcome
 
 `Prepare` and `Generate` each return a work item. Each phase returns an item of a
@@ -132,7 +136,7 @@ nothing that belongs to Yama.
 
 ### Each part of a run writes its own messages
 
-A work item writes its own progress line when it commits a file. The Google Wire
+A work item writes its own progress line when it writes a file. The Google Wire
 invocation writes Google Wire's diagnostic. The error that a run returns states
 that the run failed, and a caller reads it for the exit code.
 
@@ -235,10 +239,22 @@ Functions also keep the package free of Yama's vocabulary. Each one takes a
 directory and a plain filename. Nothing in the package names a stub, an injector,
 a package pattern, or a run.
 
+### A phase that reads no context declares no context
+
+No phase reads a deadline, and no phase stops its work early. A context
+parameter on each phase method would therefore carry a value that every
+implementation discards, and each new state would still have to declare it. The
+two calls that a context reaches, the package resolution and the Google Wire
+invocation, both sit at the driver, which holds the run's context already.
+
+A later phase that must stop early takes the context back at that point. The
+change is a signature change on one interface, and the compiler names every
+implementation that it touches.
+
 ### A message printed where it is produced needs no carrier
 
 A run produces two kinds of message. A work item produces a progress line when it
-commits a file. The Google Wire invocation produces Google Wire's diagnostic.
+writes a file. The Google Wire invocation produces Google Wire's diagnostic.
 
 Each of those points already holds the message and already knows the stream. A
 value that carried the messages to a caller would add a type whose only work is
@@ -376,3 +392,8 @@ This decision does not do these things:
   same time. ADR-008 records that hazard.
 * It does not make Yama recover from a panic, or from a run that an operator
   stops.
+* It does not put back the files of an earlier run that stopped part way. Yama
+  keeps no journal of a run. A run reads the directory, and it reads the record
+  that it makes itself. A file that an interrupted run left at a backup name, or
+  at an intermediate name, is outside the phases above. The phases assume that
+  each run either finishes or fails through `Complete`.

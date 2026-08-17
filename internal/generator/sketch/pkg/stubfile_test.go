@@ -1,4 +1,18 @@
-package source_test
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package pkg_test
 
 import (
 	"os"
@@ -7,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/sketch/source"
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
 // stubFile is one guarded file that declares one stub. Most specs write it and
@@ -45,19 +59,19 @@ var _ = Describe("source", func() {
 	}
 
 	// loaded reads dir and fails the spec when it cannot.
-	loaded := func() *source.PackageInfo {
-		pkg, err := source.Load(dir, nil)
+	loaded := func() *pkg.Info {
+		pkg, err := pkg.Load(dir, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		return pkg
 	}
 
 	// only returns the one stub that dir declares.
-	only := func() *source.StubInfo {
+	only := func() *pkg.Stub {
 		pkg := loaded()
-		Expect(pkg.Stubs).To(HaveLen(1))
+		Expect(pkg.Stubs()).To(HaveLen(1))
 
-		return &pkg.Stubs[0]
+		return &pkg.Stubs()[0]
 	}
 
 	Describe("Load", func() {
@@ -67,11 +81,11 @@ var _ = Describe("source", func() {
 			})
 
 			It("names the package", func() {
-				Expect(loaded().Name).To(Equal("app"))
+				Expect(loaded().Name()).To(Equal("app"))
 			})
 
 			It("reports the directory it read", func() {
-				Expect(loaded().Dir).To(Equal(dir))
+				Expect(loaded().Dir()).To(Equal(dir))
 			})
 
 			It("names the stub", func() {
@@ -83,14 +97,14 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads the parameters, in order", func() {
-				Expect(only().Params).To(Equal([]source.Field{
+				Expect(only().Params).To(Equal([]pkg.Field{
 					{Name: "ctx", Type: "context.Context"},
 					{Name: "opts", Type: "...yama.Option"},
 				}))
 			})
 
 			It("reads the results, in order", func() {
-				Expect(only().Results).To(Equal([]source.Field{
+				Expect(only().Results).To(Equal([]pkg.Field{
 					{Type: "*lib.App"},
 					{Type: "yama.Lifecycle"},
 					{Type: "error"},
@@ -113,7 +127,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 		})
 
@@ -123,7 +137,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -134,11 +148,11 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 
 			It("carries none of its imports onto the package", func() {
-				Expect(loaded().Imports).To(BeEmpty())
+				Expect(loaded().Imports()).To(BeEmpty())
 			})
 		})
 
@@ -148,7 +162,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -162,24 +176,24 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub when the run set no tag", func() {
-				pkg, err := source.Load(dir, nil)
+				pkg, err := pkg.Load(dir, nil)
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(pkg.Stubs).To(BeEmpty())
+				Expect(pkg.Stubs()).To(BeEmpty())
 			})
 
 			It("reads the stub when the run set that tag", func() {
-				pkg, err := source.Load(dir, []string{"special"})
+				pkg, err := pkg.Load(dir, []string{"special"})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(pkg.Stubs).To(HaveLen(1))
+				Expect(pkg.Stubs()).To(HaveLen(1))
 			})
 
 			It("reads no stub when the run set some other tag", func() {
-				pkg, err := source.Load(dir, []string{"other"})
+				pkg, err := pkg.Load(dir, []string{"other"})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(pkg.Stubs).To(BeEmpty())
+				Expect(pkg.Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -191,10 +205,10 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				pkg, err := source.Load(dir, []string{"special"})
+				pkg, err := pkg.Load(dir, []string{"special"})
 
 				Expect(err).NotTo(HaveOccurred())
-				Expect(pkg.Stubs).To(BeEmpty())
+				Expect(pkg.Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -204,7 +218,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads the stub out of it", func() {
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 		})
 
@@ -214,7 +228,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads the stub out of it", func() {
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 		})
 
@@ -224,7 +238,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -239,11 +253,11 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 
 			It("reports no error for it", func() {
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).NotTo(HaveOccurred())
 			})
@@ -257,7 +271,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads the stub out of it", func() {
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 		})
 
@@ -268,7 +282,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -278,7 +292,7 @@ var _ = Describe("source", func() {
 			})
 
 			It("reads no stub out of it", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -334,9 +348,9 @@ func NewSecond() (*App, yama.Lifecycle, error) {
 			It("reads them in the order the file declares them", func() {
 				pkg := loaded()
 
-				Expect(pkg.Stubs).To(HaveLen(2))
-				Expect(pkg.Stubs[0].Name).To(Equal("NewFirst"))
-				Expect(pkg.Stubs[1].Name).To(Equal("NewSecond"))
+				Expect(pkg.Stubs()).To(HaveLen(2))
+				Expect(pkg.Stubs()[0].Name).To(Equal("NewFirst"))
+				Expect(pkg.Stubs()[1].Name).To(Equal("NewSecond"))
 			})
 		})
 
@@ -359,7 +373,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			})
 
 			It("returns one field for each name", func() {
-				Expect(only().Params).To(Equal([]source.Field{
+				Expect(only().Params).To(Equal([]pkg.Field{
 					{Name: "a", Type: "string"},
 					{Name: "b", Type: "string"},
 				}))
@@ -379,13 +393,13 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("takes the three results that a constructor returns", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, yama.Lifecycle, error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 
 			It("reports a stub that declares too few results", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("declares 2 results")))
 			})
@@ -393,7 +407,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("reports a stub that declares too many results", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, yama.Lifecycle, error, int) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("declares 4 results")))
 			})
@@ -401,7 +415,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("reports a stub whose second result is not the lifecycle", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, func(), error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("declares func() as its second result")))
 			})
@@ -409,7 +423,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("reports a stub whose third result is not an error", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, yama.Lifecycle, int) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("declares int as its third result")))
 			})
@@ -417,7 +431,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("reports a final option parameter that is not variadic", func() {
 				write("lifecycle.go", guarded("func NewApp(opts yama.Option) (*App, yama.Lifecycle, error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("declares yama.Option as its final parameter")))
 			})
@@ -425,13 +439,13 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			It("takes a final variadic parameter that carries no option", func() {
 				write("lifecycle.go", guarded("func NewApp(names ...string) (*App, yama.Lifecycle, error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 
 			It("names the stub and the position that declares it", func() {
 				write("lifecycle.go", guarded("func NewApp() (*App, error) {\n\tpanic(wire.Build(One))\n}\n"))
 
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("lifecycle.go:")))
 				Expect(err).To(MatchError(ContainSubstring("stub NewApp ")))
@@ -444,19 +458,19 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 
 				write("lifecycle.go", declaration)
 
-				Expect(loaded().Stubs).To(HaveLen(1))
+				Expect(loaded().Stubs()).To(HaveLen(1))
 			})
 
 			It("checks the signature of a stub alone", func() {
 				write("lifecycle.go", guarded("func Helper() (int, int) { return 1, 2 }\n"))
 
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
 		Context("when the directory declares no stub", func() {
 			It("returns a package that holds none", func() {
-				Expect(loaded().Stubs).To(BeEmpty())
+				Expect(loaded().Stubs()).To(BeEmpty())
 			})
 		})
 
@@ -466,7 +480,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			})
 
 			It("names the file it could not read", func() {
-				_, err := source.Load(dir, nil)
+				_, err := pkg.Load(dir, nil)
 
 				Expect(err).To(MatchError(ContainSubstring("broken.go")))
 			})
@@ -474,7 +488,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 
 		Context("when the directory is absent", func() {
 			It("reports the directory it could not read", func() {
-				_, err := source.Load(filepath.Join(dir, "absent"), nil)
+				_, err := pkg.Load(filepath.Join(dir, "absent"), nil)
 
 				Expect(err).To(MatchError(ContainSubstring("absent")))
 			})
@@ -486,7 +500,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			})
 
 			It("drops the trailing option parameter", func() {
-				Expect(only().GraphParams()).To(Equal([]source.Field{
+				Expect(only().GraphParams()).To(Equal([]pkg.Field{
 					{Name: "ctx", Type: "context.Context"},
 				}))
 			})

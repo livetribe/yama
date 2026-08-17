@@ -147,7 +147,7 @@ var _ = Describe("Custodian", func() {
 		Context("the lifecycle file, which Yama owns", func() {
 			Context("when the directory holds neither name (row 9)", func() {
 				It("leaves the directory as it found it", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(lifecycle)).To(BeFalse())
 					Expect(exists(backup(lifecycle))).To(BeFalse())
 				})
@@ -159,12 +159,12 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("returns the committed file byte for byte", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(lifecycle)).To(Equal("committed\n"))
 				})
 
 				It("leaves no file at the backup name", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(backup(lifecycle))).To(BeFalse())
 				})
 			})
@@ -175,7 +175,7 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("keeps what the run emitted", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(lifecycle)).To(Equal("emitted\n"))
 				})
 			})
@@ -187,12 +187,12 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("keeps what the run emitted", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(lifecycle)).To(Equal("emitted\n"))
 				})
 
 				It("deletes the backup, because the emitted file replaced it", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(backup(lifecycle))).To(BeFalse())
 				})
 			})
@@ -201,7 +201,7 @@ var _ = Describe("Custodian", func() {
 		Context("Google Wire's output, which the application owns", func() {
 			Context("when the directory holds neither name (row 13)", func() {
 				It("leaves the directory as it found it", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(wire)).To(BeFalse())
 					Expect(exists(backup(wire))).To(BeFalse())
 				})
@@ -213,7 +213,7 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("returns the application's file byte for byte", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(wire)).To(Equal("application\n"))
 				})
 			})
@@ -224,7 +224,7 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("deletes what Google Wire wrote", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(wire)).To(BeFalse())
 				})
 			})
@@ -236,12 +236,12 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("returns the application's file byte for byte", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(wire)).To(Equal("application\n"))
 				})
 
 				It("leaves no file at the backup name", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(exists(backup(wire))).To(BeFalse())
 				})
 			})
@@ -266,11 +266,36 @@ var _ = Describe("Custodian", func() {
 				})
 
 				It("leaves the file the application owns where it is", func() {
-					c.Complete()
+					Expect(c.Complete()).To(Succeed())
 					Expect(read(wire)).To(Equal("application\n"))
 				})
 			})
 		})
+	})
+
+	// A restore hands the owner back a file that the run moved. A run that
+	// cannot hand it back leaves that file at the backup name, and it states
+	// which name holds it. Both names restore, so both report.
+	Describe("Complete, over a directory it cannot write", func() {
+		for _, name := range []string{lifecycle, wire} {
+			Context("the backup of "+name, func() {
+				BeforeEach(func() {
+					write(backup(name), "committed\n")
+
+					Expect(os.Chmod(dir, 0o500)).To(Succeed())
+					DeferCleanup(func() {
+						_ = os.Chmod(dir, 0o700)
+					})
+				})
+
+				It("reports the restore that it could not make", func() {
+					err := c.Complete()
+
+					Expect(err).To(MatchError(ContainSubstring("restore " + name)))
+					Expect(err).To(MatchError(ContainSubstring(custody.BackupPrefix + name)))
+				})
+			})
+		}
 	})
 
 	Describe("the output-file prefix", func() {

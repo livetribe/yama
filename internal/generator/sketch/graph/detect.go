@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package graph
 
 import (
@@ -5,9 +19,10 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"strings"
 
 	"golang.org/x/tools/go/packages"
+
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
 // The type that every capability method takes.
@@ -79,7 +94,7 @@ func Detect(dir string, tags []string, injectors []Injector) ([]Injector, []stri
 func capabilitiesIn(dir string, tags []string) (caps map[string]map[string]Capability, scope []string, err error) {
 	mode := packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo
 
-	cfg := &packages.Config{Mode: mode, Dir: dir, BuildFlags: buildFlags(tags)}
+	cfg := &packages.Config{Mode: mode, Dir: dir, BuildFlags: pkg.BuildFlags(tags)}
 
 	loaded, err := packages.Load(cfg, ".")
 	if err != nil {
@@ -90,48 +105,38 @@ func capabilitiesIn(dir string, tags []string) (caps map[string]map[string]Capab
 		return nil, nil, fmt.Errorf("load %s: the directory holds no package", dir)
 	}
 
-	pkg := loaded[0]
-	if len(pkg.Errors) > 0 {
-		return nil, nil, fmt.Errorf("load %s: %w", dir, pkg.Errors[0])
+	target := loaded[0]
+	if len(target.Errors) > 0 {
+		return nil, nil, fmt.Errorf("load %s: %w", dir, target.Errors[0])
 	}
 
 	caps = make(map[string]map[string]Capability)
 
-	for _, file := range pkg.Syntax {
+	for _, file := range target.Syntax {
 		for _, decl := range file.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv != nil || fn.Body == nil {
 				continue
 			}
 
-			caps[fn.Name.Name] = boundCapabilities(fn, pkg.TypesInfo)
+			caps[fn.Name.Name] = boundCapabilities(fn, target.TypesInfo)
 		}
 	}
 
-	return caps, scopeNames(pkg), nil
+	return caps, scopeNames(target), nil
 }
 
 // scopeNames returns every name that the package block declares. The lifecycle
 // file shares that block, and Go forbids one name in both the file block and
 // the package block, so an import of the lifecycle file takes none of them.
-func scopeNames(pkg *packages.Package) []string {
-	if pkg.Types == nil {
+func scopeNames(loaded *packages.Package) []string {
+	if loaded.Types == nil {
 		return nil
 	}
 
-	scope := pkg.Types.Scope()
+	scope := loaded.Types.Scope()
 
 	return scope.Names()
-}
-
-// buildFlags returns the flags that set the run's own build tags on a load. It
-// returns none when the run set no tag.
-func buildFlags(tags []string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-
-	return []string{"-tags=" + strings.Join(tags, " ")}
 }
 
 // boundCapabilities reports what each value that fn binds declares.

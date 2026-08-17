@@ -198,10 +198,10 @@ interface:
 
 ```go
 type State interface {
-	PackagePath() (path string, ok bool)
-	Prepare(ctx context.Context) State
-	Generate(ctx context.Context) State
-	Complete(ctx context.Context) error
+	PackagePath() (path string, runWire bool)
+	Prepare() State
+	Generate() State
+	Complete() error
 }
 
 type Items []State
@@ -213,8 +213,8 @@ func (items Items) Paths() []string
 that fails returns a value of a different type, and that type declines the rest of the run. The item
 therefore records no phase, holds no error flag, and needs no predicate.
 
-`Items.Paths` returns the directories of the items that report `ok`. A failed state reports
-`ok == false`, so it drops out of the set that goes to Google Wire, and the driver filters nothing
+`Items.Paths` returns the directories of the items that report `runWire`. A failed state reports
+`runWire == false`, so it drops out of the set that goes to Google Wire, and the driver filters nothing
 itself.
 
 Every `Complete` also removes the derived-injector file, and §4.3 states that rule once for all four
@@ -222,7 +222,7 @@ states.
 
 | State | Reached when | What it holds | What `Complete` does |
 |---|---|---|---|
-| `Happy` | every phase so far succeeded | the directory, the config pointer, the source package, the names it prepared, the path it wrote | drops the lifecycle backup, restores the `wire_gen.go` backup, removes the derived-injector file, prints one progress line, returns nil |
+| `Happy` | every phase so far succeeded | the directory, the config pointer, the source package, the names it prepared | drops the lifecycle backup, restores the `wire_gen.go` backup, removes the derived-injector file, returns nil |
 | `PrepareFailed` | a file could not be set aside, the stub load failed, or the derived file could not be built or written | the directory, the config pointer, the names it prepared, the error | restores every name in its record, removes the derived-injector file, returns the error |
 | `NoWireGen` | `Generate` found no Google Wire output in this directory | the directory, the config pointer, the names it prepared | restores every name in its record, removes the derived-injector file, returns nil |
 | `GenerateFailed` | the load, the analysis, the render or the write failed | the directory, the config pointer, the names it prepared, the error | restores every name in its record, removes the derived-injector file, returns the error |
@@ -235,14 +235,17 @@ and neither needs to be: `RunWire` already returned the error that makes a rejec
 
 Two properties hold across the three terminal states. `Complete` restores every name in the state's
 own record, and "the names it prepared" is the record of the filenames that the package set aside,
-which §7.1 defines exactly. `PackagePath` reports `"", false` on any terminal state that the
-`Items.Paths` call can still reach.
+which §7.1 defines exactly. Every terminal state reports `"", false` from `PackagePath`, so none of
+them reaches a Google Wire run.
 
-A terminal state declares only the methods the driver still calls after that state can exist. Every
-other method panics. `PrepareFailed` can exist before `Items.Paths` runs, so it answers `PackagePath`
-and it answers `Generate` with itself. `NoWireGen` and `GenerateFailed` first exist inside the
-`Generate` loop, so `Complete` is the only call either one ever receives, and their other three
-methods panic. §7.2 states the loop order those panics depend on.
+`PackagePath` is the one method that every state answers, so `Items.Paths` is safe to call at any
+point of the run.
+
+A terminal state declares only the phase methods the driver still calls after that state can exist.
+Every other phase method panics. `PrepareFailed` can exist before `Items.Paths` runs, so it answers
+`Generate` with itself. `NoWireGen` and `GenerateFailed` first exist inside the `Generate` loop, so
+`Complete` is the only phase call either one ever receives, and their other two phase methods panic.
+§7.2 states the loop order those panics depend on.
 
 A directory that declares no lifecycle stub reaches `Generate` as a `Happy`, and `Generate` settles
 it as a `NoWireGen`, because Google Wire wrote nothing there. §7.6 states what each of its phases
@@ -256,7 +259,8 @@ writes `yama_wireinject.go`. Four failures return `PrepareFailed`. Those failure
 load, a failed move, a failed derivation, and a failed write of the derived file.
 
 **`Generate`** runs after Google Wire. It loads Wire's output for this directory, it analyzes that
-output, it renders the lifecycle file, and it writes the file. Any failure returns `GenerateFailed`.
+output, it renders the lifecycle file, and it writes the file. It prints one progress line for the
+file it wrote, at the point of the write. Any failure returns `GenerateFailed`.
 
 `Generate` removes `wire_gen.go` and `yama_wireinject.go` only after it wrote the lifecycle file. A
 package that failed to render therefore keeps Google Wire's output for the rest of the `Generate`
@@ -384,7 +388,7 @@ sequenceDiagram
     WIR-->>DRV: no diagnostic and no error
     Note over DRV: RunWire returns nil<br/>and both directories hold Wire output
     DRV->>W1: Generate
-    Note over W1: load then analyze then render<br/>write lifecycle_gen.go<br/>remove wire_gen.go and yama_wireinject.go
+    Note over W1: load then analyze then render<br/>write lifecycle_gen.go<br/>print one progress line<br/>remove wire_gen.go and yama_wireinject.go
     W1-->>DRV: Happy
     DRV->>W2: Generate
     Note over W2: P1 now declares its constructors once
@@ -392,7 +396,7 @@ sequenceDiagram
     DRV->>W1: Complete
     W1->>CUS: Discard the lifecycle backup and Restore the wire backup
     Note over CUS: neither backup exists<br/>so neither call moves a file
-    Note over W1: the derived file is already gone<br/>so its removal changes nothing<br/>then prints one progress line
+    Note over W1: the derived file is already gone<br/>so its removal changes nothing
     W1-->>DRV: nil
     DRV->>W2: Complete
     W2-->>DRV: nil
@@ -893,10 +897,10 @@ type Config struct {
 }
 
 type State interface {
-	PackagePath() (path string, ok bool)
-	Prepare(ctx context.Context) State
-	Generate(ctx context.Context) State
-	Complete(ctx context.Context) error
+	PackagePath() (path string, runWire bool)
+	Prepare() State
+	Generate() State
+	Complete() error
 }
 
 type Items []State
@@ -923,7 +927,7 @@ holds the directory and the config. The factory reads no file, and it classifies
 
 `PackagePath` reports the directory that holds the target package. It also reports whether that
 package takes part in the Google Wire invocation. `Items.Paths` collects the directories of the items
-that report `ok`, so the driver never filters the list itself.
+that report `runWire`, so the driver never filters the list itself.
 
 `Progress` is where a `Happy` item writes its own progress line, in the shape Google Wire uses for its
 own: `yama: <import path>: wrote <path>`. The import path comes from `source.Package.PkgPath`, which
@@ -942,9 +946,10 @@ output. Both reach `NoWireGen`, and `NoWireGen` settles both the same way: it re
 its record and it returns nil. The two cases need no telling apart, because the run's exit code comes
 from the error `RunWire` returned rather than from a per-package error. Q-K states that rule.
 
-**Only `Happy` transitions.** The three terminal states each declare only the methods the driver can
-still call on them, and every other method panics. §4.2 states which method that is for each state,
-and §7.2 states the loop order those panics depend on.
+**Only `Happy` transitions.** The three terminal states each declare only the phase methods the driver
+can still call on them, and every other phase method panics. Every one of them answers `PackagePath`.
+§4.2 states which methods those are for each state, and §7.2 states the loop order those panics
+depend on.
 
 **Only `work` moves a file in a package directory.** Six state methods call `custody`. Three of them
 call `custody` once for each name in the state's record. The number of calls a run makes therefore
@@ -1035,7 +1040,7 @@ replaces the value at that index with whatever the call returned. The item there
 number, holds no error flag, and needs no predicate.
 
 `Happy` is the only state that transitions. Three states are terminal. A terminal state answers
-`Prepare` and `Generate` with itself, it reports `ok` as false from `PackagePath`, and it settles its
+`Prepare` and `Generate` with itself, it reports `runWire` as false from `PackagePath`, and it settles its
 own files in `Complete`.
 
 ### 7.1 What each state holds
@@ -1065,10 +1070,10 @@ the package changed when `Generate` looked at the directory. The record is what 
 | State | `PackagePath` | `Prepare` | `Generate` | `Complete` |
 |---|---|---|---|---|
 | `Happy`, before `Prepare` | the directory, true | `Happy` or `PrepareFailed` | not reached | not reached |
-| `Happy`, after `Prepare` | the directory, true | not called again | `Happy`, `NoWireGen`, or `GenerateFailed` | drops the lifecycle backup, restores the Wire backup, removes the derived file, prints one progress line, returns nil |
+| `Happy`, after `Prepare` | the directory, true | not called again | `Happy`, `NoWireGen`, or `GenerateFailed` | drops the lifecycle backup, restores the Wire backup, removes the derived file, returns nil |
 | `PrepareFailed` | `"", false` | panics | itself | restores every name in its record, removes the derived file, returns its error |
-| `NoWireGen` | panics | panics | panics | restores every name in its record, removes the derived file, returns nil |
-| `GenerateFailed` | panics | panics | panics | restores every name in its record, removes the derived file, returns its error |
+| `NoWireGen` | `"", false` | panics | panics | restores every name in its record, removes the derived file, returns nil |
+| `GenerateFailed` | `"", false` | panics | panics | restores every name in its record, removes the derived file, returns its error |
 
 The panics in that table are safe because `Run` calls the phases in one fixed order: the `Prepare`
 loop, then `RunWire`, then the `Generate` loop, then the `Complete` loop. `Items.Paths` runs inside
@@ -1116,9 +1121,9 @@ its own situation needs, and the compiler holds each one to the whole interface.
 know what a rejected package does with its files reads one type.
 
 This shape also removes the filtering step. Google Wire must receive the directories of the packages
-that are still in the run. `Items.Paths` builds that list from `PackagePath`, and the one terminal
-state that `Paths` can reach reports `ok` as false. The driver therefore hands `Paths` straight to
-`RunWire`, and it never tests a state for what kind it is.
+that are still in the run. `Items.Paths` builds that list from `PackagePath`, and every terminal state
+reports `runWire` as false. The driver therefore hands `Paths` straight to `RunWire`, and it never tests a
+state for what kind it is.
 
 The rule that keeps the set of states small is simple. A new state is admitted only when it settles
 its files differently from every existing state. `NoWireGen` restores every name in its record and
@@ -1137,8 +1142,8 @@ states how that order bounds the damage of a failed move.
 ### 7.5 What each state settles
 
 `Happy.Complete` discards the lifecycle backup, because the freshly emitted file replaced it. It
-restores the Wire backup, so a legacy `wire_gen.go` returns byte for byte. It then prints one
-progress line and returns nil.
+restores the Wire backup, so a legacy `wire_gen.go` returns byte for byte. It returns nil.
+`Happy.Generate` already printed the progress line, at the point of the write.
 
 `PrepareFailed.Complete` and `GenerateFailed.Complete` both restore. Each one moves every name in its
 record back over the live name. Neither one copies, so no dotted file survives the call. The package

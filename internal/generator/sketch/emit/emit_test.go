@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package emit_test
 
 import (
@@ -8,6 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"l7e.io/yama/v2/internal/generator/sketch/emit"
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
 // simple is one target package with one constructor. Most specs render it and
@@ -15,7 +30,7 @@ import (
 func simple() emit.Package {
 	return emit.Package{
 		Name: "app",
-		Imports: []emit.Import{
+		Imports: []pkg.Import{
 			{Path: "context"},
 			{Path: "example.com/app/lib"},
 		},
@@ -111,7 +126,7 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 
 			It("writes the name of an aliased import", func() {
 				p := simple()
-				p.Imports = []emit.Import{{Name: "applib", Path: "example.com/app/lib"}}
+				p.Imports = []pkg.Import{{Name: "applib", Path: "example.com/app/lib"}}
 				p.Constructors[0].Statements = []string{"app := applib.NewApp()"}
 
 				Expect(string(emit.Render(p, nil))).To(ContainSubstring(`applib "example.com/app/lib"`))
@@ -119,14 +134,14 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 
 			It("leaves out an import that the constructor never refers to", func() {
 				p := simple()
-				p.Imports = append(p.Imports, emit.Import{Path: "example.com/unused"})
+				p.Imports = append(p.Imports, pkg.Import{Path: "example.com/unused"})
 
 				Expect(string(emit.Render(p, nil))).NotTo(ContainSubstring("example.com/unused"))
 			})
 
 			It("keeps a module path whose last element is a major version", func() {
 				p := simple()
-				p.Imports = []emit.Import{{Path: "example.com/app/lib/v3"}}
+				p.Imports = []pkg.Import{{Path: "example.com/app/lib/v3"}}
 				p.Constructors[0].Statements = []string{"app := lib.NewApp()"}
 
 				Expect(string(emit.Render(p, nil))).To(ContainSubstring(`"example.com/app/lib/v3"`))
@@ -144,7 +159,7 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 
 			It("names a runtime package itself, whatever the caller called it", func() {
 				p := simple()
-				p.Imports = append(p.Imports, emit.Import{Name: "runtime", Path: "l7e.io/yama/v2/rt"})
+				p.Imports = append(p.Imports, pkg.Import{Name: "runtime", Path: "l7e.io/yama/v2/rt"})
 
 				rendered := string(emit.Render(p, nil))
 

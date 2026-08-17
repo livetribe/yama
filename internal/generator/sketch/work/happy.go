@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package work
 
 import (
@@ -11,19 +25,15 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/custody"
 	"l7e.io/yama/v2/internal/generator/sketch/emit"
 	"l7e.io/yama/v2/internal/generator/sketch/graph"
-	"l7e.io/yama/v2/internal/generator/sketch/source"
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
-
-// defaultOptsName is what a constructor forwards through when the stub bound
-// no name to its option parameter.
-const defaultOptsName = "opts"
 
 type Happy struct {
 	path          string
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
-	info          *source.PackageInfo
+	info          *pkg.Info
 
 	header []byte
 	tags   []string
@@ -42,7 +52,7 @@ func NewHappy(
 	intermediates *wire.IntermediateYamaFiles,
 	header []byte,
 	tags []string,
-	info *source.PackageInfo,
+	info *pkg.Info,
 	progress io.Writer,
 ) *Happy {
 	return &Happy{
@@ -60,17 +70,21 @@ func (h *Happy) PackagePath() (path string, ok bool) {
 	return h.path, true
 }
 
-// Prepare puts both generated files out of Google Wire's way, and it writes the
-// intermediate files that Google Wire's load reads.
+// Prepare writes the intermediate files that Google Wire's load reads, and it
+// puts both generated files out of Google Wire's way.
+//
+// The intermediate files go in first. A package that fails to take them keeps
+// the lifecycle file that it committed, and every package that imports it still
+// declares what that file declares.
 //
 // A package that fails a later step settles through Complete, which puts back
 // every name this run moved.
 func (h *Happy) Prepare(_ context.Context) State {
-	if err := h.custodian.SetAside(); err != nil {
+	if err := h.intermediates.Prepare(); err != nil {
 		return h.prepareFailed(err)
 	}
 
-	if err := h.intermediates.Prepare(); err != nil {
+	if err := h.custodian.SetAside(); err != nil {
 		return h.prepareFailed(err)
 	}
 
@@ -95,9 +109,14 @@ func (h *Happy) Generate(_ context.Context) State {
 		return h.failed(err)
 	}
 
-	h.info.AddImportsFrom(src)
+	if err = h.info.TakeOutputImportsFrom(src); err != nil {
+		return h.failed(err)
+	}
 
-	injectors, err := graph.Parse(wire.DropLineDirectives(src), h.derivedNames())
+	body := wire.DropLineDirectives(src)
+	derived := wire.DerivedNames(h.info)
+
+	injectors, err := graph.Parse(body, derived)
 	if err != nil {
 		return h.failed(err)
 	}
@@ -134,24 +153,12 @@ func (h *Happy) Complete(_ context.Context) error {
 // The line takes the shape Google Wire takes for its own output, on the stream
 // Google Wire writes its own to.
 func (h *Happy) report(file string) {
-	fmt.Fprintf(h.progress, "yama: %s: wrote %s\n", h.info.PkgPath, file)
+	fmt.Fprintf(h.progress, "yama: %s: wrote %s\n", h.info.PkgPath(), file)
 }
 
 // prepareFailed returns the state that a failed Prepare settles as.
 func (h *Happy) prepareFailed(err error) State {
 	return &PrepareFailed{custodian: h.custodian, intermediates: h.intermediates, err: err}
-}
-
-// derivedNames returns the injector that Yama derived for each stub, which is
-// what Google Wire's output declares.
-func (h *Happy) derivedNames() []string {
-	names := make([]string, 0, len(h.info.Stubs))
-
-	for i := range h.info.Stubs {
-		names = append(names, wire.DerivedName(h.info.Stubs[i].Name))
-	}
-
-	return names
 }
 
 // lifecycleFile assembles what emit renders. It pairs each stub with the
@@ -163,13 +170,14 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 		byName[inj.Name] = inj
 	}
 
-	imports := h.imports()
-	names := nameFile(imports, injectors, scope, h.info.Stubs)
+	imports := h.info.LifecycleImports()
+	names := nameFile(imports, injectors, scope, h.info.Stubs())
+	rtFrom := h.info.ImportedAs(rtPath)
 
-	file := emit.Package{Name: h.info.Name, Imports: imports, Yama: names.yama, Rt: names.rt}
+	file := emit.Package{Name: h.info.Name(), Imports: imports, Yama: names.yama, Rt: names.rt}
 
-	for i := range h.info.Stubs {
-		stub := &h.info.Stubs[i]
+	for i := range h.info.Stubs() {
+		stub := &h.info.Stubs()[i]
 
 		inj, ok := byName[wire.DerivedName(stub.Name)]
 		if !ok {
@@ -180,7 +188,7 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 
 		file.Constructors = append(file.Constructors, emit.Constructor{
 			Doc:        stub.Doc,
-			Signature:  signature(stub, names.opts[i], names.yama),
+			Signature:  signature(stub, names.opts[i], &names, rtFrom),
 			Statements: inj.Statements,
 			Result:     inj.Result,
 			Levels:     members(levels),
@@ -225,62 +233,14 @@ func members(levels [][]graph.Member) [][]emit.Member {
 	return out
 }
 
-// imports carries onto the lifecycle file every import that the constructor
-// could refer to: the stub file's, which the signature names, and Google Wire's
-// own, which the construction names. Each one carries the name that its package
-// declares, and emit leaves out the ones that the rendered file never refers to.
-//
-// imports leaves Google Wire out: a stub imports it for wire.Build, and the
-// lifecycle file calls nothing from it.
-//
-// One path under two names reaches the file twice. The signature may name a
-// package by the alias a stub gave it, and the construction by the name that
-// Google Wire used, and Go takes one path under two names.
-func (h *Happy) imports() []emit.Import {
-	stated := make([]source.Import, 0, len(h.info.Imports)+len(h.info.OutputImports))
-	stated = append(stated, h.info.Imports...)
-	stated = append(stated, h.info.OutputImports...)
-
-	out := make([]emit.Import, 0, len(stated))
-	seen := make(map[emit.Import]bool, len(stated))
-
-	for _, imp := range stated {
-		if imp.Path == wire.PackagePath {
-			continue
-		}
-
-		name := source.ImportName(imp, h.info.ImportNames)
-
-		entry := emit.Import{Name: name, Path: imp.Path}
-		if seen[entry] {
-			continue
-		}
-
-		seen[entry] = true
-		out = append(out, entry)
-	}
-
-	return out
-}
-
-// optsName names the parameter that the constructor forwards its options
-// through. It is empty for a stub that declared none.
-func optsName(stub *source.StubInfo) string {
-	if !stub.HasOpts {
-		return ""
-	}
-
-	last := stub.Params[len(stub.Params)-1]
-	if last.Name == "" || last.Name == "_" {
-		return defaultOptsName
-	}
-
-	return last.Name
-}
-
 // signature prints the constructor that the lifecycle file declares. It is the
-// stub's own signature.
-func signature(stub *source.StubInfo, opts, yama string) string {
+// stub's own signature, under the names that the lifecycle file gives Yama's
+// own two packages.
+//
+// rtFrom is the name that the stub's file refers to Yama's runtime package by.
+// The lifecycle file drops that import and states one of its own, so every type
+// that names the runtime package takes the new name.
+func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string {
 	params := make([]string, 0, len(stub.Params))
 	last := len(stub.Params) - 1
 
@@ -294,7 +254,7 @@ func signature(stub *source.StubInfo, opts, yama string) string {
 			name = opts
 		}
 
-		typ := requalify(p.Type, stub.Yama, yama)
+		typ := renamePackages(p.Type, stub, names, rtFrom)
 
 		if name == "" {
 			params = append(params, typ)
@@ -306,9 +266,19 @@ func signature(stub *source.StubInfo, opts, yama string) string {
 	}
 
 	results := make([]string, 0, len(stub.Results))
+
 	for _, r := range stub.Results {
-		results = append(results, requalify(r.Type, stub.Yama, yama))
+		typ := renamePackages(r.Type, stub, names, rtFrom)
+		results = append(results, typ)
 	}
 
 	return fmt.Sprintf("func %s(%s) (%s)", stub.Name, strings.Join(params, ", "), strings.Join(results, ", "))
+}
+
+// renamePackages returns one printed type under the names that the lifecycle
+// file gives Yama's own two packages.
+func renamePackages(typ string, stub *pkg.Stub, names *naming, rtFrom string) string {
+	renamed := requalify(typ, stub.YamaName(), names.yama)
+
+	return requalify(renamed, rtFrom, names.rt)
 }

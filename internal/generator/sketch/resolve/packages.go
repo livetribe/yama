@@ -1,3 +1,21 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package resolve expands package patterns to the directories they match.
+//
+// A run states its targets as patterns, and every later step works from a
+// directory. pkg reads the facts of one such directory.
 package resolve
 
 import (
@@ -8,6 +26,8 @@ import (
 	"sort"
 
 	"golang.org/x/tools/go/packages"
+
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
 // Packages expands package patterns to the directory of each package they
@@ -30,7 +50,7 @@ func Packages(ctx context.Context, dir string, tags, patterns []string) ([]strin
 		Context:    ctx,
 		Dir:        dir,
 		Mode:       packages.NeedName | packages.NeedFiles,
-		BuildFlags: buildFlags(tags),
+		BuildFlags: pkg.BuildFlags(tags),
 	}
 
 	loaded, err := packages.Load(cfg, escape(patterns)...)
@@ -51,27 +71,6 @@ func escape(patterns []string) []string {
 	}
 
 	return escaped
-}
-
-// buildFlags returns the flags that set tags on a load. It returns none when
-// the caller passed no tag.
-func buildFlags(tags []string) []string {
-	if len(tags) == 0 {
-		return nil
-	}
-
-	return []string{"-tags=" + join(tags)}
-}
-
-// join puts the tags together as one space-separated value.
-func join(tags []string) string {
-	joined := tags[0]
-
-	for _, tag := range tags[1:] {
-		joined += " " + tag
-	}
-
-	return joined
 }
 
 // directories returns the directory of each loaded package, without a repeat.

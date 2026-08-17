@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package graph
 
 import (
@@ -11,9 +25,12 @@ import (
 	"strings"
 )
 
-// errName is the identifier that Google Wire binds an error to. Every other
-// identifier after the first one names a cleanup.
+// errName is the identifier that Google Wire binds an error to when the package
+// block holds no name of its own for it.
 const errName = "err"
+
+// nilName is the identifier that an error check compares against.
+const nilName = "nil"
 
 // blank is the identifier that binds nothing.
 const blank = "_"
@@ -291,14 +308,32 @@ func renameCleanups(fn *ast.FuncDecl, components []Component) {
 		return
 	}
 
-	ast.Inspect(fn, func(n ast.Node) bool {
-		ident, ok := n.(*ast.Ident)
-		if !ok {
-			return true
-		}
+	applyRenames(fn, renames)
+}
 
-		if bound, found := renames[ident.Name]; found {
-			ident.Name = bound
+// applyRenames gives every use of a renamed value its new name.
+//
+// applyRenames reads the left side of a selector and the value of a keyed
+// field, so neither a field name nor a struct's own field key takes a rename.
+func applyRenames(node ast.Node, renames map[string]string) {
+	ast.Inspect(node, func(n ast.Node) bool {
+		switch e := n.(type) {
+		case *ast.SelectorExpr:
+			applyRenames(e.X, renames)
+
+			return false
+
+		case *ast.KeyValueExpr:
+			applyRenames(e.Value, renames)
+
+			return false
+
+		case *ast.Ident:
+			if bound, found := renames[e.Name]; found {
+				e.Name = bound
+			}
+
+			return false
 		}
 
 		return true
@@ -386,9 +421,10 @@ func componentsOf(fset *token.FileSet, fn *ast.FuncDecl) ([]Component, error) {
 	var components []Component
 
 	known := make(map[string]bool)
+	errs := errorNames(fn)
 
 	for _, stmt := range body[:len(body)-1] {
-		c, ok, err := componentOfStatement(fset, fn.Name.Name, stmt, known)
+		c, ok, err := componentOfStatement(fset, fn.Name.Name, stmt, known, errs)
 		if err != nil {
 			return nil, err
 		}
@@ -406,11 +442,14 @@ func componentsOf(fset *token.FileSet, fn *ast.FuncDecl) ([]Component, error) {
 
 // componentOfStatement reads one statement that comes before the return. An
 // error check states no value and contributes none.
+//
+// errs names every error that the injector binds.
 func componentOfStatement(
 	fset *token.FileSet,
 	injector string,
 	stmt ast.Stmt,
 	known map[string]bool,
+	errs map[string]bool,
 ) (Component, bool, error) {
 	switch s := stmt.(type) {
 	case *ast.IfStmt:
@@ -425,7 +464,7 @@ func componentOfStatement(
 				"no traceable dependency edge: %s reaches the graph through a %s assignment", name, kind)
 		}
 
-		return componentOf(fset, injector, s, known)
+		return componentOf(fset, injector, s, known, errs)
 
 	default:
 		kind := stmtKind(stmt)
@@ -535,12 +574,14 @@ func providerForm(rhs ast.Expr) bool {
 
 // componentOf reads one short variable declaration. known names every component
 // that the injector already built, which is what tells a dependency apart from
-// any other identifier.
+// any other identifier. errs names every error that the injector binds, which
+// is what tells an error apart from a cleanup.
 func componentOf(
 	fset *token.FileSet,
 	injector string,
 	assign *ast.AssignStmt,
 	known map[string]bool,
+	errs map[string]bool,
 ) (Component, bool, error) {
 	names := identNames(assign.Lhs)
 	if len(names) == 0 {
@@ -571,7 +612,7 @@ func componentOf(
 	}
 
 	for _, name := range names[1:] {
-		if name != errName && name != blank {
+		if !errs[name] && name != blank {
 			c.Cleanup = name
 
 			break
@@ -579,6 +620,54 @@ func componentOf(
 	}
 
 	return c, true, nil
+}
+
+// errorNames returns every name that the injector body tests against nil. Google
+// Wire writes that test after each provider that returns an error, and it binds
+// every one of those errors to one name of its own.
+//
+// Google Wire takes another name when the target package block already holds
+// "err". errorNames holds "err" as well, so output that states no test still
+// reads the same way.
+func errorNames(fn *ast.FuncDecl) map[string]bool {
+	names := map[string]bool{errName: true}
+
+	if fn.Body == nil {
+		return names
+	}
+
+	for _, stmt := range fn.Body.List {
+		check, ok := stmt.(*ast.IfStmt)
+		if !ok {
+			continue
+		}
+
+		if name, found := nilTest(check.Cond); found {
+			names[name] = true
+		}
+	}
+
+	return names
+}
+
+// nilTest names the value that a condition of the form "x != nil" tests.
+func nilTest(cond ast.Expr) (name string, ok bool) {
+	binary, ok := cond.(*ast.BinaryExpr)
+	if !ok || binary.Op != token.NEQ {
+		return "", false
+	}
+
+	tested, ok := binary.X.(*ast.Ident)
+	if !ok {
+		return "", false
+	}
+
+	against, ok := binary.Y.(*ast.Ident)
+	if !ok || against.Name != nilName {
+		return "", false
+	}
+
+	return tested.Name, true
 }
 
 // identNames returns the name of each identifier on the left of a declaration.
@@ -643,46 +732,4 @@ func holds(names []string, want string) bool {
 	}
 
 	return false
-}
-
-// An Import is one entry of the import block that Google Wire wrote. Name is
-// empty when Google Wire gave no alias.
-type Import struct {
-	Name string
-	Path string
-}
-
-// Imports returns the import block of Google Wire's output.
-//
-// A lifecycle file reproduces the construction that Google Wire performed, and
-// that construction may name a package that no stub file imports. A provider
-// set states providers of its own, and Google Wire reaches them through its own
-// import block.
-//
-// Imports returns nothing for output that does not parse. Parse reports that.
-func Imports(src []byte) []Import {
-	fset := token.NewFileSet()
-
-	file, err := parser.ParseFile(fset, "wire_gen.go", src, parser.ImportsOnly)
-	if err != nil {
-		return nil
-	}
-
-	imports := make([]Import, 0, len(file.Imports))
-
-	for _, spec := range file.Imports {
-		path, err := strconv.Unquote(spec.Path.Value)
-		if err != nil {
-			continue
-		}
-
-		imp := Import{Path: path}
-		if spec.Name != nil {
-			imp.Name = spec.Name.Name
-		}
-
-		imports = append(imports, imp)
-	}
-
-	return imports
 }

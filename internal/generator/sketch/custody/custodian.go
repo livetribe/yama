@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package custody
 
 import (
@@ -87,11 +101,14 @@ func (c *Custodian) SetAside() error {
 // It is the file the application owns when SetAside failed, and Complete leaves
 // that file alone.
 //
-// Complete reports nothing. Every path it takes either settles the directory or
-// leaves it as it found it.
-func (c *Custodian) Complete() {
-	c.completeEmitted(c.prefix + lifecycleFile)
-	c.completeBorrowed(c.prefix + wireFile)
+// Complete tries both names, and it joins what they returned. A failed restore
+// leaves a file the user owns at the backup name, and the error that Complete
+// returns states that name.
+func (c *Custodian) Complete() error {
+	emitted := c.completeEmitted(c.prefix + lifecycleFile)
+	borrowed := c.completeBorrowed(c.prefix + wireFile)
+
+	return errors.Join(emitted, borrowed)
 }
 
 // WireOutputName returns the name that Google Wire writes in this directory.
@@ -129,37 +146,51 @@ func (c *Custodian) setAside(name string) error {
 }
 
 // completeEmitted implements rows 9 to 12 for a name that Yama writes.
-func (c *Custodian) completeEmitted(name string) {
+func (c *Custodian) completeEmitted(name string) error {
 	live, backup := c.paths(name)
 
 	if !present(backup) {
-		return
+		return nil
 	}
 
 	if present(live) {
-		_ = os.Remove(backup)
+		err := os.Remove(backup)
 
-		return
+		return wrapPath("drop the backup of", name, c.path, err)
 	}
 
-	_ = os.Rename(backup, live)
+	err := os.Rename(backup, live)
+
+	return c.wrapRestore(name, err)
 }
 
 // completeBorrowed implements rows 13 to 16 for a name that Yama borrows.
-func (c *Custodian) completeBorrowed(name string) {
+func (c *Custodian) completeBorrowed(name string) error {
 	live, backup := c.paths(name)
 
 	if present(backup) {
-		_ = os.Rename(backup, live)
+		err := os.Rename(backup, live)
 
-		return
+		return c.wrapRestore(name, err)
 	}
 
 	if !present(live) || c.backupError {
-		return
+		return nil
 	}
 
-	_ = os.Remove(live)
+	err := os.Remove(live)
+
+	return wrapPath("remove", name, c.path, err)
+}
+
+// wrapRestore names the file, the directory, and the backup that still holds
+// the file the user owns.
+func (c *Custodian) wrapRestore(name string, err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("restore %s in %s: %w; it is preserved at %s", name, c.path, err, BackupPrefix+name)
 }
 
 // paths returns the live path and the backup path for name.

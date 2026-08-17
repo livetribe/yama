@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 // Package emit assembles the lifecycle file and writes it. Every input is
 // data, so emit needs no Go toolchain and no Google Wire run.
 package emit
@@ -5,13 +19,12 @@ package emit
 import (
 	"bytes"
 	"fmt"
-	"go/ast"
 	"go/format"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
 // BaseFileName is the name that emit writes when a run sets no prefix.
@@ -43,7 +56,7 @@ const fileMode = 0o666
 // cannot take. A caller that leaves them empty gets the plain names.
 type Package struct {
 	Name         string
-	Imports      []Import
+	Imports      []pkg.Import
 	Constructors []Constructor
 
 	Yama string
@@ -66,13 +79,6 @@ func (p *Package) rtName() string {
 	}
 
 	return p.Rt
-}
-
-// An Import is one entry of the import block. An empty Name means the last
-// element of Path already names the package.
-type Import struct {
-	Name string
-	Path string
 }
 
 // A Constructor is one lifecycle function. Doc is the comment above it, and it
@@ -113,8 +119,8 @@ const (
 // runtimeImports are the packages that every lifecycle file uses, under the
 // names that this file refers to them by. Render adds them, so no caller has to
 // remember them.
-func runtimeImports(p *Package) []Import {
-	return []Import{
+func runtimeImports(p *Package) []pkg.Import {
+	return []pkg.Import{
 		{Name: p.yamaName(), Path: yamaPath},
 		{Name: p.rtName(), Path: rtPath},
 	}
@@ -161,7 +167,7 @@ func Render(p Package, header []byte) []byte {
 	buf.WriteString(buildConstraint + "\n\n")
 	buf.WriteString("package " + p.Name + "\n")
 
-	used := qualifiers(body.Bytes())
+	used := pkg.Qualifiers(body.Bytes())
 	writeImports(&buf, needed(withRuntime(&p), used))
 
 	for i := range p.Constructors {
@@ -176,87 +182,21 @@ func Render(p Package, header []byte) []byte {
 	return src
 }
 
-// qualifiers returns every name that body uses to qualify a selection, which is
-// every package name the rendered code refers to.
-//
-// qualifiers reads the parsed source rather than the text, so neither a doc
-// comment nor a field of a local value reads as a package.
-func qualifiers(body []byte) map[string]bool {
-	used := make(map[string]bool)
-
-	file, err := parser.ParseFile(token.NewFileSet(), "body.go", body, 0)
-	if err != nil {
-		return used
-	}
-
-	ast.Inspect(file, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok {
-			return true
-		}
-
-		if ident, ok := sel.X.(*ast.Ident); ok {
-			used[ident.Name] = true
-		}
-
-		return true
-	})
-
-	return used
-}
-
 // needed returns the imports that the rendered code refers to. An import that
 // nothing refers to does not reach the file, because Go rejects a file that
 // imports a package it never uses.
-func needed(imports []Import, used map[string]bool) []Import {
-	out := make([]Import, 0, len(imports))
+func needed(block []pkg.Import, used map[string]bool) []pkg.Import {
+	out := make([]pkg.Import, 0, len(block))
 
-	for _, imp := range imports {
-		if used[packageName(imp)] {
+	for _, imp := range block {
+		name := pkg.PackageName(imp.Name, imp.Path)
+
+		if used[name] {
 			out = append(out, imp)
 		}
 	}
 
 	return out
-}
-
-// packageName is the name that the file refers to an import by. It is the alias
-// when the import declares one. Otherwise it is the last element of the path,
-// and the element before a major-version element.
-//
-// A path whose package name is neither of those must carry an alias. Render
-// writes the file it assembled without type-checking it, so it cannot read the
-// name from the package itself.
-func packageName(imp Import) string {
-	if imp.Name != "" {
-		return imp.Name
-	}
-
-	elems := strings.Split(imp.Path, "/")
-
-	last := elems[len(elems)-1]
-	if len(elems) > 1 && majorVersion(last) {
-		return elems[len(elems)-2]
-	}
-
-	return last
-}
-
-// majorVersion reports whether an import path element names a major version,
-// which is a "v" and then one or more digits.
-func majorVersion(elem string) bool {
-	digits, ok := strings.CutPrefix(elem, "v")
-	if !ok || digits == "" {
-		return false
-	}
-
-	for _, r := range digits {
-		if r < '0' || r > '9' {
-			return false
-		}
-	}
-
-	return true
 }
 
 // Write puts content at name in dir, and it returns the path that it wrote.
@@ -273,8 +213,8 @@ func Write(dir, name string, content []byte) (string, error) {
 // withRuntime adds the packages that every lifecycle file uses, under the names
 // that Render writes them by. It drops a caller's import of either path, so the
 // name in the import block always matches the name in the code.
-func withRuntime(p *Package) []Import {
-	imports := p.Imports
+func withRuntime(p *Package) []pkg.Import {
+	stated := p.Imports
 	runtime := runtimeImports(p)
 
 	mine := make(map[string]bool, len(runtime))
@@ -282,9 +222,9 @@ func withRuntime(p *Package) []Import {
 		mine[imp.Path] = true
 	}
 
-	out := make([]Import, 0, len(imports)+len(runtime))
+	out := make([]pkg.Import, 0, len(stated)+len(runtime))
 
-	for _, imp := range imports {
+	for _, imp := range stated {
 		if !mine[imp.Path] {
 			out = append(out, imp)
 		}
@@ -295,14 +235,14 @@ func withRuntime(p *Package) []Import {
 
 // writeImports assembles the import block. Standard-library paths come first,
 // and a blank line separates them from the rest.
-func writeImports(buf *bytes.Buffer, imports []Import) {
-	if len(imports) == 0 {
+func writeImports(buf *bytes.Buffer, block []pkg.Import) {
+	if len(block) == 0 {
 		return
 	}
 
-	var std, other []Import
+	var std, other []pkg.Import
 
-	for _, imp := range imports {
+	for _, imp := range block {
 		if isStdlib(imp.Path) {
 			std = append(std, imp)
 
@@ -325,8 +265,8 @@ func writeImports(buf *bytes.Buffer, imports []Import) {
 
 // writeImportGroup writes one run of import lines. A line carries a name only
 // when the last element of the path is not that name.
-func writeImportGroup(buf *bytes.Buffer, imports []Import) {
-	for _, imp := range imports {
+func writeImportGroup(buf *bytes.Buffer, block []pkg.Import) {
+	for _, imp := range block {
 		buf.WriteString("\t")
 
 		if imp.Name != "" && imp.Name != lastElement(imp.Path) {

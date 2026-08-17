@@ -126,6 +126,34 @@ func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
 }
 `
 
+// collidingOutput binds the name that the stub file binds to another path, so
+// Generate fails at the step that reads the output's import block.
+const collidingOutput = `//go:build !wireinject
+
+package app
+
+import context "example.com/other/context"
+
+func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
+	app := NewApp(nil)
+	return app, func() {}, nil
+}
+`
+
+// unparsableOutput states a statement that no provider writes, so Generate
+// fails at the step that reads the ordering out of the injector body.
+const unparsableOutput = `//go:build !wireinject
+
+package app
+
+import "context"
+
+func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
+	go NewLogger()
+	return nil, nil, nil
+}
+`
+
 var _ = Describe("a work item over one target package", func() {
 	var (
 		dir  string
@@ -217,6 +245,24 @@ var _ = Describe("a work item over one target package", func() {
 	unemitted := func() State {
 		state := prepared()
 		write(wireName, unemittableOutput)
+
+		return state.Generate(context.Background())
+	}
+
+	// collided runs Prepare, puts output whose import block collides with the
+	// stub file's in the directory, and runs Generate.
+	collided := func() State {
+		state := prepared()
+		write(wireName, collidingOutput)
+
+		return state.Generate(context.Background())
+	}
+
+	// unparsed runs Prepare, puts output that states no ordering in the
+	// directory, and runs Generate.
+	unparsed := func() State {
+		state := prepared()
+		write(wireName, unparsableOutput)
 
 		return state.Generate(context.Background())
 	}
@@ -358,6 +404,44 @@ var _ = Describe("a work item over one target package", func() {
 
 					It("returns the error that Generate held", func() {
 						Expect(completed(unemitted())).To(HaveOccurred())
+					})
+				})
+			})
+
+			// The lifecycle file carries the stub file's import block and Google
+			// Wire's own. One name in that file answers to one path.
+			Context("and Google Wire wrote output whose import block collides", func() {
+				It("settles as a package that failed to generate", func() {
+					Expect(collided()).To(BeAssignableToTypeOf(&GenerateFailed{}))
+				})
+
+				It("writes no lifecycle_gen.go", func() {
+					collided()
+					Expect(exists(lifecycleName)).To(BeFalse())
+				})
+
+				Describe("Complete", func() {
+					It("returns the error that Generate held", func() {
+						Expect(completed(collided())).To(MatchError(ContainSubstring("needs an alias")))
+					})
+				})
+			})
+
+			// A statement that states no ordering builds a value that would reach
+			// no lifecycle level.
+			Context("and Google Wire wrote output that states no ordering", func() {
+				It("settles as a package that failed to generate", func() {
+					Expect(unparsed()).To(BeAssignableToTypeOf(&GenerateFailed{}))
+				})
+
+				It("writes no lifecycle_gen.go", func() {
+					unparsed()
+					Expect(exists(lifecycleName)).To(BeFalse())
+				})
+
+				Describe("Complete", func() {
+					It("returns the error that Generate held", func() {
+						Expect(completed(unparsed())).To(MatchError(ContainSubstring("unsupported statement")))
 					})
 				})
 			})
@@ -721,6 +805,88 @@ var _ = Describe("a work item over one target package", func() {
 		})
 	})
 
+	// A refresh of a package whose directory already holds one of the two
+	// intermediate names. Prepare writes the intermediate files before it moves
+	// the committed files aside, so the name it cannot take stops it at the
+	// first step. The committed lifecycle file stays where the run found it,
+	// and every package that imports this one still declares what that file
+	// declares for the rest of the run.
+	Context("a refresh of a package that already holds an intermediate name", func() {
+		BeforeEach(func() {
+			writeTarget()
+			write(lifecycleName, "committed\n")
+			write(wire.DerivedFileName, "package app\n")
+		})
+
+		Describe("Prepare", func() {
+			It("settles as a package that failed to prepare", func() {
+				Expect(prepared()).To(BeAssignableToTypeOf(&PrepareFailed{}))
+			})
+
+			It("leaves the committed lifecycle_gen.go at its own name", func() {
+				prepared()
+				Expect(read(lifecycleName)).To(Equal("committed\n"))
+			})
+
+			It("moves nothing to a backup name", func() {
+				prepared()
+				Expect(exists(backup(lifecycleName))).To(BeFalse())
+			})
+		})
+
+		Describe("Complete", func() {
+			It("returns the error that Prepare held", func() {
+				Expect(completed(prepared())).To(MatchError(ContainSubstring("already holds that name")))
+			})
+
+			It("leaves the file the user owns at the intermediate name", func() {
+				complete(prepared())
+				Expect(read(wire.DerivedFileName)).To(Equal("package app\n"))
+			})
+		})
+	})
+
+	// A package whose live lifecycle name the run cannot take. A run that did
+	// not finish left a backup, so the custodian deletes the live name rather
+	// than move it, and no remove takes out a directory that holds a file.
+	//
+	// Prepare writes the intermediate files before it asks for custody, so this
+	// directory reaches the custody step and stops there.
+	Context("a package whose live name the run cannot take", func() {
+		BeforeEach(func() {
+			writeTarget()
+			write(backup(lifecycleName), "committed\n")
+
+			held := filepath.Join(dir, lifecycleName)
+			Expect(os.Mkdir(held, 0o700)).To(Succeed())
+			write(filepath.Join(lifecycleName, "held.txt"), "held\n")
+		})
+
+		Describe("Prepare", func() {
+			It("settles as a package that failed to prepare", func() {
+				Expect(prepared()).To(BeAssignableToTypeOf(&PrepareFailed{}))
+			})
+
+			It("wrote both intermediate files before it asked for custody", func() {
+				prepared()
+				Expect(exists(wire.DerivedFileName)).To(BeTrue())
+				Expect(exists(wire.PlaceholderFileName)).To(BeTrue())
+			})
+		})
+
+		Describe("Complete", func() {
+			It("returns the error that custody produced", func() {
+				Expect(completed(prepared())).To(MatchError(ContainSubstring("set aside")))
+			})
+
+			It("takes both intermediate files back out", func() {
+				complete(prepared())
+				Expect(exists(wire.DerivedFileName)).To(BeFalse())
+				Expect(exists(wire.PlaceholderFileName)).To(BeFalse())
+			})
+		})
+	})
+
 	// A package whose stubs do not load. The directory holds a wire_gen.go that
 	// the application owns, and a stub file that does not parse. The run reads
 	// the package before it takes custody of any directory. The failed load
@@ -865,7 +1031,7 @@ var _ = Describe("CreateWorkItems", func() {
 	It("gives each item the stubs that its own package declares", func() {
 		items := CreateWorkItems([]string{stubbed()}, "", nil, nil, io.Discard)
 
-		stubs := items[0].(*Happy).info.Stubs
+		stubs := items[0].(*Happy).info.Stubs()
 
 		Expect(stubs).To(HaveLen(1))
 		Expect(stubs[0].Name).To(Equal("NewAppLifecycle"))

@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package resolve_test
 
 import (
@@ -10,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 	"l7e.io/yama/v2/internal/generator/sketch/resolve"
 )
 
@@ -102,11 +117,11 @@ func TestPackagesResolvesUnderTheTagsItWasGiven(t *testing.T) {
 // A run names each package it wrote for by the import path that package
 // declares.
 func TestPackagePathNamesThePackageInTheDirectory(t *testing.T) {
-	assert.Equal(t, herePath, resolve.PackagePath(here(t), nil))
+	assert.Equal(t, herePath, pkg.ImportPath(here(t), nil))
 }
 
 // A directory that holds no package states no import path, and that is not a
 // failure: a run still writes the file it generated.
 func TestPackagePathTakesADirectoryThatHoldsNoPackage(t *testing.T) {
-	assert.Empty(t, resolve.PackagePath(t.TempDir(), nil))
+	assert.Empty(t, pkg.ImportPath(t.TempDir(), nil))
 }

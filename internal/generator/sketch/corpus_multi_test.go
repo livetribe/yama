@@ -1,3 +1,17 @@
+// Copyright (c) 2026 the original author or authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package sketch
 
 import (
@@ -213,7 +227,7 @@ func copyFamily(t *testing.T, name string) string {
 			return err
 		}
 
-		if transient(entry.Name()) {
+		if generated(entry.Name()) {
 			return nil
 		}
 
@@ -258,9 +272,7 @@ func assertFamilyBuilds(t *testing.T) {
 func assertNoTransient(t *testing.T, dir string) {
 	t.Helper()
 
-	assertAbsent(t, dir, func(name string) bool {
-		return yamasOwn(name) || name == wire.BaseOutputName
-	})
+	assertAbsent(t, dir, transient)
 }
 
 // assertNoYamaTrace reports a file that Yama itself writes into a target
@@ -279,15 +291,26 @@ func yamasOwn(name string) bool {
 	return strings.HasPrefix(name, "yama_") || strings.HasPrefix(name, ".yama.")
 }
 
-// transient reports a name that no fixture states and that a run writes and
-// takes back out.
-//
-// The generator that this sketch replaces runs over the same corpus
-// directories, and it writes these names into them. `go test ./...` runs the
-// two packages at once, so a copy of a fixture must leave them behind: a
-// transient file that reaches the copy changes what the copy generates.
+// transient reports a name that a run writes and takes back out: a file that a
+// run derives for Google Wire, a backup that a run moves a committed file to,
+// and Google Wire's own output.
 func transient(name string) bool {
 	return yamasOwn(name) || name == wire.BaseOutputName
+}
+
+// generated reports every name that a generation puts in a target package: the
+// names that a run takes back out, and the lifecycle file that it leaves.
+//
+// The generator that this sketch replaces runs in place over the same corpus
+// directories, and `go test ./...` runs the two packages at once. A copy of a
+// fixture leaves these names behind for two reasons. One that reaches the copy
+// changes what the copy generates. One that the other run takes back out
+// between the listing and the read fails the copy itself.
+//
+// No fixture states a lifecycle file of its own. An emit fixture states its
+// outcome in a want directory, which a copy never walks into.
+func generated(name string) bool {
+	return transient(name) || name == wantFile
 }
 
 // assertAbsent reports every file under dir whose name transient accepts.
