@@ -239,18 +239,6 @@ Functions also keep the package free of Yama's vocabulary. Each one takes a
 directory and a plain filename. Nothing in the package names a stub, an injector,
 a package pattern, or a run.
 
-### A phase that reads no context declares no context
-
-No phase reads a deadline, and no phase stops its work early. A context
-parameter on each phase method would therefore carry a value that every
-implementation discards, and each new state would still have to declare it. The
-two calls that a context reaches, the package resolution and the Google Wire
-invocation, both sit at the driver, which holds the run's context already.
-
-A later phase that must stop early takes the context back at that point. The
-change is a signature change on one interface, and the compiler names every
-implementation that it touches.
-
 ### A message printed where it is produced needs no carrier
 
 A run produces two kinds of message. A work item produces a progress line when it

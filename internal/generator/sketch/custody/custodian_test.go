@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -68,6 +69,25 @@ var _ = Describe("Custodian", func() {
 	// backup returns the backup name for name.
 	backup := func(name string) string {
 		return custody.BackupPrefix + name
+	}
+
+	// denyWrites takes writes away from the directory, so a move inside it
+	// fails. It gives the writes back after the spec. Windows does not apply
+	// the permission bits of a directory, and the superuser writes to a
+	// read-only directory, so a spec that needs the failure stops on both.
+	denyWrites := func() {
+		if runtime.GOOS == "windows" {
+			Skip("Windows does not apply the permission bits of a directory, so the failure cannot be staged")
+		}
+
+		if os.Geteuid() == 0 {
+			Skip("the superuser writes to a read-only directory, so the failure cannot be staged")
+		}
+
+		Expect(os.Chmod(dir, 0o500)).To(Succeed())
+		DeferCleanup(func() {
+			_ = os.Chmod(dir, 0o700)
+		})
 	}
 
 	// The set-aside table treats both names the same way, so one block of
@@ -253,10 +273,7 @@ var _ = Describe("Custodian", func() {
 					// A directory that denies writes makes the move fail, and
 					// leaves the application's file at the live name with no
 					// backup beside it.
-					Expect(os.Chmod(dir, 0o500)).To(Succeed())
-					DeferCleanup(func() {
-						_ = os.Chmod(dir, 0o700)
-					})
+					denyWrites()
 
 					Expect(c.SetAside()).NotTo(Succeed())
 
@@ -270,6 +287,7 @@ var _ = Describe("Custodian", func() {
 					Expect(read(wire)).To(Equal("application\n"))
 				})
 			})
+
 		})
 	})
 
@@ -282,10 +300,7 @@ var _ = Describe("Custodian", func() {
 				BeforeEach(func() {
 					write(backup(name), "committed\n")
 
-					Expect(os.Chmod(dir, 0o500)).To(Succeed())
-					DeferCleanup(func() {
-						_ = os.Chmod(dir, 0o700)
-					})
+					denyWrites()
 				})
 
 				It("reports the restore that it could not make", func() {

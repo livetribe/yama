@@ -28,14 +28,20 @@ type CreateFailed struct {
 
 var _ State = (*CreateFailed)(nil)
 
-func (f *CreateFailed) PackagePath() (path string, ok bool) {
+// PackagePath reports no directory. The run read no package here, so it holds
+// no directory to name.
+func (f *CreateFailed) PackagePath() (path string, runWire bool) {
 	return "", false
 }
 
+// Prepare returns this state. A CreateFailed exists before the Prepare loop
+// runs, so the loop reaches it and must leave it as it is.
 func (f *CreateFailed) Prepare() State {
 	return f
 }
 
+// Generate returns this state. A CreateFailed reaches the Generate loop, and
+// Google Wire wrote nothing for a package that the run never read.
 func (f *CreateFailed) Generate() State {
 	return f
 }
@@ -46,6 +52,10 @@ func (f *CreateFailed) Complete() error {
 	return f.err
 }
 
+// A PrepareFailed is the item for a target package that could not take the
+// intermediate files, or that could not move a generated file aside. It stays
+// out of the set of packages that Google Wire runs over. Complete puts back
+// every name the run moved, and it returns the error that Prepare produced.
 type PrepareFailed struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -54,16 +64,21 @@ type PrepareFailed struct {
 
 var _ State = (*PrepareFailed)(nil)
 
-func (f *PrepareFailed) PackagePath() (path string, ok bool) {
+// PackagePath reports no directory. Google Wire loads every directory of the
+// run at once, and this package holds a file that would fail that load.
+func (f *PrepareFailed) PackagePath() (path string, runWire bool) {
 	return "", false
 }
 
+// Prepare panics. The driver calls Prepare once for each item, and this state
+// is what that one call returned.
 func (f *PrepareFailed) Prepare() State {
 	panic("should never reach here")
 }
 
+// Generate returns this state. The Generate loop reaches every item, and this
+// package took no part in the Google Wire run.
 func (f *PrepareFailed) Generate() State {
-	// do nothing
 	return f
 }
 
@@ -73,6 +88,9 @@ func (f *PrepareFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }
 
+// A GenerateFailed is the item for a target package whose load, analysis,
+// render, or write failed after Google Wire ran. Complete puts back every name
+// the run moved, and it returns the error that Generate produced.
 type GenerateFailed struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -81,20 +99,25 @@ type GenerateFailed struct {
 
 var _ State = (*GenerateFailed)(nil)
 
-func (f *GenerateFailed) PackagePath() (path string, ok bool) {
-	panic("should never reach here")
+// PackagePath reports no directory. Google Wire already ran, and the driver
+// reads this call only to build the set that Google Wire runs over.
+func (f *GenerateFailed) PackagePath() (path string, runWire bool) {
+	return "", false
 }
 
+// Prepare panics. The Prepare loop finished before this state existed.
 func (f *GenerateFailed) Prepare() State {
 	panic("should never reach here")
 }
 
+// Generate panics. The driver calls Generate once for each item, and this
+// state is what that one call returned.
 func (f *GenerateFailed) Generate() State {
 	panic("should never reach here")
 }
 
 // Complete settles the package's files and returns the error that Generate
-// produced.
+// produced. That error names the package it came from.
 func (f *GenerateFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }

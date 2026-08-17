@@ -15,9 +15,12 @@
 package work
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -77,17 +80,21 @@ var _ = Describe("a work item over one target package", func() {
 	var (
 		dir  string
 		item State
+
+		// progress holds what the run wrote to its stream.
+		progress *bytes.Buffer
 	)
 
 	BeforeEach(func() {
 		dir = GinkgoT().TempDir()
+		progress = new(bytes.Buffer)
 	})
 
 	// CreateWorkItems reads the package. Each BeforeEach above puts the
 	// directory in the state that its scenario names. This block runs after all
 	// of them.
 	JustBeforeEach(func() {
-		items := CreateWorkItems([]string{dir}, "", nil, nil, io.Discard)
+		items := CreateWorkItems([]string{dir}, "", nil, nil, progress)
 		item = items[0]
 	})
 
@@ -124,10 +131,22 @@ var _ = Describe("a work item over one target package", func() {
 		write(wireName, content)
 	}
 
-	// denyWrites takes writes away from the package directory, so the custodian
-	// cannot move either name aside. It gives the writes back afterwards, so a
-	// later phase runs against a directory it can change.
+	// denyWrites takes writes away from the package directory, so a phase that
+	// writes in it fails. It gives the writes back afterwards, so a later phase
+	// runs against a directory it can change.
+	//
+	// Windows does not apply the permission bits of a directory, and the
+	// superuser writes to a read-only directory, so a spec that needs the
+	// failure stops on both.
 	denyWrites := func() {
+		if runtime.GOOS == "windows" {
+			Skip("Windows does not apply the permission bits of a directory, so the failure cannot be staged")
+		}
+
+		if os.Geteuid() == 0 {
+			Skip("the superuser writes to a read-only directory, so the failure cannot be staged")
+		}
+
 		Expect(os.Chmod(dir, 0o500)).To(Succeed())
 		DeferCleanup(func() {
 			_ = os.Chmod(dir, 0o700)
@@ -244,6 +263,21 @@ var _ = Describe("a work item over one target package", func() {
 					Expect(exists(wire.PlaceholderFileName)).To(BeTrue())
 				})
 
+				It("writes no progress line", func() {
+					generated()
+					Expect(progress.String()).To(BeEmpty())
+				})
+
+				It("settles as a package that Google Wire wrote nothing for", func() {
+					Expect(generated()).To(BeAssignableToTypeOf(&NoWireGen{}))
+				})
+
+				It("keeps the package out of a later Google Wire run", func() {
+					_, runWire := generated().PackagePath()
+
+					Expect(runWire).To(BeFalse())
+				})
+
 				Describe("Complete", func() {
 					It("finds no backup for either name", func() {
 						complete(generated())
@@ -280,6 +314,14 @@ var _ = Describe("a work item over one target package", func() {
 					emitted()
 					Expect(exists(wire.DerivedFileName)).To(BeFalse())
 					Expect(exists(wire.PlaceholderFileName)).To(BeFalse())
+				})
+
+				It("writes one progress line naming the file it wrote", func() {
+					emitted()
+
+					line := fmt.Sprintf("yama: app: wrote %s\n", filepath.Join(dir, lifecycleName))
+
+					Expect(progress.String()).To(Equal(line))
 				})
 
 				It("removes both transient files only after the write succeeds", func() {
@@ -319,6 +361,12 @@ var _ = Describe("a work item over one target package", func() {
 					Expect(exists(lifecycleName)).To(BeFalse())
 				})
 
+				It("keeps the package out of a later Google Wire run", func() {
+					_, runWire := unemitted().PackagePath()
+
+					Expect(runWire).To(BeFalse())
+				})
+
 				It("leaves wire_gen.go for the rest of the loop", func() {
 					unemitted()
 					Expect(exists(wireName)).To(BeTrue())
@@ -338,6 +386,10 @@ var _ = Describe("a work item over one target package", func() {
 
 					It("returns the error that Generate held", func() {
 						Expect(completed(unemitted())).To(HaveOccurred())
+					})
+
+					It("names the package on that error", func() {
+						Expect(completed(unemitted())).To(MatchError(ContainSubstring(dir)))
 					})
 				})
 			})
@@ -405,16 +457,16 @@ var _ = Describe("a work item over one target package", func() {
 
 		})
 
-		Context("and SetAside could not take custody", func() {
+		Context("and Prepare could not write in the directory", func() {
 			BeforeEach(func() {
 				denyWrites()
 			})
 
 			Describe("Prepare", func() {
 				It("keeps the package out of the Google Wire run", func() {
-					_, ok := prepared().PackagePath()
+					_, runWire := prepared().PackagePath()
 
-					Expect(ok).To(BeFalse())
+					Expect(runWire).To(BeFalse())
 				})
 
 				It("leaves the committed lifecycle_gen.go at its live name", func() {
@@ -438,7 +490,7 @@ var _ = Describe("a work item over one target package", func() {
 					Expect(read(lifecycleName)).To(Equal("committed\n"))
 				})
 
-				It("returns the error that SetAside produced", func() {
+				It("returns the error that Prepare produced", func() {
 					Expect(completed(generated())).To(HaveOccurred())
 				})
 			})
@@ -513,16 +565,16 @@ var _ = Describe("a work item over one target package", func() {
 
 		})
 
-		Context("and SetAside could not take custody", func() {
+		Context("and Prepare could not write in the directory", func() {
 			BeforeEach(func() {
 				denyWrites()
 			})
 
 			Describe("Prepare", func() {
 				It("keeps the package out of the Google Wire run", func() {
-					_, ok := prepared().PackagePath()
+					_, runWire := prepared().PackagePath()
 
-					Expect(ok).To(BeFalse())
+					Expect(runWire).To(BeFalse())
 				})
 
 				It("leaves the legacy wire_gen.go at its live name", func() {
@@ -552,7 +604,7 @@ var _ = Describe("a work item over one target package", func() {
 					Expect(read(wireName)).To(Equal("legacy\n"))
 				})
 
-				It("returns the error that SetAside produced", func() {
+				It("returns the error that Prepare produced", func() {
 					Expect(completed(generated())).To(HaveOccurred())
 				})
 			})
@@ -593,6 +645,21 @@ var _ = Describe("a work item over one target package", func() {
 						It("returns nil", func() {
 							Expect(completed(generated())).To(Succeed())
 						})
+
+						// This state holds no error of its own, so the restore
+						// is the only call that can produce one. The error
+						// names the backup that still holds the file the
+						// application owns.
+						It("returns the error of a restore it could not make", func() {
+							settled := generated()
+
+							denyWrites()
+
+							err := settled.Complete()
+
+							Expect(err).To(MatchError(ContainSubstring("restore " + wireName)))
+							Expect(err).To(MatchError(ContainSubstring(backup(wireName))))
+						})
 					})
 				})
 			})
@@ -619,16 +686,16 @@ var _ = Describe("a work item over one target package", func() {
 
 		})
 
-		Context("and SetAside could not take custody", func() {
+		Context("and Prepare could not write in the directory", func() {
 			BeforeEach(func() {
 				denyWrites()
 			})
 
 			Describe("Prepare", func() {
 				It("keeps the package out of the Google Wire run", func() {
-					_, ok := prepared().PackagePath()
+					_, runWire := prepared().PackagePath()
 
-					Expect(ok).To(BeFalse())
+					Expect(runWire).To(BeFalse())
 				})
 
 				It("leaves both files at their live names", func() {
@@ -659,7 +726,7 @@ var _ = Describe("a work item over one target package", func() {
 					Expect(read(wireName)).To(Equal("legacy\n"))
 				})
 
-				It("returns the error that SetAside produced", func() {
+				It("returns the error that Prepare produced", func() {
 					Expect(completed(generated())).To(HaveOccurred())
 				})
 			})
@@ -832,8 +899,8 @@ var _ = Describe("a work item over one target package", func() {
 		})
 
 		It("states no path, and Google Wire runs over no such package", func() {
-			_, ok := item.PackagePath()
-			Expect(ok).To(BeFalse())
+			_, runWire := item.PackagePath()
+			Expect(runWire).To(BeFalse())
 		})
 
 		Describe("Prepare", func() {
@@ -870,9 +937,9 @@ var _ = Describe("a work item over one target package", func() {
 		})
 
 		It("states no path, so Google Wire does not run over the package", func() {
-			path, ok := item.PackagePath()
+			path, runWire := item.PackagePath()
 
-			Expect(ok).To(BeFalse())
+			Expect(runWire).To(BeFalse())
 			Expect(path).To(BeEmpty())
 		})
 
@@ -981,37 +1048,17 @@ var _ = Describe("CreateWorkItems", func() {
 	})
 })
 
-// Each spec below states a question that neither the sketch nor a document
+// The spec below states a question that neither the sketch nor a document
 // answers.
 
 var _ = Describe("a work item, where the design is undecided", func() {
-	Context("when the directory already holds a backup name", func() {
-		PIt("states what Prepare does with the backup that an earlier run left", func() {})
-	})
-
-	Context("when a restore inside Complete fails", func() {
-		PIt("states what Complete returns", func() {})
-	})
-
-	Context("when Generate converts a Happy to a NoWireGen", func() {
-		PIt("states whether NoWireGen carries the record unchanged", func() {})
-	})
+	PIt("states whether the NoWireGen that Generate returns carries the record unchanged", func() {})
 })
 
-// The sketch is the design of record. Each spec below states behavior that
+// The sketch is the design of record. The spec below states behavior that
 // ADR-014 or docs/generator-architecture.md describes and that no method of
 // the sketch performs.
 
 var _ = Describe("a work item, where the documents and the sketch disagree", func() {
-	Describe("Prepare", func() {
-		PIt("returns a PrepareFailed when the derivation fails", func() {})
-	})
-
-	Describe("Complete", func() {
-		PIt("joins the errors that its restore calls produced", func() {})
-	})
-
-	Describe("the progress line", func() {
-		PIt("writes one line to the run's stream when it commits a file", func() {})
-	})
+	PIt("returns a PrepareFailed when the derivation fails", func() {})
 })

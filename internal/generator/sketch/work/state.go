@@ -14,26 +14,40 @@
 
 package work
 
+// A State is one target package at one point of the run. Each phase returns a
+// State, and a phase that fails returns a State of a different type. The type
+// of the item is therefore the record of what happened to that package.
 type State interface {
-	PackagePath() (path string, ok bool)
+	// PackagePath returns the directory to name to Google Wire, and whether to
+	// name it at all. A state that Google Wire is not to run over reports no
+	// directory and false.
+	PackagePath() (path string, runWire bool)
 
-	// Prepare is called before Google Wire is called.
+	// Prepare runs before the run calls Google Wire. It puts the intermediate
+	// files in the package's directory, and it moves both generated files out
+	// of Google Wire's way.
 	Prepare() State
 
+	// Generate runs after the run calls Google Wire. It reads Google Wire's
+	// output for this package, and it writes the lifecycle file.
 	Generate() State
 
-	// Complete is called to perform any cleanup duties after all the
-	// lifecycle_gen.go files have been created.
+	// Complete settles the package's files, and it takes the intermediate
+	// files out of the directory. It returns this package's error, so a
+	// failure of any phase reaches the caller through this call.
 	Complete() error
 }
 
+// Items are the work items of one run, one for each target package. The driver
+// holds them in the order that the run resolved their directories.
 type Items []State
 
+// Paths returns the directory of each item that Google Wire is to run over.
 func (items Items) Paths() []string {
 	var paths []string
 
 	for _, item := range items {
-		if path, ok := item.PackagePath(); ok {
+		if path, runWire := item.PackagePath(); runWire {
 			paths = append(paths, path)
 		}
 	}

@@ -19,6 +19,10 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
+// A NoWireGen is the item for a target package that holds no Google Wire
+// output after Google Wire ran. It covers two directories that look the same:
+// Google Wire rejected the first, and the second declared no stub for Google
+// Wire to generate from. Complete puts the package's files back.
 type NoWireGen struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -26,14 +30,19 @@ type NoWireGen struct {
 
 var _ State = (*NoWireGen)(nil)
 
-func (n *NoWireGen) PackagePath() (path string, ok bool) {
-	panic("should never reach here")
+// PackagePath reports no directory. Google Wire already ran, and the driver
+// reads this call only to build the set that Google Wire runs over.
+func (n *NoWireGen) PackagePath() (path string, runWire bool) {
+	return "", false
 }
 
+// Prepare panics. The Prepare loop finished before this state existed.
 func (n *NoWireGen) Prepare() State {
 	panic("should never reach here")
 }
 
+// Generate panics. The driver calls Generate once for each item, and this
+// state is what that one call returned.
 func (n *NoWireGen) Generate() State {
 	panic("should never reach here")
 }

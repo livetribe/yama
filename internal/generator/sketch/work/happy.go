@@ -28,6 +28,9 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
+// A Happy is the item for a target package that every phase so far settled
+// without an error. It is the one state that the phases convert to another
+// state.
 type Happy struct {
 	path          string
 	custodian     *custody.Custodian
@@ -65,7 +68,9 @@ func NewHappy(
 	}
 }
 
-func (h *Happy) PackagePath() (path string, ok bool) {
+// PackagePath reports this package's directory. It is the one state that
+// Google Wire runs over.
+func (h *Happy) PackagePath() (path string, runWire bool) {
 	return h.path, true
 }
 
@@ -210,9 +215,12 @@ func (h *Happy) clearTransients(output string) error {
 	return h.intermediates.CleanUp()
 }
 
-// failed returns the state that a failed Generate settles as.
+// failed returns the state that a failed Generate settles as. It names the
+// package on the error, so a run over many packages states which one failed.
 func (h *Happy) failed(err error) State {
-	return &GenerateFailed{custodian: h.custodian, intermediates: h.intermediates, err: err}
+	named := fmt.Errorf("%s: %w", h.path, err)
+
+	return &GenerateFailed{custodian: h.custodian, intermediates: h.intermediates, err: named}
 }
 
 // members carries each level onto the lifecycle file.

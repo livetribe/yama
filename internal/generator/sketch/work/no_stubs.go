@@ -21,7 +21,9 @@ type NoStubs struct{}
 
 var _ State = (*NoStubs)(nil)
 
-func (ns *NoStubs) PackagePath() (path string, ok bool) {
+// PackagePath reports no directory. This package declares no stub, so Google
+// Wire has nothing to generate here.
+func (ns *NoStubs) PackagePath() (path string, runWire bool) {
 	return "", false
 }
 
