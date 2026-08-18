@@ -52,10 +52,11 @@ Yama creates one work item for each target package. It then runs three phases,
 and each phase visits every work item once. The phases are `Prepare`, `Generate`,
 and `Complete`. Yama invokes Google Wire once, between `Prepare` and `Generate`.
 
-`Prepare` reads the package's lifecycle stubs and moves its two files aside.
-`Generate` reads Google Wire's output, computes the levels, and writes the
-lifecycle file. `Complete` puts the package's files back, or drops the backup
-that the emitted file replaced.
+Yama reads a package's lifecycle stubs when it creates that package's work item.
+`Prepare` writes the two files that Google Wire's load needs, and it moves the
+package's two committed files aside. `Generate` reads Google Wire's output,
+computes the levels, and writes the lifecycle file. `Complete` puts the
+package's files back, or drops the backup that the emitted file replaced.
 
 Each phase method takes no context. The run holds its context at the driver,
 which passes it to the package resolution and to the Google Wire invocation. A
@@ -86,9 +87,9 @@ This holds for every failure that belongs to one package:
 
 ### The work item that moved a file is the work item that puts it back
 
-A work item records the names that it moved aside. Its `Complete` acts on that
-record, and on no other name. A work item that moved no file puts no file back,
-whatever else happened in the run.
+A work item holds the record of the names that it moved aside. Its `Complete`
+acts on that record, and on no other name. A work item that moved no file puts
+no file back, whatever else happened in the run.
 
 ### A package moves its lifecycle file aside before Google Wire's output name
 
@@ -105,16 +106,25 @@ A package that imports a rejected package therefore fails to type-check during
 the run. The run already reports a failure. The importer also keeps every file
 that it held when the run started.
 
-### A package states its own outcome from what its directory holds
+### A package that declares no lifecycle stub takes no part in a run
+
+Yama counts a package's lifecycle stubs when it creates that package's work
+item. A package that declares none becomes an item that moves no file, states no
+directory for Google Wire, and writes nothing. Google Wire never reads such a
+package, and the item settles by doing nothing.
+
+This matches what `wire gen` does with a package that declares no injector. It
+passes over that package in silence (ADR-012).
+
+### A package that Google Wire rejected states that outcome from its directory
 
 The generate phase reads the target directory first. It finds no Google Wire
 output for a rejected package. The work item then moves to a state that writes
 no file and returns no error.
 
-Two different packages reach that state. Google Wire rejected the first. The
-second declares no lifecycle stub, so Google Wire had nothing to generate for
-it. What the directory holds does not say which package it is. Neither package
-needs a count of its stubs, because neither one reports the outcome of the run.
+Only a rejected package reaches that state. The work item for a package that
+declares no stub reads no directory in the generate phase. A directory that
+holds no Google Wire output therefore has one meaning.
 
 ### An error signals that a run failed, and carries nothing else
 
@@ -127,12 +137,13 @@ Google Wire invocation produces one when Google Wire fails at either grain. A ru
 joins the two. A rejected package therefore sets the exit code through the Google
 Wire invocation, and not through its own settlement.
 
-### Custody exports functions and declares no type
+### Custody holds the record of what one package moved
 
-One package owns every move of a file in a target directory. It exports three
-functions: one moves a name to the backup name, one moves the backup name back,
-and one removes the backup. It holds no state between calls, and it names
-nothing that belongs to Yama.
+One type owns every move of a file in a target directory. The work item for a
+package that declares a lifecycle stub holds one of these, and no other work
+item holds one. That type moves both live names aside before Google Wire runs,
+and it settles both names in `Complete`. It records which moves succeeded, and
+its settlement reads that record.
 
 ### Each part of a run writes its own messages
 
@@ -169,9 +180,9 @@ rejected package does with its files reads one type.
 
 ### Ownership of a file follows the record of moving it
 
-A run that fails in several places needs to know which files are where. A record
-on the work item answers that question for one package, and the answer does not
-depend on what any other package did.
+A run that fails in several places needs to know which files are where. The
+record that a work item holds answers that question for one package, and the
+answer does not depend on what any other package did.
 
 This also bounds what a `Complete` can do. It acts on the names in its own record.
 It cannot restore a name that its package never moved, and it cannot leave a name
@@ -227,17 +238,18 @@ backup instead of restoring it.
 A package that Google Wire rejected writes no lifecycle file, and nothing else
 declares its constructors. A restore of the committed file therefore adds a
 declaration rather than duplicating one. A package that declares no lifecycle
-stub also writes no lifecycle file, and it settles the same way.
+stub moved no file at all, so it has nothing to restore.
 
-### Functions state custody's contract more exactly than a handle does
+### The settlement needs the record of the move that made it
 
-Custody moves a file and reports whether the move succeeded. It holds nothing
-between one call and the next. A type would therefore carry no state, and a
-handle would carry no fact that the work item does not already record.
+One case needs more than the directory to decide. A live Google Wire output with
+no backup is what Google Wire wrote, if the move aside succeeded. The same file
+is the application's own, if that move failed. The settlement removes the first
+file and keeps the second.
 
-Functions also keep the package free of Yama's vocabulary. Each one takes a
-directory and a plain filename. Nothing in the package names a stub, an injector,
-a package pattern, or a run.
+The record of the move therefore has to reach the settlement. A type holds that
+record across the two calls. Plain functions would hand the record to the work
+item, and the work item would then carry a fact that it never reads for itself.
 
 ### A message printed where it is produced needs no carrier
 
@@ -260,11 +272,13 @@ to move text. The caller would then print what it received, and add nothing.
   files.
 * A test can drive one work item through its phases without a Google Wire
   subprocess, because the item holds its own state and its own record.
-* Custody is testable on its own, over a temporary directory, with no Yama
-  vocabulary in the test.
-* A package states its own outcome from what its directory holds. A run therefore
-  needs no step between Google Wire and the generate phase, and no count of a
-  package's stubs.
+* Custody is testable on its own, over a temporary directory, with no Google Wire
+  subprocess.
+* A package that Google Wire rejected states its own outcome from what its
+  directory holds. A run therefore needs no step between Google Wire and the
+  generate phase.
+* A run does no work in a package that it generates nothing for. It moves no file
+  there, and it hands that package to no other tool.
 * An error stays a signal. No type in the run carries a report that nothing
   prints.
 
@@ -283,6 +297,13 @@ to move text. The caller would then print what it received, and add nothing.
   nothing.
 * Two Yama runs over one directory at the same time still corrupt each other.
   ADR-008 records that hazard, and this decision does not remove it.
+* Yama reports no Google Wire failure in a package that declares no lifecycle
+  stub. Google Wire never reads such a package, so a run exits zero even when
+  that package's own Google Wire graph does not build. The application owns that
+  graph, and `wire gen` reports it.
+* A backup that an earlier run left in a package that declares no lifecycle stub
+  stays at the backup name. No work item takes custody of that package, so
+  nothing puts that file back.
 
 ### Accepted Trade-Off
 
@@ -324,24 +345,20 @@ no committed file to restore, so its importer fails in either design.
 
 ### Report a rejected package through its own error
 
-Rejected. A directory that holds no Google Wire output belongs to one of two
-packages. Google Wire rejected the first. The second declares no lifecycle stub.
-What the directory holds does not say which one it is.
+Rejected. The Google Wire invocation already knows which packages it rejected,
+and its error already sets the exit code. A second error from the package itself
+would report one failure twice.
 
-An error from that package would therefore fail every stub-free directory in a
-repository. A run over `./...` would then report packages that had no work to do.
-A count of the package's stubs would tell the two apart, and it would add a count
-that nothing else needs.
+### Hand every package to Google Wire, and decide the outcome afterwards
 
-The Google Wire invocation already knows which packages it rejected. Its error
-already sets the exit code.
+Rejected. A package that declares no lifecycle stub has nothing for Yama to
+generate. Handing it to Google Wire makes the application's own graph in that
+package decide Yama's exit code, for a package that Yama writes nothing in.
 
-### Give custody a type that holds an open move
-
-Rejected. Custody holds no state between calls, so the type would hold no state
-either. Every fact that such a handle could carry is already in the work item's
-record of what it moved. The type would also have to name what it is holding, and
-that name belongs to Yama rather than to a package that moves files.
+It also costs the run a fact that no other step needs. A directory that held no
+Google Wire output would then belong to a rejected package or to a stub-free
+package, and the generate phase would need something further to tell the two
+apart.
 
 ### Restore every package's lifecycle file after Google Wire runs
 
