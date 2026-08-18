@@ -21,7 +21,7 @@ type Quiescer interface {
 	Quiesce(context.Context)
 }
 
-func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error
+func RunUntilSignal(ctx context.Context, lc Lifecycle, signals ...os.Signal) error
 
 type StartInterceptor interface {
 	Start(ctx context.Context, next Starter) error

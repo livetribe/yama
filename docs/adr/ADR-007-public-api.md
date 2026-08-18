@@ -232,14 +232,19 @@ The framework does not expose component-level failure information through the pu
 The framework provides a small set of helpers for common lifecycle patterns:
 
 ```go
-func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
+func RunUntilSignal(ctx context.Context, lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
 func WithBeginComponents(components ...any) Option // base-extreme: start before the graph, tear down after it
 func WithEndComponents(components ...any) Option   // top-extreme: start after the graph, tear down before it
 func WithInterceptors(interceptors ...any) Option  // attach interceptors globally
 ```
 
 `RunUntilSignal` is the typical `main` entry point: it starts, waits for the
-signal, and calls `Stop()`. `WithBeginComponents`, `WithEndComponents`, and `WithInterceptors`
+signal, and calls `Stop()`. It takes a `context.Context` and gives that
+context to `Start`, to `Stop`, and to any registered interceptors. `RunUntilSignal` also ends
+its own wait when the context is done, so a cancellation stops the application as
+a signal does.
+
+`WithBeginComponents`, `WithEndComponents`, and `WithInterceptors`
 register construction-time inputs as `Option`s, keeping that registration
 out of any generated or runtime API. All three are variadic and may each be
 passed more than once; supplied values accumulate. For `WithInterceptors`,
@@ -429,6 +434,22 @@ Rejected because observability requirements vary by application.
 ### Framework-Owned Configuration APIs
 
 Rejected because configuration management is a separate concern.
+
+### A Cancellation-Free Context for `RunUntilSignal`
+
+Rejected because the helper then overrides the caller. This alternative removes
+the cancellation and the deadline from `ctx`. It passes only the values to
+`Start` and to `Stop`. It protects a graceful shutdown from a context that is
+already done. It also takes control of that shutdown from the caller.
+Public Helpers, above, gives the context to the caller instead.
+
+### Signals as the Only Stop Trigger for `RunUntilSignal`
+
+Rejected because the context then governs the components but does not govern the
+helper that calls them. This alternative does not change `ctx`. It waits only on
+the signal set. A cancellation reaches each component through `Start` and `Stop`. The
+cancellation does not end the wait, so the application continues until a signal
+arrives. Public Helpers, above, ends the wait on either trigger.
 
 ## Non-Goals
 

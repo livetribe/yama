@@ -59,7 +59,7 @@ func raise(t *testing.T, sig syscall.Signal) {
 func launch(lc *mocks.MockLifecycle, watch ...os.Signal) <-chan error {
 	done := make(chan error, 1)
 	go func() {
-		done <- yama.RunUntilSignal(lc, watch...)
+		done <- yama.RunUntilSignal(context.Background(), lc, watch...)
 	}()
 
 	return done

@@ -21,32 +21,35 @@ import (
 	"syscall"
 )
 
-// RunUntilSignal is the typical main entry point for a Yama application: it
-// starts lc, blocks until one of the given OS signals is delivered, then calls
-// lc.Stop and returns. When signals is empty it waits on the interrupt and
-// termination signals. If Start fails it returns an error matching ErrStartFailed
-// without waiting for a signal.
+// RunUntilSignal is the typical main entry point for a Yama application. It
+// starts lc, then blocks until one of the given OS signals arrives, or until ctx
+// is done. It then calls lc.Stop and returns. When signals is empty,
+// RunUntilSignal waits on the interrupt and termination signals. If Start fails,
+// RunUntilSignal returns an error that matches ErrStartFailed. RunUntilSignal
+// does not block.
 //
-// A signal arriving during startup is honored once startup completes; a further
-// signal arriving during shutdown is ignored.
-func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error {
+// RunUntilSignal gives ctx to lc.Start and to lc.Stop without a change. The
+// values, a cancellation, and a deadline on ctx therefore reach each component
+// and each interceptor. Each component decides how to respond. A ctx that is
+// done is not a failure, so RunUntilSignal returns nil.
+//
+// If a signal arrives during startup, RunUntilSignal honors it once startup
+// completes. RunUntilSignal ignores a further signal that arrives during shutdown.
+func RunUntilSignal(ctx context.Context, lc Lifecycle, signals ...os.Signal) error {
 	if len(signals) == 0 {
 		signals = defaultSignals
 	}
 
-	// signal.Notify drops a delivery when the channel is not ready, so the buffer
-	// must hold the one that can arrive before the receive below.
-	received := make(chan os.Signal, 1)
-	signal.Notify(received, signals...)
-	defer signal.Stop(received)
+	waitCtx, stopNotify := signal.NotifyContext(ctx, signals...)
+	defer stopNotify()
 
-	if err := lc.Start(context.Background()); err != nil {
+	if err := lc.Start(ctx); err != nil {
 		return err
 	}
 
-	<-received
+	<-waitCtx.Done()
 
-	lc.Stop(context.Background())
+	lc.Stop(ctx)
 
 	return nil
 }

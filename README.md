@@ -83,10 +83,16 @@ if err != nil {
 	log.Fatal(err)
 }
 
-if err := yama.RunUntilSignal(lc); err != nil {
+if err := yama.RunUntilSignal(context.Background(), lc); err != nil {
 	log.Fatal(err)
 }
 ```
+
+`RunUntilSignal` gives its context to `Start` and to `Stop` without a change.
+Every component and every interceptor therefore receives it. Deployment facts on
+that context, such as a node identifier, reach all of them. A cancellation and a
+deadline reach them too. A cancellation also stops the application in the same way
+that a signal does.
 
 ## Files in the package directory
 

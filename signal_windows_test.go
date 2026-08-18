@@ -47,7 +47,7 @@ func TestRunUntilSignalBlocksAfterStart(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- yama.RunUntilSignal(lc, os.Interrupt)
+		done <- yama.RunUntilSignal(context.Background(), lc, os.Interrupt)
 	}()
 
 	<-started

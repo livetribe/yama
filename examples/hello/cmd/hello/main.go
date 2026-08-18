@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -32,7 +33,7 @@ func main() {
 
 	log.Printf("hello: built %s", app)
 
-	if err := yama.RunUntilSignal(lc); err != nil {
+	if err := yama.RunUntilSignal(context.Background(), lc); err != nil {
 		log.Fatalf("hello: %v", err)
 	}
 }
