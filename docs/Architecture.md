@@ -842,8 +842,10 @@ cannot introduce a fourth.
 func WithBeginComponents(components ...any) Option // base-extreme components: start before the graph, tear down after it
 func WithEndComponents(components ...any) Option   // top-extreme components: start after the graph, tear down before it
 func WithInterceptors(interceptors ...any) Option // attach interceptors globally
-func RunUntilSignal(lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
+func RunUntilSignal(ctx context.Context, lc Lifecycle, signals ...os.Signal) error // Start, wait for a signal, then Stop
 ```
+
+`RunUntilSignal` gives its `ctx` to `Start` and to `Stop` without a change. It strips no cancellation and no deadline. `RunUntilSignal` also ends its own wait when `ctx` is done, so a cancellation is a stop trigger in addition to the signal set. Neither trigger is a failure (ADR-007).
 
 `WithBeginComponents`, `WithEndComponents`, and `WithInterceptors` take `any` because Go cannot express a union of method-bearing interfaces: neither `Starter | Quiescer | Stopper` for components, nor the three interceptor interfaces. Yama detects each value's capabilities by type assertion. All are variadic and may be called more than once. Registered values accumulate in call order.
 

@@ -15,10 +15,12 @@
 package yama_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
 	yama "l7e.io/yama/v2"
@@ -37,7 +39,7 @@ func TestRunUntilSignalStartFailureShortCircuits(t *testing.T) {
 
 	done := make(chan error, 1)
 	go func() {
-		done <- yama.RunUntilSignal(lc)
+		done <- yama.RunUntilSignal(context.Background(), lc)
 	}()
 
 	select {
@@ -46,4 +48,90 @@ func TestRunUntilSignalStartFailureShortCircuits(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("RunUntilSignal blocked after Start failed instead of returning")
 	}
+}
+
+// ctxKey identifies the value that the context tests below attach.
+type ctxKey struct{}
+
+// TestRunUntilSignalStopsOnContextCancellation proves that a cancellation of the
+// caller's context ends the wait in place of a signal. It also proves that the
+// context that Stop receives carries that cancellation. This test delivers no
+// signal, so it runs on every platform.
+func TestRunUntilSignalStopsOnContextCancellation(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	lc := mocks.NewMockLifecycle(ctrl)
+
+	started := make(chan struct{})
+	lc.EXPECT().Start(gomock.Any()).DoAndReturn(func(context.Context) error {
+		close(started)
+		return nil
+	})
+
+	stopErr := make(chan error, 1)
+	lc.EXPECT().Stop(gomock.Any()).Times(1).Do(func(ctx context.Context) {
+		stopErr <- ctx.Err()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- yama.RunUntilSignal(ctx, lc)
+	}()
+
+	<-started
+	cancel()
+
+	select {
+	case err := <-done:
+		assert.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("RunUntilSignal did not return after the context was canceled")
+	}
+
+	assert.ErrorIs(t, <-stopErr, context.Canceled)
+}
+
+// TestRunUntilSignalPassesContextValuesToStartAndStop proves that the caller's
+// context reaches both lifecycle calls. Start and Stop both read the value that
+// the context carries.
+func TestRunUntilSignalPassesContextValuesToStartAndStop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	lc := mocks.NewMockLifecycle(ctrl)
+
+	started := make(chan struct{})
+	startValue := make(chan any, 1)
+	lc.EXPECT().Start(gomock.Any()).DoAndReturn(func(ctx context.Context) error {
+		startValue <- ctx.Value(ctxKey{})
+		close(started)
+		return nil
+	})
+
+	stopValue := make(chan any, 1)
+	lc.EXPECT().Stop(gomock.Any()).Times(1).Do(func(ctx context.Context) {
+		stopValue <- ctx.Value(ctxKey{})
+	})
+
+	valued := context.WithValue(context.Background(), ctxKey{}, "node-7")
+	ctx, cancel := context.WithCancel(valued)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- yama.RunUntilSignal(ctx, lc)
+	}()
+
+	<-started
+	cancel()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("RunUntilSignal did not return after the context was canceled")
+	}
+
+	assert.Equal(t, "node-7", <-startValue)
+	assert.Equal(t, "node-7", <-stopValue)
 }
