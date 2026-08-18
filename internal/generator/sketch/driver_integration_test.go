@@ -31,9 +31,10 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// The specs in this file start Google Wire. Every other test in the tree hands
-// the sketch an output that stands in for Google Wire's, which states nothing
-// about whether Google Wire accepts what the sketch derives.
+// The specs in this file start Google Wire. Every other test in the tree gives
+// the sketch an output that takes the place of Google Wire's own. Such an
+// output states nothing about whether Google Wire accepts what the sketch
+// derives.
 
 // requireGo skips the test when the machine has no Go toolchain.
 func requireGo(t *testing.T) {
@@ -53,7 +54,7 @@ func quietDriver(dir string, patterns []string, args wire.Args) *Driver {
 	return d
 }
 
-// A fixture is one package under testdata, named with the files it holds.
+// A fixture is one package under testdata, named with the files that it holds.
 type fixture struct {
 	name  string
 	files []string
@@ -68,15 +69,15 @@ var (
 	// special build tag.
 	taggedrun = fixture{"taggedrun", []string{"components.go", "special.go", "lifecycle.go"}}
 
-	// badwire holds a stub that names no provider of *DB, which Google Wire
-	// rejects.
+	// badwire holds a stub that names no provider of *DB. Google Wire rejects
+	// that stub.
 	badwire = fixture{"badwire", []string{"components.go", "lifecycle.go"}}
 
 	// badstub holds a stub that declares two results. A lifecycle stub declares
 	// three.
 	badstub = fixture{"badstub", []string{"components.go", "lifecycle.go"}}
 
-	// valuerun holds a stub whose graph takes a wire.Value provider.
+	// valuerun holds a stub with a graph that takes a wire.Value provider.
 	valuerun = fixture{"valuerun", []string{"components.go", "lifecycle.go"}}
 
 	// setrun holds a stub that names a provider set, and never the package that
@@ -85,12 +86,12 @@ var (
 	setrun = fixture{"setrun", []string{"components.go", "lifecycle.go"}}
 )
 
-// copyFixture puts a copy of the fixture package in a directory of its own, and
-// it returns the path of that copy.
+// copyFixture puts a copy of the fixture package in a directory of its own. It
+// returns the path of that copy.
 //
-// The copy sits under testdata, inside this module. Google Wire resolves its
-// own import and the yama import against the module that holds the directory it
-// runs in, and no directory outside this module holds either one.
+// The copy is under testdata, inside this module. Google Wire resolves its own
+// import and the yama import against the module of the directory that it runs
+// in. No directory outside this module holds either one.
 func copyFixture(t *testing.T, f fixture) string {
 	t.Helper()
 
@@ -110,7 +111,7 @@ func copyFixture(t *testing.T, f fixture) string {
 		content, readErr := os.ReadFile(filepath.Join(source, name))
 		require.NoError(t, readErr)
 
-		//nolint:gosec // name is a constant of this file, and dir is the directory MkdirTemp just made.
+		//nolint:gosec // name is a constant of this file, and dir is the directory that MkdirTemp just made.
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), content, 0o600))
 	}
 
@@ -144,8 +145,8 @@ func TestDriverRunsGoogleWire(t *testing.T) {
 }
 
 // TestDriverNamesAnImportThePathDoesNotName asserts the name that the emitted
-// file gives gopkg.in/yaml.v3. That path declares the package yaml, and a guess
-// over the path alone produces yaml.v3, which names nothing.
+// file gives gopkg.in/yaml.v3. That path declares the package yaml. A guess
+// over the path alone produces yaml.v3, and that name names nothing.
 func TestDriverNamesAnImportThePathDoesNotName(t *testing.T) {
 	requireGo(t)
 
@@ -162,8 +163,8 @@ func TestDriverNamesAnImportThePathDoesNotName(t *testing.T) {
 }
 
 // TestDriverEmitsTheLifecycleOfTheGraph asserts the levels and the calls that
-// the graph produces. NewDB returns a cleanup and declares no capability, so its
-// cleanup goes in alone. App consumes it, so App sits one level behind.
+// the graph produces. NewDB returns a cleanup and declares no capability, so
+// its cleanup goes in alone. App consumes it, so App is one level behind.
 func TestDriverEmitsTheLifecycleOfTheGraph(t *testing.T) {
 	requireGo(t)
 
@@ -179,8 +180,8 @@ func TestDriverEmitsTheLifecycleOfTheGraph(t *testing.T) {
 	assert.Contains(t, string(content), "NextLevel().\n\t\t\tWithCleanup(dbCleanup).\n\t\t\tNextLevel().\n\t\t\tWithComponents(app).")
 }
 
-// TestDriverLeavesNoTransientFile asserts that a run takes every file it wrote
-// for Google Wire back out of the package.
+// TestDriverLeavesNoTransientFile asserts that a run takes every file that it
+// wrote for Google Wire back out of the package.
 func TestDriverLeavesNoTransientFile(t *testing.T) {
 	requireGo(t)
 
@@ -235,8 +236,8 @@ func TestDriverWritesTheHeaderFileAboveTheProvenanceLine(t *testing.T) {
 }
 
 // TestDriverReadsThePackageUnderTheRunsOwnTags runs a generation over a package
-// whose one provider of *DB sits behind the special tag. Google Wire receives
-// that tag, and so must the load that reads Google Wire's output.
+// with its one provider of *DB behind the special tag. Google Wire receives
+// that tag. The load that reads Google Wire's output must receive it also.
 func TestDriverReadsThePackageUnderTheRunsOwnTags(t *testing.T) {
 	requireGo(t)
 
@@ -254,7 +255,7 @@ func TestDriverReadsThePackageUnderTheRunsOwnTags(t *testing.T) {
 }
 
 // TestDriverFailsWhenTheRunSetNoTag asserts that the same package fails without
-// the tag. It is what makes the test above state something.
+// the tag. This test is what makes the test above state something.
 func TestDriverFailsWhenTheRunSetNoTag(t *testing.T) {
 	requireGo(t)
 
@@ -266,8 +267,8 @@ func TestDriverFailsWhenTheRunSetNoTag(t *testing.T) {
 	require.Error(t, d.Run(context.Background()))
 }
 
-// TestDriverExpandsARecursivePattern drives a run with "./...", which names no
-// directory. Nothing outside the driver turns that pattern into one.
+// TestDriverExpandsARecursivePattern drives a run with "./...". That pattern
+// names no directory, and nothing outside the driver turns it into one.
 func TestDriverExpandsARecursivePattern(t *testing.T) {
 	requireGo(t)
 
@@ -285,7 +286,7 @@ func TestDriverExpandsARecursivePattern(t *testing.T) {
 }
 
 // TestDriverTakesNoPatternToMeanTheCurrentDirectory drives a run with no
-// pattern at all, which is what `wire gen` takes to mean ".".
+// pattern at all. `wire gen` gives the meaning "." to no pattern.
 func TestDriverTakesNoPatternToMeanTheCurrentDirectory(t *testing.T) {
 	requireGo(t)
 
@@ -301,7 +302,7 @@ func TestDriverTakesNoPatternToMeanTheCurrentDirectory(t *testing.T) {
 
 // TestDriverReportsEveryLifecycleFileItWrote drives a run over one package and
 // reads what the run printed. The run names the package by the import path that
-// package declares, and the file by its absolute path.
+// the package declares. It names the file by the file's absolute path.
 func TestDriverReportsEveryLifecycleFileItWrote(t *testing.T) {
 	requireGo(t)
 
@@ -323,7 +324,7 @@ func TestDriverReportsEveryLifecycleFileItWrote(t *testing.T) {
 
 // TestDriverReportsNoFileForAPackageItSkipped drives a run over a package that
 // declares no lifecycle stub. The run writes no lifecycle file there, and it
-// reports none.
+// reports no file.
 func TestDriverReportsNoFileForAPackageItSkipped(t *testing.T) {
 	requireGo(t)
 
@@ -341,7 +342,7 @@ func TestDriverReportsNoFileForAPackageItSkipped(t *testing.T) {
 }
 
 // TestDriverGeneratesPastAPackageItCannotWriteTo drives a run over a family
-// whose one directory takes no new file. That package fails, every other
+// with one directory that takes no new file. That package fails. Every other
 // package still takes its lifecycle file, and the failure reaches the caller.
 func TestDriverGeneratesPastAPackageItCannotWriteTo(t *testing.T) {
 	requireGo(t)
@@ -374,10 +375,10 @@ func TestDriverGeneratesPastAPackageItCannotWriteTo(t *testing.T) {
 }
 
 // TestDriverReportsWireAgainstTheStubTheUserWrote drives a run over a package
-// that Google Wire rejects, and it reads what the run printed.
+// that Google Wire rejects. It reads what the run printed.
 //
-// Google Wire reads the file that Yama derived and names the injector that Yama
-// invented. Neither is a thing the user wrote, and neither survives the run.
+// Google Wire reads the file that Yama derived, and it names the injector that
+// Yama invented. The user wrote neither one, and neither one survives the run.
 func TestDriverReportsWireAgainstTheStubTheUserWrote(t *testing.T) {
 	requireGo(t)
 
@@ -400,8 +401,8 @@ func TestDriverReportsWireAgainstTheStubTheUserWrote(t *testing.T) {
 }
 
 // TestDriverLeavesNoLineDirectiveInTheLifecycleFile asserts that the directive
-// Yama wrote for Google Wire reaches no committed file. Google Wire copies it
-// into its own output, which Generate reads.
+// that Yama wrote for Google Wire reaches no committed file. Google Wire copies
+// it into its own output, and Generate reads that output.
 func TestDriverLeavesNoLineDirectiveInTheLifecycleFile(t *testing.T) {
 	requireGo(t)
 
@@ -417,8 +418,8 @@ func TestDriverLeavesNoLineDirectiveInTheLifecycleFile(t *testing.T) {
 	assert.NotContains(t, string(content), "//line ")
 }
 
-// TestDriverRejectsAStubItCannotEmitFrom drives a run over a package whose stub
-// declares the wrong results.
+// TestDriverRejectsAStubItCannotEmitFrom drives a run over a package with a
+// stub that declares the wrong results.
 //
 // A run that read that stub and wrote a file anyway would report success and
 // leave a package that no build accepts.
@@ -442,7 +443,7 @@ func TestDriverRejectsAStubItCannotEmitFrom(t *testing.T) {
 // wire.Value provider.
 //
 // Google Wire writes that provider as a read of a package-level variable that
-// its own output declares, and a run takes that output out of the package. The
+// its own output declares. A run takes that output out of the package. The
 // lifecycle file has to state the value itself.
 func TestDriverEmitsAValueProvider(t *testing.T) {
 	requireGo(t)
@@ -502,8 +503,8 @@ func TestDriverImportsWhatTheConstructionNames(t *testing.T) {
 }
 
 // TestDriverImportsWhatTheConstructionNamesAndCompiles builds the package that
-// the run above settled. An import that the construction names and the file
-// leaves out compiles nowhere.
+// the run above settled. The construction can name an import that the file
+// leaves out, and such a file compiles nowhere.
 func TestDriverImportsWhatTheConstructionNamesAndCompiles(t *testing.T) {
 	requireGo(t)
 

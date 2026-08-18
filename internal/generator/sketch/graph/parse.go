@@ -25,11 +25,11 @@ import (
 	"strings"
 )
 
-// errName is the identifier that Google Wire binds an error to when the package
-// block holds no name of its own for it.
+// errName is the name that Google Wire gives an error. Google Wire gives this
+// name when the package block holds no name of its own for an error.
 const errName = "err"
 
-// nilName is the identifier that an error check compares against.
+// nilName is the identifier that an error check compares a value with.
 const nilName = "nil"
 
 // blank is the identifier that binds nothing.
@@ -39,12 +39,12 @@ const blank = "_"
 const cleanupSuffix = "Cleanup"
 
 // An Injector is one function that Google Wire generated. Components hold the
-// values it builds, in the order it builds them, which is a valid topological
-// order.
+// values that it builds, in the order that it builds them. That order is a
+// valid topological order.
 //
 // Statements is the construction that the injector performs, one entry for each
-// line and printed as Google Wire wrote it. Result names the value the injector
-// returns.
+// line and printed as Google Wire wrote it. Result names the value that the
+// injector returns.
 type Injector struct {
 	Name       string
 	Components []Component
@@ -53,8 +53,8 @@ type Injector struct {
 }
 
 // Parse reads Google Wire's output and returns one Injector for each function
-// that want names. Parse returns them in the order the file declares them, and
-// it leaves out a name the file does not declare.
+// that want names. Parse returns them in the order that the file declares them.
+// It leaves out a name that the file does not declare.
 //
 // Parse fills Name, Deps, and Cleanup. It leaves Capabilities empty, because a
 // capability is a fact about a type, and Google Wire's output states only what
@@ -111,13 +111,13 @@ func Parse(src []byte, want []string) ([]Injector, error) {
 	return injectors, nil
 }
 
-// checkCleanups reports a cleanup that the injector's return aggregates and no
-// component carries.
+// checkCleanups reports a cleanup that the injector's return aggregates, and
+// that no component carries.
 //
-// Google Wire returns one function that calls every cleanup its providers
+// Google Wire returns one function that calls every cleanup that its providers
 // returned. A lifecycle file states each of those calls at its own component's
-// level, so a call that pairs with no component would reach no lifecycle, and
-// the value it tears down would never be torn down.
+// level. A call that pairs with no component would therefore reach no
+// lifecycle. Nothing would then clean up its value.
 func checkCleanups(fset *token.FileSet, fn *ast.FuncDecl, components []Component) error {
 	closure := returnedClosure(fn)
 	if closure == nil {
@@ -141,9 +141,9 @@ func checkCleanups(fset *token.FileSet, fn *ast.FuncDecl, components []Component
 	return nil
 }
 
-// returnedClosure returns the function literal that the injector returns, which
-// is the one that aggregates every cleanup. It returns nil when the injector
-// returns none.
+// returnedClosure returns the function literal that the injector returns. That
+// literal aggregates every cleanup. returnedClosure returns nil when the
+// injector returns no such literal.
 func returnedClosure(fn *ast.FuncDecl) *ast.FuncLit {
 	if fn.Body == nil || len(fn.Body.List) == 0 {
 		return nil
@@ -184,9 +184,9 @@ func calledNames(closure *ast.FuncLit) map[string]token.Pos {
 	return called
 }
 
-// packageValues maps each package-level variable to what it was assigned.
-// Google Wire writes a wire.Value provider and a wire.InterfaceValue provider
-// as a read of one of these variables.
+// packageValues maps each package-level variable to the value that the file
+// gave it. Google Wire writes a wire.Value provider and a wire.InterfaceValue
+// provider as a read of one of these variables.
 func packageValues(file *ast.File) map[string]ast.Expr {
 	values := make(map[string]ast.Expr)
 
@@ -214,18 +214,20 @@ func packageValues(file *ast.File) map[string]ast.Expr {
 }
 
 // resolveValues returns the line that states each read of a package-level
-// variable that Google Wire wrote, keyed by the statement that reads it.
+// variable that Google Wire wrote. The result is keyed by the statement that
+// reads the variable.
 //
-// The variable sits in Google Wire's output, and a run takes that file out of
-// the package. A lifecycle file that read the variable would name something
-// that no build declares, so the line states the value itself.
+// The variable is in Google Wire's output, and a run takes that file out of the
+// package. A lifecycle file that read the variable would name something that no
+// build declares. The line therefore states the value itself.
 //
-// resolveValues writes the line rather than the parsed statement. The value
-// sits elsewhere in the file, and a printed statement carries the line breaks
-// that the distance between the two implies.
+// resolveValues writes the line rather than the parsed statement. The value is
+// elsewhere in the file, and a printed statement carries the line breaks that
+// the distance between the two implies.
 //
-// resolveValues reports a read that the file declares no value for. Such a read
-// is a statement that this parser took for a value and cannot reproduce.
+// resolveValues reports a read when the file declares no value for that
+// variable. Such a read is a statement that this parser identified as a value,
+// and that it cannot reproduce.
 func resolveValues(
 	fset *token.FileSet,
 	fn *ast.FuncDecl,
@@ -277,9 +279,10 @@ func printNode(fset *token.FileSet, node ast.Node) string {
 	return buf.String()
 }
 
-// renameCleanups gives each cleanup the name of the component it tears down,
-// with a "Cleanup" suffix. Google Wire names them cleanup, cleanup2, and so on,
-// which says nothing about what each one tears down.
+// renameCleanups gives each cleanup the name of the component that it cleans
+// up, with a "Cleanup" suffix. Google Wire names them cleanup, cleanup2, and so
+// on. Those names state nothing about the component that each cleanup cleans
+// up.
 //
 // renameCleanups changes the name in the parsed source and in the component, so
 // the printed statements and the lifecycle agree.
@@ -356,8 +359,8 @@ func freeName(want string, taken map[string]bool) string {
 	}
 }
 
-// bodyOf prints the construction that the injector performs, and it names the
-// value the injector returns. It leaves the return statement out of the
+// bodyOf prints the construction that the injector performs. It names the value
+// that the injector returns. It leaves the return statement out of the
 // statements, because the lifecycle file returns something of its own.
 func bodyOf(fset *token.FileSet, fn *ast.FuncDecl, bound map[ast.Stmt]string) (statements []string, result string) {
 	if fn.Body == nil {
@@ -396,13 +399,13 @@ func firstResult(ret *ast.ReturnStmt) string {
 	return ident.Name
 }
 
-// componentsOf reads one injector body. Google Wire binds each value it builds
-// with a short variable declaration, and every other statement is an error
+// componentsOf reads one injector body. Google Wire binds each value that it
+// builds with a short variable declaration. Every other statement is an error
 // check or the return.
 //
-// componentsOf reports a statement that it can derive no ordering from. Such a
-// statement builds a value that would reach no lifecycle level, and the
-// lifecycle would run without it.
+// componentsOf reports a statement if it cannot derive an order from that
+// statement. Such a statement builds a value that would reach no lifecycle
+// level, and the lifecycle would run without that value.
 func componentsOf(fset *token.FileSet, fn *ast.FuncDecl) ([]Component, error) {
 	if fn.Body == nil {
 		return nil, nil
@@ -441,7 +444,7 @@ func componentsOf(fset *token.FileSet, fn *ast.FuncDecl) ([]Component, error) {
 }
 
 // componentOfStatement reads one statement that comes before the return. An
-// error check states no value and contributes none.
+// error check states no value, and it contributes no component.
 //
 // errs names every error that the injector binds.
 func componentOfStatement(
@@ -473,8 +476,8 @@ func componentOfStatement(
 	}
 }
 
-// rejected names the injector and the position of the statement that Parse
-// could derive no ordering from.
+// rejected names the injector and the position of one statement. Parse could
+// derive no order from that statement.
 func rejected(fset *token.FileSet, injector string, pos token.Pos, format string, args ...any) error {
 	where := fset.Position(pos)
 	msg := fmt.Sprintf(format, args...)
@@ -538,8 +541,8 @@ func assignKind(s *ast.AssignStmt) string {
 	return "variable"
 }
 
-// assignValueName names the value that an assignment places. It falls back to a
-// word of its own for a right side that is not a bare name.
+// assignValueName names the value that an assignment places. It uses a word of
+// its own for a right side that is not a bare name.
 func assignValueName(s *ast.AssignStmt) string {
 	if len(s.Rhs) == 1 {
 		if ident, ok := s.Rhs[0].(*ast.Ident); ok {
@@ -552,7 +555,8 @@ func assignValueName(s *ast.AssignStmt) string {
 
 // providerForm reports whether the right side of a declaration is a shape that
 // one of Google Wire's provider kinds writes: a call, a read of a value, a
-// struct literal that a build may take the address of, or a field of a value.
+// struct literal that a build can use with the address operator, or a field of
+// a value.
 func providerForm(rhs ast.Expr) bool {
 	switch e := rhs.(type) {
 	case *ast.CallExpr, *ast.Ident, *ast.CompositeLit, *ast.SelectorExpr:
@@ -573,9 +577,9 @@ func providerForm(rhs ast.Expr) bool {
 }
 
 // componentOf reads one short variable declaration. known names every component
-// that the injector already built, which is what tells a dependency apart from
-// any other identifier. errs names every error that the injector binds, which
-// is what tells an error apart from a cleanup.
+// that the injector already built. This set separates a dependency from any
+// other identifier. errs names every error that the injector binds. This set
+// separates an error from a cleanup.
 func componentOf(
 	fset *token.FileSet,
 	injector string,
@@ -622,9 +626,9 @@ func componentOf(
 	return c, true, nil
 }
 
-// errorNames returns every name that the injector body tests against nil. Google
-// Wire writes that test after each provider that returns an error, and it binds
-// every one of those errors to one name of its own.
+// errorNames returns every name that the injector body tests against nil.
+// Google Wire writes that test after each provider that returns an error. It
+// binds every one of those errors to one name of its own.
 //
 // Google Wire takes another name when the target package block already holds
 // "err". errorNames holds "err" as well, so output that states no test still
@@ -686,8 +690,8 @@ func identNames(lhs []ast.Expr) []string {
 	return names
 }
 
-// consumed returns every name in expr that names a component, in the order the
-// expression holds them and without a repeat.
+// consumed returns every name in expr that names a component, in the order that
+// the expression holds them and without a repeat.
 //
 // consumed reads the left side of a selector and the value of a keyed field, so
 // neither a field name nor a struct's own field key reads as a component.

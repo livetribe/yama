@@ -30,13 +30,13 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// The generator that this sketch replaces is tested against a corpus of target
-// packages under internal/generator/testdata. Each emit fixture ships the
-// lifecycle file that that generator writes for it.
+// A corpus of target packages under internal/generator/testdata tests the
+// generator that this sketch replaces. Each emit fixture ships the lifecycle
+// file that that generator writes for it.
 //
 // These tests run the sketch over each fixture and compare what it wrote. The
 // corpus states what a generation produces for shapes that no fixture of the
-// sketch's own covers, and every fixture in it came from outside the sketch.
+// sketch's own covers. Every fixture in it came from outside the sketch.
 
 // corpusRoot is the directory that holds the fixtures.
 const corpusRoot = "../testdata/emit"
@@ -46,8 +46,8 @@ const wantFile = "lifecycle_gen.go"
 
 // TestCorpusMatchesTheGeneratorItReplaces renders every fixture and compares it
 // with the file that the other generator writes. It then builds the package the
-// way an application builds it, which is the fixture's own sources and the file
-// that the run wrote.
+// way an application builds it. That build takes the fixture's own sources and
+// the file that the run wrote.
 func TestCorpusMatchesTheGeneratorItReplaces(t *testing.T) {
 	requireGo(t)
 
@@ -96,8 +96,8 @@ func TestCorpusWritesTheSameFileTwice(t *testing.T) {
 //
 // A build tag keeps the application's wire.go out of every other load, and
 // Google Wire copies each declaration of that file into its output. A run reads
-// only the injectors it asked Google Wire for. Neither the application's own
-// injector nor the declarations beside it reach the lifecycle file.
+// only the injectors that it asked Google Wire for. Neither the application's
+// own injector nor the declarations beside it reach the lifecycle file.
 func TestCorpusReadsOnlyTheInjectorsItAskedFor(t *testing.T) {
 	requireGo(t)
 
@@ -115,7 +115,7 @@ func TestCorpusReadsOnlyTheInjectorsItAskedFor(t *testing.T) {
 }
 
 // TestCorpusRunsPastTheFilesAnInterruptedRunLeft runs over a fixture that holds
-// both of the files a run derives for Google Wire. A run that ended early
+// both of the files that a run derives for Google Wire. A run that ended early
 // leaves them, and each one carries Yama's own generated marker. The run after
 // it writes over each one and takes it out.
 func TestCorpusRunsPastTheFilesAnInterruptedRunLeft(t *testing.T) {
@@ -131,10 +131,10 @@ func TestCorpusRunsPastTheFilesAnInterruptedRunLeft(t *testing.T) {
 	assertNoYamaTrace(t, dir)
 }
 
-// TestCorpusRunsPastALifecycleFileThatNoLongerCompiles runs over a fixture whose
-// committed lifecycle file names a constructor the package no longer declares. A
-// rename of a provider leaves the file in that state, and the run that replaces
-// it never reads it.
+// TestCorpusRunsPastALifecycleFileThatNoLongerCompiles runs over a fixture. Its
+// committed lifecycle file names a constructor that the package no longer
+// declares. A rename of a provider leaves the file in that state, and the run
+// that replaces the file never reads it.
 func TestCorpusRunsPastALifecycleFileThatNoLongerCompiles(t *testing.T) {
 	stale := map[string]string{
 		wantFile: "//go:build !yamainject\n\npackage chain\n\nfunc Stale() *C { return NewRenamedC() }\n",
@@ -188,17 +188,17 @@ func runChainWith(t *testing.T, extra map[string]string) string {
 const testappRoot = "../testapp"
 
 // snapshotWait bounds how long snapshotTestApp waits for the committed
-// lifecycle file to come back, and snapshotPoll separates one copy from the
-// next. A generation of the other generator's own holds that file aside for as
-// long as it runs.
+// lifecycle file to come back. snapshotPoll separates one copy from the next. A
+// generation of the other generator's own holds that file aside for as long as
+// it runs.
 const (
 	snapshotWait = 20 * time.Second
 	snapshotPoll = 50 * time.Millisecond
 )
 
 // TestCorpusMatchesTheCommittedApplication runs over the application that the
-// generator this sketch replaces keeps committed, and it compares the lifecycle
-// file with the one that application ships.
+// generator this sketch replaces keeps committed. It compares the lifecycle
+// file with the file that the application ships.
 func TestCorpusMatchesTheCommittedApplication(t *testing.T) {
 	requireGo(t)
 
@@ -216,18 +216,18 @@ func TestCorpusMatchesTheCommittedApplication(t *testing.T) {
 }
 
 // snapshotTestApp copies the committed application into a directory of this
-// test's own, and returns that directory. Every later read of the application
+// test's own. It returns that directory. Every later read of the application
 // goes to the copy.
 //
 // The generator that this sketch replaces runs in place over the same
-// directory, and `go test ./...` runs the two packages at once. That run holds
-// the committed lifecycle file at a backup name for as long as it runs, so the
-// live directory states no such file over that whole span. A copy that the run
-// caught out holds no such file either, and snapshotTestApp waits for the run
-// to put it back and copies again.
+// directory, and `go test ./...` runs the two packages at one time. That run
+// holds the committed lifecycle file at a backup name for as long as it runs,
+// so the live directory states no such file over that whole span. A copy that
+// this test makes during that span holds no such file either. snapshotTestApp
+// then waits for the run to put the file back, and it copies again.
 //
-// The other run puts the file back byte for byte, and it asserts as much
-// itself. A copy that holds the file therefore holds the committed bytes.
+// The other run puts the file back byte for byte, and it asserts this itself. A
+// copy that holds the file therefore holds the committed bytes.
 func snapshotTestApp(t *testing.T) string {
 	t.Helper()
 
@@ -249,11 +249,12 @@ func snapshotTestApp(t *testing.T) string {
 	return dir
 }
 
-// copyTestApp copies the application's Go files once, and it reports whether
+// copyTestApp copies the application's Go files one time. It reports whether
 // the copy holds the committed lifecycle file.
 //
-// A name that the listing gave and a read no longer finds belongs to the other
-// generator's run. copyTestApp leaves that name out of the copy.
+// The listing can give a name that a later read no longer finds. Such a name
+// belongs to the other generator's run, and copyTestApp leaves it out of the
+// copy.
 func copyTestApp(t *testing.T, src, dir string) bool {
 	t.Helper()
 
@@ -286,8 +287,8 @@ func copyTestApp(t *testing.T, src, dir string) bool {
 	return committed
 }
 
-// TestSketchTakesNoInternalPackageOfGoogleWire asserts the sketch reaches
-// Google Wire through the command alone. No package of the sketch depends on an
+// TestSketchTakesNoInternalPackageOfGoogleWire asserts that the sketch reaches
+// Google Wire through the command only. No package of the sketch depends on an
 // internal package of Google Wire's own.
 func TestSketchTakesNoInternalPackageOfGoogleWire(t *testing.T) {
 	requireGo(t)
@@ -328,9 +329,9 @@ func corpusFixtures(t *testing.T) []string {
 	return names
 }
 
-// runCorpusFixture copies one fixture into a directory of its own and runs a
-// whole generation over it. It returns the lifecycle file that the run wrote,
-// and the directory that it ran in.
+// runCorpusFixture copies one fixture into a directory of its own. It then runs
+// a whole generation over that copy. It returns the lifecycle file that the run
+// wrote, and the directory that the run used.
 func runCorpusFixture(t *testing.T, src string) (content []byte, dir string) {
 	t.Helper()
 
@@ -357,7 +358,8 @@ func runCorpusFixture(t *testing.T, src string) (content []byte, dir string) {
 }
 
 // copyCorpusFiles copies the Go files of one fixture. It leaves the want
-// directory behind, which states the outcome rather than taking part in it.
+// directory behind. That directory states the outcome, and it takes no part in
+// the run.
 func copyCorpusFiles(t *testing.T, src, dir string) {
 	t.Helper()
 

@@ -22,7 +22,8 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// The paths of Yama's own two packages, which every lifecycle file imports.
+// These are the paths of Yama's own two packages. Every lifecycle file imports
+// them.
 const (
 	yamaPath = "l7e.io/yama/v2"
 	rtPath   = "l7e.io/yama/v2/rt"
@@ -32,28 +33,31 @@ const (
 // constructor body can reach.
 const blankName = "_"
 
-// naming holds the names that one lifecycle file refers to Yama's own two
-// packages by, and the name each constructor forwards its options under.
+// naming holds the names that one lifecycle file uses for Yama's own two
+// packages. It also holds the name that each constructor uses to forward its
+// options.
 //
-// The lifecycle file shares a block with the package it sits in, and each
-// constructor shares a scope with the values that its body builds. A name that
-// any of those hold is a name that Yama's own imports cannot take.
+// The lifecycle file shares a block with the package that contains it. Each
+// constructor shares a scope with the values that its body builds. Yama's own
+// imports cannot take a name that the block or a scope holds.
 type naming struct {
 	yama string
 	rt   string
 
-	// opts holds one name for each stub, in the order the package declares
-	// them. It is empty for a stub that declared no options.
+	// opts holds one name for each stub, in the same order as the package
+	// declares the stubs. The entry is empty for a stub that declared no
+	// options.
 	opts []string
 }
 
 // nameFile decides what the lifecycle file calls Yama's own two packages, and
 // what each constructor calls its options parameter.
 //
-// An options parameter gives way to every other name that its constructor
-// reaches: the package block, a component, a cleanup, an import, and the
-// parameters that the stub declares beside it. Yama's own two imports give way
-// to all of those and to the options parameters as well.
+// An options parameter takes a different name if any other name that its
+// constructor reaches already holds it. Those other names are the package
+// block, a component, a cleanup, an import, and the parameters that the stub
+// declares beside the options. Yama's own two imports take a different name
+// for all of those names, and for the options parameters also.
 func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, stubs []pkg.Stub) naming {
 	taken := make(map[string]bool, len(scope))
 	for _, name := range scope {
@@ -70,8 +74,9 @@ func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, 
 		}
 	}
 
-	// The names of the file's own import block. Yama's own two are not among
-	// them: this is what decides the names they take.
+	// These are the names of the file's own import block. Yama's own two
+	// imports are not in this set. nameFile decides the names that they
+	// take.
 	for _, imp := range imports {
 		if imp.Path == yamaPath || imp.Path == rtPath {
 			continue
@@ -99,8 +104,8 @@ func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, 
 }
 
 // takeParams marks every parameter that a stub declares beside its options. A
-// constructor keeps each of those names, and each one shares a scope with the
-// constructor body.
+// constructor keeps each of those names. Each of those names shares a scope
+// with the constructor body.
 func takeParams(taken map[string]bool, stubs []pkg.Stub) {
 	for i := range stubs {
 		for _, p := range stubs[i].GraphParams() {
@@ -113,11 +118,12 @@ func takeParams(taken map[string]bool, stubs []pkg.Stub) {
 	}
 }
 
-// nameOptions returns the name that each stub's constructor forwards its
-// options under, and an empty entry for a stub that declared none.
+// nameOptions returns the name that each stub's constructor uses to forward
+// its options. It returns an empty entry for a stub that declared no options.
 //
-// One constructor's options parameter shares a scope with no other's, so each
-// one gives way to taken alone.
+// One constructor's options parameter shares a scope with no other
+// constructor's options parameter. Each name must therefore differ only from
+// the names in taken.
 func nameOptions(taken map[string]bool, stubs []pkg.Stub) []string {
 	opts := make([]string, len(stubs))
 
@@ -149,8 +155,8 @@ func freeName(want string, taken map[string]bool) string {
 	}
 }
 
-// requalify returns the type with every reference to the stub's own name for
-// Yama's public package replaced by the name that the lifecycle file uses.
+// requalify returns the type under a new package name. In that type, to
+// replaces every reference to from.
 func requalify(typ, from, to string) string {
 	if from == "" || from == to {
 		return typ

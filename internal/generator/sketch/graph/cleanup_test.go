@@ -35,7 +35,7 @@ func parseOne(body string) graph.Injector {
 	return injectors[0]
 }
 
-// Google Wire binds every error it checks to one name of its own, and it takes
+// Google Wire binds every error that it checks to one name of its own. It takes
 // another name when the target package block already holds "err". A cleanup is
 // a name that no error check names.
 var _ = Describe("Parse, over the names that one statement binds", func() {
@@ -60,7 +60,7 @@ func yama_NewApp() (*App, func(), error) {
 	})
 
 	Context("a provider that returns a cleanup", func() {
-		It("names the cleanup after the component it tears down", func() {
+		It("names the cleanup after the component that it cleans up", func() {
 			injector := parseOne(`package app
 
 func yama_NewApp() (*App, func(), error) {
@@ -80,9 +80,9 @@ func yama_NewApp() (*App, func(), error) {
 	})
 })
 
-// renameCleanups gives each cleanup the name of the component it tears down. A
-// struct literal may key a field by that same name, and a field name is not a
-// value.
+// renameCleanups gives each cleanup the name of the component that it cleans
+// up. A struct literal can key a field by that same name, and a field name is
+// not a value.
 var _ = Describe("Parse, over a struct literal that keys a field by a cleanup's name", func() {
 	It("renames the value and leaves the field key alone", func() {
 		injector := parseOne(`package app
@@ -107,8 +107,8 @@ func yama_NewApp() (*App, func(), error) {
 	})
 })
 
-// A cleanup takes the name of the component it tears down, and another
-// component may already hold that name. The cleanup then takes a number.
+// A cleanup takes the name of the component that it cleans up. Another
+// component can already hold that name. The cleanup then takes a number.
 var _ = Describe("Parse, over a component that holds a cleanup's name", func() {
 	It("gives the cleanup a name that no component holds", func() {
 		injector := parseOne(`package app

@@ -25,7 +25,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// loadStub writes one stub file and reads the package it declares.
+// loadStub writes one stub file and reads the package that it declares.
 func loadStub(t *testing.T, body string) *pkg.Info {
 	t.Helper()
 
@@ -39,8 +39,8 @@ func loadStub(t *testing.T, body string) *pkg.Info {
 	return info
 }
 
-// A stub forwards Yama's own options, and no other package's. A variadic
-// parameter of any other Option type is an ordinary graph parameter.
+// A stub forwards Yama's own options. It forwards no other package's options. A
+// variadic parameter of any other Option type is an ordinary graph parameter.
 func TestLoadReadsAVariadicOptionOfAnotherPackageAsAGraphParameter(t *testing.T) {
 	info := loadStub(t, `//go:build yamainject
 
@@ -95,7 +95,7 @@ func TestCollectPackageInfoReportsWhatReadingTheStubFilesProduced(t *testing.T) 
 }
 
 // A directory that declares no stub states no import, so no name has to
-// resolve. The path the package declares still reaches the caller.
+// resolve. The path that the package declares still reaches the caller.
 func TestCollectPackageInfoTakesADirectoryThatDeclaresNoStub(t *testing.T) {
 	info, err := pkg.CollectPackageInfo("../wire", nil)
 

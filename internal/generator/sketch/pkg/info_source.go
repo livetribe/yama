@@ -15,11 +15,11 @@
 package pkg
 
 // TakeStubFile takes what one stub file states onto the package: the package
-// clause it carries, the stubs it declares, and the entries of its import
-// block.
+// clause that it carries, the stubs that it declares, and the entries of its
+// import block.
 //
 // Every stub file of one package carries the same package clause, so the last
-// file to state one states what the package is called.
+// file to state one states the name of the package.
 func (info *Info) TakeStubFile(name string, stubs []Stub, imports []Import) {
 	info.name = name
 	info.stubs = append(info.stubs, stubs...)
@@ -35,9 +35,9 @@ func (info *Info) TakePkgPath(path string) {
 // TakeImportNames takes the name that the Go toolchain resolved for each path
 // that the stub files import.
 //
-// TakeImportNames reports one name that two paths answer to. The derived
-// injector file carries the imports of every stub file, and one name there
-// answers to one path.
+// TakeImportNames reports one name that two paths use. The derived injector
+// file carries the imports of every stub file, and one name there refers to one
+// path.
 func (info *Info) TakeImportNames(resolved map[string]string) error {
 	info.importNames = resolved
 

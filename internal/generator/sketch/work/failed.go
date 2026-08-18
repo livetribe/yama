@@ -20,7 +20,7 @@ import (
 )
 
 // A CreateFailed is the item for a target package that the run could not read.
-// It moves no file. It stays out of the set of packages that Google Wire runs
+// It moves no file. It is not in the set of packages that Google Wire runs
 // over. Complete returns the error that the read produced.
 type CreateFailed struct {
 	err error
@@ -28,34 +28,35 @@ type CreateFailed struct {
 
 var _ State = (*CreateFailed)(nil)
 
-// PackagePath reports no directory. The run read no package here, so it holds
-// no directory to name.
+// PackagePath reports no directory. The run read no package here, so this
+// state holds no directory to name.
 func (f *CreateFailed) PackagePath() (path string, runWire bool) {
 	return "", false
 }
 
 // Prepare returns this state. A CreateFailed exists before the Prepare loop
-// runs, so the loop reaches it and must leave it as it is.
+// runs. The loop reaches this state and makes no change to it.
 func (f *CreateFailed) Prepare() State {
 	return f
 }
 
-// Generate returns this state. A CreateFailed reaches the Generate loop, and
+// Generate returns this state. A CreateFailed reaches the Generate loop.
 // Google Wire wrote nothing for a package that the run never read.
 func (f *CreateFailed) Generate() State {
 	return f
 }
 
 // Complete returns the error that the read produced. It settles no file. The
-// run moved none in this package.
+// run moved no file in this package.
 func (f *CreateFailed) Complete() error {
 	return f.err
 }
 
 // A PrepareFailed is the item for a target package that could not take the
-// intermediate files, or that could not move a generated file aside. It stays
-// out of the set of packages that Google Wire runs over. Complete puts back
-// every name the run moved, and it returns the error that Prepare produced.
+// intermediate files, or that could not set a generated file aside. It is not
+// in the set of packages that Google Wire runs over. Complete puts back every
+// name that the run moved. Complete also returns the error that Prepare
+// produced.
 type PrepareFailed struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -65,7 +66,7 @@ type PrepareFailed struct {
 var _ State = (*PrepareFailed)(nil)
 
 // PackagePath reports no directory. Google Wire loads every directory of the
-// run at once, and this package holds a file that would fail that load.
+// run at one time. This package holds a file that would fail that load.
 func (f *PrepareFailed) PackagePath() (path string, runWire bool) {
 	return "", false
 }
@@ -76,21 +77,22 @@ func (f *PrepareFailed) Prepare() State {
 	panic("should never reach here")
 }
 
-// Generate returns this state. The Generate loop reaches every item, and this
+// Generate returns this state. The Generate loop reaches every item. This
 // package took no part in the Google Wire run.
 func (f *PrepareFailed) Generate() State {
 	return f
 }
 
-// Complete settles the package's files and returns the error that Prepare
+// Complete settles the package's files. It returns the error that Prepare
 // produced.
 func (f *PrepareFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }
 
-// A GenerateFailed is the item for a target package whose load, analysis,
-// render, or write failed after Google Wire ran. Complete puts back every name
-// the run moved, and it returns the error that Generate produced.
+// A GenerateFailed is the item for a target package that failed after Google
+// Wire ran. The load, the analysis, the render, or the write of that package
+// failed. Complete puts back every name that the run moved. Complete also
+// returns the error that Generate produced.
 type GenerateFailed struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -116,8 +118,8 @@ func (f *GenerateFailed) Generate() State {
 	panic("should never reach here")
 }
 
-// Complete settles the package's files and returns the error that Generate
-// produced. That error names the package it came from.
+// Complete settles the package's files. It returns the error that Generate
+// produced. That error names the package that it came from.
 func (f *GenerateFailed) Complete() error {
 	return settle(f.custodian, f.intermediates, f.err)
 }

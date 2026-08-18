@@ -25,15 +25,15 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// The type that every capability method takes.
+// This is the type that every capability method takes.
 const (
 	contextPath = "context"
 	contextName = "Context"
 )
 
-// capabilityMethods pairs each capability's method with the bit it sets and
-// with whether the method returns an error. That result is the only way the
-// three signatures differ.
+// capabilityMethods pairs each capability's method with the bit that it sets,
+// and with whether the method returns an error. That result is the only
+// difference between the three signatures.
 var capabilityMethods = []struct {
 	name         string
 	bit          Capability
@@ -44,21 +44,22 @@ var capabilityMethods = []struct {
 	{"Stop", Stop, false},
 }
 
-// errorResult is the universe's error interface. A Start method declares it,
-// and a Quiesce or Stop method must not.
+// errorResult is the universe's error interface. A Start method declares it. A
+// Quiesce method or a Stop method must not declare it.
 var errorResult = types.Universe.Lookup("error").Type()
 
-// Detect loads the package in dir and fills in the capabilities that each
-// component's type declares. It reports a component whose type it cannot
-// resolve, rather than leave the component with no capability: a component with
-// none occupies no lifecycle level, and the lifecycle would run without it. It returns injectors of its own, and it leaves
-// what it was given as it was.
+// Detect loads the package in dir. It fills in the capabilities that each
+// component's type declares. It reports a component with a type that it cannot
+// resolve. It does not leave such a component with no capability. A component
+// with no capability occupies no lifecycle level, and the lifecycle would then
+// run without that component. Detect returns injectors of its own, and it makes
+// no change to the injectors that it received.
 //
 // A capability is a fact about a type, so Detect is the one function here that
 // needs the package to type-check.
 //
-// tags are the build tags that the run set. Google Wire received the same tags,
-// and a provider that only one of the two loads can see builds no graph.
+// tags are the build tags that the run set. Google Wire received the same tags.
+// A provider that only one of the two loads can see builds no graph.
 func Detect(dir string, tags []string, injectors []Injector) ([]Injector, []string, error) {
 	caps, scope, err := capabilitiesIn(dir, tags)
 	if err != nil {
@@ -89,8 +90,9 @@ func Detect(dir string, tags []string, injectors []Injector) ([]Injector, []stri
 	return filled, scope, nil
 }
 
-// capabilitiesIn type-checks the package in dir and reports what every value
-// that a function binds declares, keyed by the function and then by the name.
+// capabilitiesIn type-checks the package in dir. It reports what every value
+// that a function binds declares. The result is keyed by the function, and then
+// by the name.
 func capabilitiesIn(dir string, tags []string) (caps map[string]map[string]Capability, scope []string, err error) {
 	mode := packages.NeedName | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo
 
@@ -127,8 +129,9 @@ func capabilitiesIn(dir string, tags []string) (caps map[string]map[string]Capab
 }
 
 // scopeNames returns every name that the package block declares. The lifecycle
-// file shares that block, and Go forbids one name in both the file block and
-// the package block, so an import of the lifecycle file takes none of them.
+// file shares that block. Go forbids one name in both the file block and the
+// package block. An import of the lifecycle file therefore takes none of these
+// names.
 func scopeNames(loaded *packages.Package) []string {
 	if loaded.Types == nil {
 		return nil
@@ -168,9 +171,9 @@ func boundCapabilities(fn *ast.FuncDecl, info *types.Info) map[string]Capability
 }
 
 // capabilitiesOf reports which capability methods a type declares. It reads the
-// type's method set, which is the one Go itself uses to decide an assignment: a
-// pointer receiver's method belongs to the pointer type alone, an embedded
-// type's methods are promoted, and an interface carries what it declares.
+// type's method set. Go itself uses that same method set to decide an
+// assignment. A pointer receiver's method belongs to the pointer type only. Go
+// promotes an embedded type's methods. An interface carries what it declares.
 func capabilitiesOf(typ types.Type) Capability {
 	methods := types.NewMethodSet(typ)
 
@@ -187,8 +190,8 @@ func capabilitiesOf(typ types.Type) Capability {
 
 // declares reports whether the method set carries name with the signature that
 // the capability requires: one context.Context parameter, and one error result
-// when returnsError, none otherwise. A method that only shares the name is not
-// a capability.
+// when returnsError is true. The method declares no result when returnsError is
+// false. A method that only shares the name is not a capability.
 func declares(methods *types.MethodSet, name string, returnsError bool) bool {
 	sel := methods.Lookup(nil, name)
 	if sel == nil {

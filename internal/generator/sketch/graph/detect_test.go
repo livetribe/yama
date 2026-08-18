@@ -101,8 +101,8 @@ func Init() *App {
 }
 `
 
-// unresolved is an injector that names a value the package never declares, so
-// the load resolves the type of no component in it.
+// unresolved is an injector that names a value that the package never declares.
+// The load therefore resolves the type of no component in it.
 const unresolved = `package app
 
 func Ghost() *App {
@@ -144,10 +144,11 @@ var _ = Describe("Detect", func() {
 		return out
 	}
 
-	// A component whose type the load cannot resolve declares no capability
-	// that Detect can read. Such a component occupies no lifecycle level, and a
-	// run that took it for a plain value would leave it out of the lifecycle.
-	It("reports a component whose type it cannot resolve", func() {
+	// A component with a type that the load cannot resolve declares no
+	// capability that Detect can read. Such a component occupies no lifecycle
+	// level. A run that identified it as a plain value would leave it out of
+	// the lifecycle.
+	It("reports a component with a type that it cannot resolve", func() {
 		injectors, err := graph.Parse([]byte(unresolved), []string{"Ghost"})
 		Expect(err).NotTo(HaveOccurred())
 

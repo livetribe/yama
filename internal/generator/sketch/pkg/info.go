@@ -14,7 +14,7 @@
 
 package pkg
 
-// The two packages that a lifecycle stub names.
+// These are the two packages that a lifecycle stub names.
 const (
 	// PackagePath is Yama's own package. A stub names its Option and its
 	// Lifecycle through this import.
@@ -25,14 +25,14 @@ const (
 	WirePackagePath = "github.com/google/wire"
 )
 
-// An Info is everything a run knows about one target package. It states what
-// the package's stub files declare, and what the Go toolchain states about the
-// package itself.
+// An Info is everything that a run knows about one target package. It states
+// what the package's stub files declare, and what the Go toolchain states about
+// the package itself.
 //
-// A run collects one of these for each target package, and every later step
-// takes from it the facts that step needs. An Info holds its own fields, so
-// every write to one goes through a method of its own and no caller can store a
-// name without the check that name needs.
+// A run collects one Info for each target package. Every later step takes from
+// that Info the facts that the step needs. An Info holds its own fields, so
+// every write to a field goes through a method of its own. No caller can
+// therefore store a name without the check that the name needs.
 type Info struct {
 	// dir is the directory that holds the package.
 	dir string
@@ -61,7 +61,7 @@ type Info struct {
 }
 
 // NewInfo returns the facts of the package that dir holds, with nothing read
-// yet. A reader fills it one stub file at a time.
+// yet. A reader fills the Info one stub file at a time.
 func NewInfo(dir string) *Info {
 	return &Info{dir: dir, importNames: make(map[string]string)}
 }
@@ -82,8 +82,8 @@ func (info *Info) PkgPath() string {
 	return info.pkgPath
 }
 
-// Stubs returns the lifecycle stubs that the package declares, in the order a
-// reader took them.
+// Stubs returns the lifecycle stubs that the package declares, in the order
+// that a reader took them.
 func (info *Info) Stubs() []Stub {
 	return info.stubs
 }
@@ -93,14 +93,14 @@ func (info *Info) Imports() []Import {
 	return info.imports
 }
 
-// NameOf returns the name that the package's files refer to one import by.
+// NameOf returns the name that the package's files use for one import.
 func (info *Info) NameOf(imp Import) string {
 	return imp.NameIn(info.importNames)
 }
 
-// AllImports returns the stub files' own import block followed by the one that
-// Google Wire stated in its output. It holds only the stub files' own until a
-// run reads that output.
+// AllImports returns the stub files' own import block, followed by the block
+// that Google Wire stated in its output. It holds only the stub files' own
+// block until a run reads that output.
 //
 // The two blocks together are what one lifecycle file carries.
 func (info *Info) AllImports() []Import {
@@ -110,8 +110,8 @@ func (info *Info) AllImports() []Import {
 	return append(all, info.outputImports...)
 }
 
-// ImportedAs returns the name that the package's stub files refer to path by.
-// It is empty for a path that no stub file imports.
+// ImportedAs returns the name that the package's stub files use for path. It is
+// empty for a path that no stub file imports.
 func (info *Info) ImportedAs(path string) string {
 	for _, imp := range info.imports {
 		if imp.Path == path {

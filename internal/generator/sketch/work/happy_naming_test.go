@@ -22,7 +22,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// optionsStub is a stub that forwards options under the name it states.
+// optionsStub is a stub that forwards options under the name that it states.
 func optionsStub(params ...pkg.Field) pkg.Stub {
 	return pkg.Stub{
 		Name:    "NewAppLifecycle",
@@ -33,9 +33,9 @@ func optionsStub(params ...pkg.Field) pkg.Stub {
 	}
 }
 
-// The lifecycle file shares a block with the package it sits in, and each
+// The lifecycle file shares a block with the package that contains it. Each
 // constructor shares a scope with the parameters that the stub declares. Yama's
-// own two imports take a name that none of those hold.
+// own two imports take a name that neither the block nor a scope holds.
 var _ = Describe("nameFile", func() {
 	Context("a stub that declares a parameter of Yama's own names", func() {
 		It("gives the runtime import another name", func() {
@@ -64,9 +64,9 @@ var _ = Describe("nameFile", func() {
 		})
 	})
 
-	// Google Wire names each value it builds after the type that built it, and
-	// the constructor body states those names beside its own parameters.
-	Context("an options parameter that a Google Wire component answers to", func() {
+	// Google Wire names each value that it builds after the type that built it.
+	// The constructor body states those names beside its own parameters.
+	Context("an options parameter that a Google Wire component also names", func() {
 		It("forwards the options under another name", func() {
 			injectors := []graph.Injector{{
 				Name:       "yama_NewAppLifecycle",
@@ -80,7 +80,8 @@ var _ = Describe("nameFile", func() {
 		})
 	})
 
-	// One constructor's options parameter shares a scope with no other's.
+	// One constructor's options parameter shares a scope with no other
+	// constructor's options parameter.
 	Context("two stubs that each forward options", func() {
 		It("gives both the name that each one states", func() {
 			stub := optionsStub()

@@ -40,7 +40,7 @@ type Happy struct {
 	header []byte
 	tags   []string
 
-	// progress is the stream that Generate reports the file it wrote on.
+	// progress receives Generate's report of the file that it wrote.
 	progress io.Writer
 }
 
@@ -68,21 +68,21 @@ func NewHappy(
 	}
 }
 
-// PackagePath reports this package's directory. It is the one state that
+// PackagePath reports this package's directory. A Happy is the one state that
 // Google Wire runs over.
 func (h *Happy) PackagePath() (path string, runWire bool) {
 	return h.path, true
 }
 
-// Prepare writes the intermediate files that Google Wire's load reads, and it
-// puts both generated files out of Google Wire's way.
+// Prepare writes the intermediate files that Google Wire's load reads. It also
+// sets both generated files aside.
 //
 // The intermediate files go in first. A package that fails to take them keeps
-// the lifecycle file that it committed, and every package that imports it still
-// declares what that file declares.
+// the lifecycle file that it committed. Every package that imports that package
+// still declares what that file declares.
 //
-// A package that fails a later step settles through Complete, which puts back
-// every name this run moved.
+// A package that fails a later step settles through Complete. Complete puts
+// back every name that this run moved.
 func (h *Happy) Prepare() State {
 	if err := h.intermediates.Prepare(); err != nil {
 		return h.prepareFailed(err)
@@ -146,16 +146,18 @@ func (h *Happy) Generate() State {
 	return h
 }
 
-// Complete settles the package's files and removes the intermediate files.
+// Complete settles the package's files. It also removes the intermediate
+// files.
 func (h *Happy) Complete() error {
 	return settle(h.custodian, h.intermediates, nil)
 }
 
 // report states the lifecycle file that Generate wrote. It names the package by
-// the import path that package declares, and the file by its absolute path.
+// the import path that the package declares. It names the file by the file's
+// absolute path.
 //
-// The line takes the shape Google Wire takes for its own output, on the stream
-// Google Wire writes its own to.
+// The line has the same shape that Google Wire uses for its own output. Google
+// Wire writes its own output on the same stream.
 func (h *Happy) report(file string) {
 	fmt.Fprintf(h.progress, "yama: %s: wrote %s\n", h.info.PkgPath(), file)
 }
@@ -166,8 +168,8 @@ func (h *Happy) prepareFailed(err error) State {
 }
 
 // lifecycleFile assembles what emit renders. It pairs each stub with the
-// injector that Yama derived from it, and it turns that injector's components
-// into lifecycle levels.
+// injector that Yama derived from that stub. It then turns that injector's
+// components into lifecycle levels.
 func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.Package {
 	byName := make(map[string]graph.Injector, len(injectors))
 	for _, inj := range injectors {
@@ -204,9 +206,9 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 }
 
 // clearTransients takes Google Wire's output and the intermediate files out of
-// the directory. Generate removes them only after it wrote the lifecycle file,
-// so a package that failed to render keeps Wire's output for the rest of the
-// loop.
+// the directory. Generate removes them only after it wrote the lifecycle file.
+// A package that failed to render therefore keeps Google Wire's output for the
+// rest of the loop.
 func (h *Happy) clearTransients(output string) error {
 	if err := os.Remove(output); err != nil {
 		return fmt.Errorf("remove %s: %w", filepath.Base(output), err)
@@ -216,7 +218,8 @@ func (h *Happy) clearTransients(output string) error {
 }
 
 // failed returns the state that a failed Generate settles as. It names the
-// package on the error, so a run over many packages states which one failed.
+// package on the error. A run over many packages therefore states which
+// package failed.
 func (h *Happy) failed(err error) State {
 	named := fmt.Errorf("%s: %w", h.path, err)
 
@@ -244,9 +247,9 @@ func members(levels [][]graph.Member) [][]emit.Member {
 // stub's own signature, under the names that the lifecycle file gives Yama's
 // own two packages.
 //
-// rtFrom is the name that the stub's file refers to Yama's runtime package by.
-// The lifecycle file drops that import and states one of its own, so every type
-// that names the runtime package takes the new name.
+// rtFrom is the name that the stub's file uses for Yama's runtime package. The
+// lifecycle file drops that import and states an import of its own. Every type
+// that names the runtime package therefore takes the new name.
 func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string {
 	params := make([]string, 0, len(stub.Params))
 	last := len(stub.Params) - 1
@@ -254,9 +257,10 @@ func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string
 	for i, p := range stub.Params {
 		name := p.Name
 
-		// The constructor forwards its options, so the parameter that carries
-		// them takes the name it is forwarded under. A stub may bind that
-		// parameter to the blank identifier, which names nothing.
+		// The constructor forwards its options. The parameter that carries
+		// them takes the same name that the constructor uses to forward
+		// them. A stub can bind that parameter to the blank identifier,
+		// which names nothing.
 		if stub.HasOpts && i == last {
 			name = opts
 		}

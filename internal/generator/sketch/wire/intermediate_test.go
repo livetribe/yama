@@ -26,7 +26,8 @@ import (
 )
 
 // A run takes no custody of the two intermediate names. It never puts back a
-// file that it wrote over, so it writes over none that it did not write itself.
+// file that it wrote over, so it writes over no file that it did not write
+// itself.
 var _ = Describe("IntermediateYamaFiles", func() {
 	var (
 		dir   string

@@ -65,8 +65,9 @@ func TestOptionsNameIsTheNameTheStubBound(t *testing.T) {
 	assert.Equal(t, "settings", stub.OptionsName())
 }
 
-// A stub may leave the options parameter unnamed, or bind it to the blank
-// identifier. The constructor forwards under a name of its own for both.
+// A stub can leave the options parameter unnamed. A stub can also bind that
+// parameter to the blank identifier. For both, the constructor forwards the
+// options under a name of its own.
 func TestOptionsNameIsADefaultForAParameterThatBindsNothing(t *testing.T) {
 	for _, name := range []string{"NewUnnamedOptions", "NewBlankOptions"} {
 		t.Run(name, func(t *testing.T) {
@@ -125,7 +126,7 @@ func TestLoadReadsTheDocCommentWithoutItsMarkers(t *testing.T) {
 }
 
 // The position that a stub carries reaches the derived file, so the Go
-// toolchain reports the stub rather than the file Yama wrote.
+// toolchain reports the stub rather than the file that Yama wrote.
 func TestLoadReadsThePositionThatDeclaresTheStub(t *testing.T) {
 	stub := shapeStub(t, "NewAliased")
 

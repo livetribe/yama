@@ -21,12 +21,14 @@ import (
 	"path/filepath"
 )
 
-// BackupPrefix starts the name that a Custodian moves a file to. The Go
-// toolchain does not read a file whose name starts with a dot, so a backup sits
-// beside a file of the live name without a collision.
+// BackupPrefix starts the name of the backup that a Custodian makes. The Go
+// toolchain does not read a file with a name that starts with a dot. A backup
+// and a file of the live name can therefore share a directory without a
+// collision.
 const BackupPrefix = ".yama."
 
-// The two names a run settles. The run's output-file prefix starts both.
+// These are the two names that a run settles. The run's output-file prefix
+// starts both names.
 const (
 	lifecycleFile = "lifecycle_gen.go"
 	wireFile      = "wire_gen.go"
@@ -45,8 +47,8 @@ func NewCustodian(path, prefix string) *Custodian {
 	return &Custodian{path, prefix, false}
 }
 
-// SetAside puts both generated files out of a run's way. It runs before Google
-// Wire. For each name:
+// SetAside removes both generated files from their live names. It runs before
+// Google Wire. For each name:
 //
 //	file   backup   action                          rows
 //	no     no       nothing                         1, 5
@@ -55,11 +57,11 @@ func NewCustodian(path, prefix string) *Custodian {
 //	yes    yes      keep the backup, delete file    4, 8
 //
 // A backup that is already present belongs to a run that did not finish. That
-// backup holds the file the user owns, and the live name holds what the dead
-// run produced. SetAside keeps the backup.
+// backup holds the file that the user owns. The live name holds what the run
+// that did not finish produced. SetAside keeps the backup.
 //
-// SetAside tries both names, and it joins what they returned. A failure of
-// either one records that this run did not take custody of the directory.
+// SetAside tries both names. It joins the errors that they returned. A failure
+// of either name records that this run did not take custody of the directory.
 // Complete reads that record.
 func (c *Custodian) SetAside() error {
 	var errs []error
@@ -77,9 +79,10 @@ func (c *Custodian) SetAside() error {
 	return joined
 }
 
-// Complete settles both generated files. It runs after every package generated.
+// Complete settles both generated files. It runs after every package finished
+// its Generate phase.
 //
-// The lifecycle file is Yama's, so a file at the live name wins:
+// The lifecycle file is Yama's own, so a file at the live name has priority:
 //
 //	file   backup   action                 rows
 //	no     no       nothing                9
@@ -87,7 +90,7 @@ func (c *Custodian) SetAside() error {
 //	yes    no       nothing                11
 //	yes    yes      delete the backup      12
 //
-// Google Wire's output name is the application's, so the backup wins:
+// Google Wire's output name is the application's, so the backup has priority:
 //
 //	file   backup   action                              rows
 //	no     no       nothing                             13
@@ -96,14 +99,14 @@ func (c *Custodian) SetAside() error {
 //	                failed
 //	yes    yes      replace the file with the backup    16
 //
-// Row 15 is the one row that the directory cannot answer on its own. A live
-// Wire output with no backup is what Google Wire wrote when SetAside succeeded.
-// It is the file the application owns when SetAside failed, and Complete leaves
-// that file alone.
+// Row 15 is the one row that the directory alone cannot decide. A live Google
+// Wire output with no backup is what Google Wire wrote, if SetAside succeeded.
+// The same file is the file that the application owns, if SetAside failed.
+// Complete then makes no change to that file.
 //
-// Complete tries both names, and it joins what they returned. A failed restore
-// leaves a file the user owns at the backup name, and the error that Complete
-// returns states that name.
+// Complete tries both names. It joins the errors that they returned. A failed
+// restore keeps a file that the user owns at the backup name. The error that
+// Complete returns states that name.
 func (c *Custodian) Complete() error {
 	emitted := c.completeEmitted(c.prefix + lifecycleFile)
 	borrowed := c.completeBorrowed(c.prefix + wireFile)
@@ -184,7 +187,7 @@ func (c *Custodian) completeBorrowed(name string) error {
 }
 
 // wrapRestore names the file, the directory, and the backup that still holds
-// the file the user owns.
+// the file that the user owns.
 func (c *Custodian) wrapRestore(name string, err error) error {
 	if err == nil {
 		return nil

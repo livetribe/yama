@@ -15,8 +15,8 @@
 package work
 
 // A NoStubs is the item for a target package that declares no lifecycle stub.
-// Google Wire does not run over it, and it writes no lifecycle file. Every
-// phase leaves the directory as it found it.
+// Google Wire does not run over this package. Yama writes no lifecycle file
+// for it. Every phase makes no change to the directory.
 type NoStubs struct{}
 
 var _ State = (*NoStubs)(nil)
@@ -28,7 +28,7 @@ func (ns *NoStubs) PackagePath() (path string, runWire bool) {
 }
 
 // Prepare moves no file. Google Wire writes only in a directory that the run
-// names for it, and the run does not name this one.
+// names for it. The run does not name this directory.
 func (ns *NoStubs) Prepare() State {
 	return ns
 }
@@ -39,7 +39,7 @@ func (ns *NoStubs) Generate() State {
 	return ns
 }
 
-// Complete settles no file. This run moved none.
+// Complete settles no file. This run moved no file here.
 func (ns *NoStubs) Complete() error {
 	return nil
 }

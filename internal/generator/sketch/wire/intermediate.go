@@ -22,23 +22,24 @@ import (
 
 // An IntermediateYamaFiles is the pair of files that a run puts in a target
 // package for Google Wire's load: the derived injector file and the
-// placeholder file. The two go in together, and they come out together.
+// placeholder file. The two files go in together. They also come out together.
 type IntermediateYamaFiles struct {
 	info *pkg.Info
 
 	// written names each file that Prepare put in the directory. CleanUp takes
-	// out these names and no other.
+	// out these names and no other name.
 	written []string
 }
 
 // NewIntermediateYamaFiles returns the pair for one target package. info states
-// the directory that holds the pair, and the stubs that each file declares.
+// the directory that holds the pair. info also states the stubs that each file
+// declares.
 func NewIntermediateYamaFiles(info *pkg.Info) *IntermediateYamaFiles {
 	return &IntermediateYamaFiles{info: info}
 }
 
-// Prepare puts both files in the package's directory. It writes over neither
-// name that the directory already holds, and it reports the first name that it
+// Prepare puts both files in the package's directory. It does not write over a
+// name that the directory already holds. It reports the first such name that it
 // found in place.
 func (iyf *IntermediateYamaFiles) Prepare() error {
 	derived := Derive(iyf.info)
@@ -53,7 +54,7 @@ func (iyf *IntermediateYamaFiles) Prepare() error {
 }
 
 // CleanUp takes out each file that Prepare put in the package's directory, and
-// no other. A file that is already gone is not an error.
+// no other file. A file that is already gone is not an error.
 func (iyf *IntermediateYamaFiles) CleanUp() error {
 	errs := make([]error, 0, len(iyf.written))
 

@@ -25,13 +25,13 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/graph"
 )
 
-// The corpus holds one sandbox: a package whose graph carries every shape that
-// matters at once, with a lifecycle file that a person wrote by hand. That file
-// is the exemplar, and the levels and the calls in it are what a generation has
-// to produce.
+// The corpus holds one sandbox. The graph of that package carries every shape
+// that matters at one time, with a lifecycle file that a person wrote by hand.
+// That file is the exemplar. The levels and the calls in it are what a
+// generation has to produce.
 //
 // These tests read the sandbox. They run no tool and write no file, so the
-// sandbox's own Google Wire output stays as it was massaged.
+// sandbox's own Google Wire output stays as a person massaged it.
 
 // sandboxDir holds the sandbox.
 const sandboxDir = "../../testdata/sandbox"
@@ -40,7 +40,7 @@ const sandboxDir = "../../testdata/sandbox"
 // one graph, so both state the same levels.
 var sandboxInjectors = []string{"InitializeApp", "InitializeAppWithWriter"}
 
-// allCaps is every capability a component can declare.
+// allCaps is every capability that a component can declare.
 const allCaps = graph.Start | graph.Quiesce | graph.Stop
 
 // analyzeSandbox parses the sandbox's Google Wire output and reads what each
@@ -61,14 +61,15 @@ func analyzeSandbox(t *testing.T) []graph.Injector {
 	return filled
 }
 
-// TestSandboxLevels asserts the levels that the exemplar pins: base2 occupies a
-// level for its cleanup alone, root2 comes after the base layer through mid1,
-// which occupies none, and mid2 comes after its own two dependencies.
+// TestSandboxLevels asserts the levels that the exemplar pins. base2 occupies a
+// level for its cleanup only. root2 comes after the base layer through mid1,
+// and mid1 occupies no level. mid2 comes after its own two dependencies.
 //
-// The members of one level have no ordering between them, so this asserts what
-// each level holds and not the order it holds them in. Levels states each level
-// in the order that Google Wire built its members, and the exemplar states one
-// level in another order. Both orders run the same lifecycle.
+// The members of one level have no order between them. This test therefore
+// asserts what each level holds, and not the order of those members. Levels
+// states each level in the order that Google Wire built its members, and the
+// exemplar states one level in another order. Both orders run the same
+// lifecycle.
 func TestSandboxLevels(t *testing.T) {
 	want := [][]string{
 		{"base1", "base2", "base3"},

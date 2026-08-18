@@ -25,7 +25,7 @@ import (
 )
 
 // appStub is the one stub that every package here declares. A spec that needs
-// another shape takes this one and states the field it changes.
+// another shape takes this one and states the field that it changes.
 func appStub() pkg.Stub {
 	return pkg.Stub{
 		Name: "NewAppLifecycle",
@@ -51,7 +51,8 @@ func appImports() []pkg.Import {
 	}
 }
 
-// infoOf is one target package that declares the stubs and imports it states.
+// infoOf is one target package that declares the stubs and the imports that it
+// states.
 func infoOf(stubs []pkg.Stub, imports []pkg.Import) *pkg.Info {
 	target := pkg.NewInfo("")
 	target.TakeStubFile("app", stubs, imports)
@@ -64,7 +65,7 @@ func info() *pkg.Info {
 	return infoOf([]pkg.Stub{appStub()}, appImports())
 }
 
-// stubbed is one target package whose one stub took the change that with made.
+// stubbed is one target package. Its one stub took the change that with made.
 func stubbed(with func(*pkg.Stub)) *pkg.Info {
 	stub := appStub()
 	with(&stub)
@@ -72,8 +73,8 @@ func stubbed(with func(*pkg.Stub)) *pkg.Info {
 	return infoOf([]pkg.Stub{stub}, appImports())
 }
 
-// positioned is the same package, and its stub states the file and the position
-// that a person wrote it at.
+// positioned is the same package. Its stub states the file and the position
+// where a person wrote the stub.
 func positioned() *pkg.Info {
 	return stubbed(func(s *pkg.Stub) {
 		s.File = "lifecycle.go"
@@ -194,8 +195,8 @@ func yama_NewAppLifecycle(ctx context.Context) (*applib.Lifecycle, func(), error
 
 		Context("an import that the path does not name", func() {
 			// gopkg.in/yaml.v3 declares the package yaml. A file that refers to
-			// yaml.Node must import the path under that name, and no rule over
-			// the path alone produces it.
+			// yaml.Node must import the path under that name. No rule over
+			// the path alone produces that name.
 			It("writes the name that the package declares", func() {
 				stub := appStub()
 				stub.Results = []pkg.Field{{Type: "*yaml.Node"}, {Type: "error"}}
@@ -216,14 +217,14 @@ func yama_NewAppLifecycle(ctx context.Context) (*applib.Lifecycle, func(), error
 			})
 		})
 
-		// Google Wire loads the derived file through go/packages, which applies
-		// a line directive. Google Wire then reports the file that a person
-		// wrote, at the position that person wrote the stub at.
-		It("puts each declaration at the position of the stub it comes from", func() {
+		// Google Wire loads the derived file through go/packages. go/packages
+		// applies a line directive. Google Wire then reports the file that a
+		// person wrote, at the position where that person wrote the stub.
+		It("puts each declaration at the position of the stub that it comes from", func() {
 			Expect(string(wire.Derive(positioned()))).To(ContainSubstring("\n//line lifecycle.go:27:1\n"))
 		})
 
-		// A stub may import Google Wire under an alias, and buildCall takes the
+		// A stub can import Google Wire under an alias. buildCall takes the
 		// call whatever that alias is. The derived injector states the same
 		// alias, and the import block binds it.
 		Context("a stub that names Google Wire by an alias", func() {
@@ -343,8 +344,8 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*applib.Lifecycl
 		})
 
 		// The go command separates two tags with a comma or with a space. Every
-		// load that Yama makes takes them one at a time, and a load that read
-		// them another way would see another set of files.
+		// load that Yama makes takes them one at a time. A load that read them
+		// another way would see another set of files.
 		Describe("TagList", func() {
 			It("returns nothing when a run set no tag", func() {
 				Expect(wire.Args{}.TagList()).To(BeEmpty())

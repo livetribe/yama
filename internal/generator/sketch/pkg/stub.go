@@ -20,7 +20,7 @@ const blankName = "_"
 
 // A Stub is one lifecycle constructor that a person declared. Doc carries no
 // comment markers. Providers holds one entry for each argument of the
-// wire.Build call, printed as it was written.
+// wire.Build call, printed as the person wrote it.
 type Stub struct {
 	Name      string
 	Doc       string
@@ -29,18 +29,19 @@ type Stub struct {
 	Providers []string
 	HasOpts   bool
 
-	// Yama is the name that the stub's own file refers to Yama's public package
-	// by. The stub's signature names its Option and its Lifecycle through it.
+	// Yama is the name that the stub's own file uses for Yama's public
+	// package. The stub's signature names its Option and its Lifecycle
+	// through this name.
 	Yama string
 
-	// Wire is the name that the stub's own file refers to Google Wire by. The
-	// stub's body states its provider list through a Build call on it.
+	// Wire is the name that the stub's own file uses for Google Wire. The
+	// stub's body states its provider list through a Build call on this name.
 	Wire string
 
-	// File names the file that declares the stub, and Line and Column are the
+	// File names the file that declares the stub. Line and Column are the
 	// position of the declaration in that file. A file that Yama derives from
 	// the stub carries this position, so the Go toolchain reports the stub
-	// rather than the file Yama wrote.
+	// rather than the file that Yama wrote.
 	File   string
 	Line   int
 	Column int
@@ -53,8 +54,8 @@ type Field struct {
 	Type string
 }
 
-// YamaName returns the name that the stub's own file refers to Yama's public
-// package by. A stub that states none takes the name that the path itself
+// YamaName returns the name that the stub's own file uses for Yama's public
+// package. A stub that states no name takes the name that the path itself
 // states.
 func (s *Stub) YamaName() string {
 	return PackageName(s.Yama, PackagePath)

@@ -31,8 +31,8 @@ func TestCollectPackageInfoReadsTheClauseAndThePathOfTheShapesPackage(t *testing
 	assert.Equal(t, shapesDir, info.Dir())
 }
 
-// A package states its imports one file at a time, and the package holds what
-// every file states.
+// A package states its imports one file at a time. The package holds what every
+// file states.
 func TestLoadReadsTheImportBlockOfEveryStubFile(t *testing.T) {
 	info := loadShapes(t)
 
@@ -57,8 +57,8 @@ func TestImportPathsReturnsThePathOfEachImport(t *testing.T) {
 	}, info.ImportPaths())
 }
 
-// An import that states no alias takes the name that its own package declares,
-// which only the Go toolchain states.
+// An import that states no alias takes the name that its own package declares.
+// Only the Go toolchain states that name.
 func TestImportedAsTakesTheNameTheToolchainResolved(t *testing.T) {
 	info := collectShapes(t)
 
@@ -78,7 +78,7 @@ func TestImportedAsIsEmptyForAPathNoStubFileImports(t *testing.T) {
 }
 
 // Google Wire states an import block of its own. The package holds only the
-// stub files' own until a run reads that block.
+// stub files' own block until a run reads that block.
 func TestAllImportsHoldsOnlyTheStubFilesOwnBlockAtFirst(t *testing.T) {
 	info := loadShapes(t)
 
@@ -86,8 +86,8 @@ func TestAllImportsHoldsOnlyTheStubFilesOwnBlockAtFirst(t *testing.T) {
 }
 
 // The lifecycle file calls nothing from Google Wire. A stub imports it for its
-// Build call alone, and each stub file of the shapes package imports it under a
-// name of its own.
+// Build call only. Each stub file of the shapes package imports it under a name
+// of its own.
 func TestLifecycleImportsLeavesGoogleWireOutUnderEveryName(t *testing.T) {
 	info := collectShapes(t)
 
@@ -96,8 +96,9 @@ func TestLifecycleImportsLeavesGoogleWireOutUnderEveryName(t *testing.T) {
 	}
 }
 
-// A signature may name a package by the alias one stub file gave it, and
-// another by the name a second file gave. Both names reach the lifecycle file.
+// A signature can name a package by the alias that one stub file gave it. A
+// second signature can name the same package by the name that a second file
+// gave. Both names reach the lifecycle file.
 func TestLifecycleImportsKeepsOnePathUnderTwoNames(t *testing.T) {
 	info := collectShapes(t)
 
@@ -106,9 +107,9 @@ func TestLifecycleImportsKeepsOnePathUnderTwoNames(t *testing.T) {
 }
 
 // The tests below drive Info from values rather than from source. The state
-// each one states is a state that no stub package reaches: a package that no
-// reader has read yet, and a set of names that only two modules declaring one
-// package name would produce.
+// that each one states is a state that no stub package reaches: a package that
+// no reader read yet, and a set of names that only two modules with one package
+// name would produce.
 
 func TestNewInfoHoldsTheDirectoryItWasGiven(t *testing.T) {
 	info := pkg.NewInfo("/some/dir")
@@ -138,8 +139,8 @@ func TestTakePkgPathStatesTheImportPathThePackageDeclares(t *testing.T) {
 	assert.Equal(t, "example.com/app", info.PkgPath())
 }
 
-// One name in a written file answers to one path. Two paths that resolve to one
-// name reach the check that says so.
+// One name in a written file refers to one path. Two paths that resolve to one
+// name reach the check that states this rule.
 func TestTakeImportNamesReportsANameThatTwoPathsAnswerTo(t *testing.T) {
 	info := pkg.NewInfo("/some/dir")
 	info.TakeStubFile("app", nil, []pkg.Import{{Path: "example.com/a/config"}, {Path: "example.com/b/config"}})
@@ -153,7 +154,8 @@ func TestTakeImportNamesReportsANameThatTwoPathsAnswerTo(t *testing.T) {
 	assert.ErrorContains(t, err, "needs an alias")
 }
 
-// An alias in the stub file settles a name that two paths would answer to.
+// An alias in the stub file settles a name that two paths would otherwise
+// share.
 func TestTakeImportNamesTakesTwoConfigPathsUnderAnAlias(t *testing.T) {
 	info := pkg.NewInfo("/some/dir")
 	info.TakeStubFile("app", nil, []pkg.Import{

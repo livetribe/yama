@@ -23,9 +23,9 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// shapesDir holds one package that declares a stub of each shape a person can
-// write, over two stub files that state different aliases. Every fact that the
-// tests over it assert comes out of that source.
+// shapesDir holds one package that declares a stub of each shape that a person
+// can write, over two stub files that state different aliases. Every fact that
+// the tests over it assert comes from that source.
 const shapesDir = "testdata/shapes"
 
 var (

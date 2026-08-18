@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package resolve expands package patterns to the directories they match.
+// Package resolve expands package patterns to the directories that they match.
 //
-// A run states its targets as patterns, and every later step works from a
-// directory. pkg reads the facts of one such directory.
+// A run states its targets as patterns. Every later step works from a
+// directory. pkg reads the facts of one directory.
 package resolve
 
 import (
@@ -30,16 +30,16 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// Packages expands package patterns to the directory of each package they
-// match. It takes Go's own pattern syntax, "./..." among it. No pattern means
-// ".", which is what `wire gen` takes it to mean.
+// Packages expands package patterns to the directory of each package that they
+// match. It uses Go's own pattern syntax. "./..." is one such pattern. No
+// pattern means ".". `wire gen` gives the same meaning to no pattern.
 //
 // Packages resolves from dir, and it sets tags on the load. Pass the tag that
-// reveals a lifecycle stub beside the run's own tags: a build tag changes which
-// packages a pattern matches, and a run must reach the set of directories that
+// reveals a lifecycle stub beside the run's own tags. A build tag changes which
+// packages a pattern matches. A run must reach the set of directories that
 // Google Wire reaches.
 //
-// Packages returns the directories sorted, one entry for each, and it reports
+// Packages returns the directories sorted, one entry for each. It also reports
 // every package that the load could not read.
 func Packages(ctx context.Context, dir string, tags, patterns []string) ([]string, error) {
 	if len(patterns) == 0 {
@@ -61,8 +61,8 @@ func Packages(ctx context.Context, dir string, tags, patterns []string) ([]strin
 	return directories(loaded)
 }
 
-// escape marks each pattern as a pattern. An argument that carries no such mark
-// can read as a file list, and Google Wire marks its own patterns the same way.
+// escape marks each pattern as a pattern. Go can read an argument that carries
+// no such mark as a file list. Google Wire marks its own patterns the same way.
 func escape(patterns []string) []string {
 	escaped := make([]string, len(patterns))
 
@@ -74,7 +74,7 @@ func escape(patterns []string) []string {
 }
 
 // directories returns the directory of each loaded package, without a repeat.
-// A package that holds no Go file has no directory, and it contributes none.
+// A package that holds no Go file has no directory. It contributes no entry.
 func directories(loaded []*packages.Package) ([]string, error) {
 	var (
 		errs []error

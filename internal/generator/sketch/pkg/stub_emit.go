@@ -14,15 +14,16 @@
 
 package pkg
 
-// defaultOptionsName is what a constructor forwards options under when the stub
-// bound no name to that parameter.
+// defaultOptionsName is the name that a constructor uses to forward options,
+// when the stub bound no name to that parameter.
 const defaultOptionsName = "opts"
 
-// OptionsName returns the name that the stub's constructor forwards its options
-// under. It is empty for a stub that declares no options.
+// OptionsName returns the name that the stub's constructor uses to forward its
+// options. It is empty for a stub that declares no options.
 //
-// A stub may leave that parameter unnamed, or bind it to the blank identifier.
-// The constructor then forwards under a name of its own.
+// A stub can leave that parameter unnamed. A stub can also bind that parameter
+// to the blank identifier. The constructor then forwards the options under a
+// name of its own.
 func (s *Stub) OptionsName() string {
 	if !s.HasOpts {
 		return ""

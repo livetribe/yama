@@ -313,7 +313,7 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 
 		// The lifecycle file is committed source that every build reads. It takes
 		// the mode that an ordinary source file of the package takes, which the
-		// umask of the run decides, and not a mode of its own.
+		// umask of the run decides. It takes no mode of its own.
 		It("asks for the mode that an ordinary source file takes", func() {
 			reference := filepath.Join(dir, "reference.go")
 

@@ -17,16 +17,16 @@ package pkg
 import "maps"
 
 // TakeOutputImportsFrom takes the import block of Google Wire's output onto the
-// package, and it asks the Go toolchain for the name of each path that no stub
+// package. It also asks the Go toolchain for the name of each path that no stub
 // file states.
 //
-// The construction that a lifecycle file reproduces may name a package that no
+// The construction that a lifecycle file reproduces can name a package that no
 // stub file imports. A provider set states providers of its own, and Google
 // Wire reaches them through its own import block.
 //
 // TakeOutputImportsFrom takes nothing from output that does not parse. It
-// reports one name that two paths answer to: the lifecycle file carries both
-// import blocks, and one name there answers to one path.
+// reports one name that two paths use. The lifecycle file carries both import
+// blocks, and one name there refers to one path.
 func (info *Info) TakeOutputImportsFrom(src []byte) error {
 	block := ImportsIn(src)
 	fresh := info.unresolvedPaths(block)

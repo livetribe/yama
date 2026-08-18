@@ -23,11 +23,11 @@ import (
 )
 
 // CreateWorkItems returns one item for each target package. paths are the
-// directories that hold them. prefix starts the name of every file a run
+// directories that hold them. prefix starts the name of every file that a run
 // settles. header holds the bytes that every lifecycle file carries above
-// Yama's own provenance line, and it is nil when the run set no header file.
-// tags are the build tags that the run set. progress is the stream that each
-// item reports the file it wrote on.
+// Yama's own provenance line. header is nil when the run set no header file.
+// tags are the build tags that the run set. progress receives each item's
+// report of the file that it wrote.
 //
 // CreateWorkItems reads each package. The facts that it reads decide the first
 // state of each package.

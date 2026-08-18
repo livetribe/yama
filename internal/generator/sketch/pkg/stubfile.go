@@ -34,7 +34,7 @@ const Tag = "yamainject"
 // buildFunc is the function that a stub body calls.
 const buildFunc = "Build"
 
-// The types that a stub names through Yama's own package.
+// These are the types that a stub names through Yama's own package.
 const (
 	optionType    = "Option"
 	lifecycleType = "Lifecycle"
@@ -52,15 +52,15 @@ const stubResults = 3
 // errorType is the third result of every stub.
 const errorType = "error"
 
-// Load reads every stub that dir declares. Load returns an empty PackageInfo
-// when the directory declares no stub, and it reports no error for that.
+// Load reads every stub that dir declares. Load returns an empty Info when the
+// directory declares no stub. It reports no error for that.
 //
 // Load reads the stub files alone, so it fills neither PkgPath nor ImportNames.
-// Both state what the Go toolchain says about a package, and CollectPackageInfo
+// Both state what the Go toolchain says about a package. CollectPackageInfo
 // asks the toolchain for them.
 //
-// tags are the build tags that the run set. A stub file may name one of them
-// beside Tag, and Load reads such a file only when the run set that tag.
+// tags are the build tags that the run set. A stub file can name one of them
+// beside Tag. Load reads such a file only when the run set that tag.
 func Load(dir string, tags []string) (*Info, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -100,7 +100,8 @@ func Load(dir string, tags []string) (*Info, error) {
 // Tag. It returns nil for every other file.
 //
 // parseTagged reads the build header before it parses. A package holds files
-// that are none of source's business, and one of those must never fail a load.
+// that this package does not read. A load must never fail because of one of
+// those files.
 func parseTagged(fset *token.FileSet, path string, tags []string) (*ast.File, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
@@ -121,11 +122,12 @@ func parseTagged(fset *token.FileSet, path string, tags []string) (*ast.File, er
 
 // guardedByTag reports whether Tag is what puts the file in a build. The
 // constraint must hold with Tag set and fail with Tag clear. The run's own tags
-// are set either way, so a file that names one of them beside Tag still counts.
+// are set either way, so guardedByTag still accepts a file that names one of
+// them beside Tag.
 //
-// A constraint that holds with Tag clear guards nothing of source's, whatever
-// else it names. `!wireinject` is one of those, and it is the constraint that
-// Google Wire puts on the file it writes.
+// A constraint that holds with Tag clear guards no stub file, whatever else it
+// names. `!wireinject` is one such constraint. Google Wire puts that constraint
+// on the file that it writes.
 func guardedByTag(src []byte, tags []string) bool {
 	set := make(map[string]bool, len(tags))
 	for _, tag := range tags {
@@ -187,8 +189,9 @@ func headerLines(src []byte) []string {
 	return lines
 }
 
-// skipBlocks takes every block comment that starts and ends on this line off
-// the front of it. open reports that the last block runs on to the next line.
+// skipBlocks removes every block comment that starts and ends on this line from
+// the front of the line. open reports that the last block continues on to the
+// next line.
 func skipBlocks(line string) (rest string, open bool) {
 	for strings.HasPrefix(line, "/*") {
 		body := strings.TrimPrefix(line, "/*")
@@ -214,12 +217,13 @@ func afterBlock(s string) (rest string, closed bool) {
 	return strings.TrimSpace(after), true
 }
 
-// stubsOf returns every stub that the file declares, in the order it declares
-// them. It reports a stub whose signature Yama cannot emit a constructor from.
+// stubsOf returns every stub that the file declares, in the order that it
+// declares them. It reports a stub if Yama cannot emit a constructor from its
+// signature.
 //
 // A declaration is a stub when its body is one panic around a wire.Build call.
-// Every other declaration is none of source's business, and stubsOf checks the
-// signature of a stub alone.
+// stubsOf does not read every other declaration, and it checks the signature of
+// a stub only.
 func stubsOf(fset *token.FileSet, file *ast.File) ([]Stub, error) {
 	wire, imported := importedAs(file, WirePackagePath)
 	if !imported {
@@ -253,9 +257,9 @@ func stubsOf(fset *token.FileSet, file *ast.File) ([]Stub, error) {
 	return stubs, nil
 }
 
-// importedAs is the name that the file refers to the path by, and whether the
-// file imports it at all. A file that imports the path without an alias refers
-// to it by the name that its package declares.
+// importedAs returns the name that the file uses for the path. It also returns
+// whether the file imports the path at all. A file that imports the path
+// without an alias uses the name that the path's package declares.
 func importedAs(file *ast.File, path string) (string, bool) {
 	for _, spec := range file.Imports {
 		imported, err := strconv.Unquote(spec.Path.Value)
@@ -274,8 +278,9 @@ func importedAs(file *ast.File, path string) (string, bool) {
 }
 
 // checkStub reports whether the stub declares the signature that an emitted
-// constructor needs: the value the graph builds, the Lifecycle that runs it,
-// and the construction error. An option parameter comes last and is variadic.
+// constructor needs: the value that the graph builds, the Lifecycle that runs
+// it, and the construction error. An option parameter comes last and is
+// variadic.
 func checkStub(stub *Stub) error {
 	lifecycle := stub.YamaName() + "." + lifecycleType
 	want := fmt.Sprintf("results of the form (T, %s, %s)", lifecycle, errorType)
@@ -296,7 +301,7 @@ func checkStub(stub *Stub) error {
 
 // checkOptions reports a final option parameter that is not variadic. A final
 // parameter that is variadic and is not an option is an ordinary graph
-// parameter, and so is a parameter of any other type.
+// parameter. A parameter of any other type is also an ordinary graph parameter.
 func checkOptions(stub *Stub) error {
 	if len(stub.Params) == 0 {
 		return nil
@@ -312,7 +317,7 @@ func checkOptions(stub *Stub) error {
 	return stubError(stub, "declares %s as its final parameter; it needs a variadic ...%s", last, option)
 }
 
-// stubError names the stub and the position that declares it.
+// stubError names the stub and the position of its declaration.
 func stubError(stub *Stub, format string, args ...any) error {
 	where := fmt.Sprintf("%s:%d:%d: stub %s ", stub.File, stub.Line, stub.Column, stub.Name)
 
@@ -320,7 +325,7 @@ func stubError(stub *Stub, format string, args ...any) error {
 }
 
 // stubOf reads one stub out of its declaration. yama and wire are the names
-// that the stub's own file refers to those two packages by.
+// that the stub's own file uses for those two packages.
 func stubOf(fset *token.FileSet, fn *ast.FuncDecl, build *ast.CallExpr, yama, wire string) Stub {
 	params := fieldsOf(fset, fn.Type.Params)
 	pos := fset.Position(fn.Pos())
@@ -429,7 +434,8 @@ func fieldsOf(fset *token.FileSet, list *ast.FieldList) []Field {
 	return fields
 }
 
-// importsOf reads the file's import block, in the order the file declares it.
+// importsOf reads the file's import block, in the order that the file declares
+// it.
 func importsOf(file *ast.File) []Import {
 	block := make([]Import, 0, len(file.Imports))
 
@@ -464,7 +470,7 @@ func argsOf(fset *token.FileSet, call *ast.CallExpr) []string {
 // printNode prints one node as it was written.
 //
 // printNode prints the parsed node rather than a short form of it. A short form
-// leaves the elements of a composite literal out, and an argument that names a
+// leaves the elements of a composite literal out. An argument that names a
 // provider carries every element that the person wrote.
 func printNode(fset *token.FileSet, node ast.Node) string {
 	var buf bytes.Buffer
@@ -487,7 +493,7 @@ func docOf(group *ast.CommentGroup) string {
 
 // endsWithOptions reports whether the parameter list ends in a variadic
 // parameter of Yama's own Option type. yama is the name that the stub's file
-// refers to Yama's public package by.
+// uses for Yama's public package.
 //
 // A variadic parameter of any other package's Option type is an ordinary graph
 // parameter.

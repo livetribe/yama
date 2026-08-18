@@ -60,7 +60,8 @@ func TestLoadTakesAStubThatDeclaresNoParameter(t *testing.T) {
 
 // A package states its stubs one file at a time. The order that they reach the
 // lifecycle file is the order of the file names, and then of the declarations
-// in one file, so one run over one package writes what the run before it wrote.
+// in one file. One run over one package therefore writes what the run before it
+// wrote.
 func TestLoadOrdersStubsByFileName(t *testing.T) {
 	info, err := pkg.Load(filepath.Join(stubRoot, "twofiles"), nil)
 

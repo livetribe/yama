@@ -20,9 +20,10 @@ import (
 )
 
 // A NoWireGen is the item for a target package that holds no Google Wire
-// output after Google Wire ran. It covers two directories that look the same:
-// Google Wire rejected the first, and the second declared no stub for Google
-// Wire to generate from. Complete puts the package's files back.
+// output after Google Wire ran. It covers two directories that look the same.
+// Google Wire rejected the first directory. The second directory declared no
+// stub, so Google Wire generated nothing there. Complete puts the package's
+// files back.
 type NoWireGen struct {
 	custodian     *custody.Custodian
 	intermediates *wire.IntermediateYamaFiles
@@ -47,8 +48,8 @@ func (n *NoWireGen) Generate() State {
 	panic("should never reach here")
 }
 
-// Complete settles the package's files. Google Wire generated nothing here, so
-// the package owes the run no error of its own.
+// Complete settles the package's files. Google Wire generated nothing here,
+// and this package reports no error of its own.
 func (n *NoWireGen) Complete() error {
 	return settle(n.custodian, n.intermediates, nil)
 }

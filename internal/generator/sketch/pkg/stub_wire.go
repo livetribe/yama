@@ -24,14 +24,14 @@ func (s *Stub) GraphParams() []Field {
 	return s.Params[:len(s.Params)-1]
 }
 
-// ResultType returns the type of the value that the stub builds, which is the
-// type of its first result.
+// ResultType returns the type of the value that the stub builds. That type is
+// the type of the stub's first result.
 func (s *Stub) ResultType() string {
 	return s.Results[0].Type
 }
 
-// WireName returns the name that the stub's own file refers to Google Wire by.
-// A stub that states none takes the name that the path itself states.
+// WireName returns the name that the stub's own file uses for Google Wire. A
+// stub that states no name takes the name that the path itself states.
 func (s *Stub) WireName() string {
 	return PackageName(s.Wire, WirePackagePath)
 }

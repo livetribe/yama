@@ -25,22 +25,23 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/graph"
 )
 
-// The generator that this sketch replaces keeps a corpus of Google Wire output
-// that no parser can derive an ordering from. Each fixture states one shape.
+// The generator that this sketch replaces keeps a corpus of Google Wire output.
+// No parser can derive an order from that output. Each fixture states one
+// shape.
 //
 // These tests read that corpus. Every fixture in it came from outside the
 // sketch, and each one states a shape that no fixture of the sketch's own
 // covers.
 
-// corpusRoot holds the corpus, and malformedRoot the part of it that states one
-// unreadable shape per fixture.
+// corpusRoot holds the corpus. malformedRoot holds the part of the corpus that
+// states one unreadable shape per fixture.
 const (
 	corpusRoot    = "../../testdata"
 	malformedRoot = corpusRoot + "/malformed"
 )
 
 // injectorNames are the injectors that the corpus declares. Parse takes the
-// names it is asked for, and a fixture declares one or two of these.
+// names that a caller asks for, and a fixture declares one or two of these.
 var injectorNames = []string{"InitializeApp", "InitApp", "InitializeInbound", "InitializeOutbound"}
 
 // rejected pairs each fixture with the words that its rejection carries.
@@ -62,11 +63,12 @@ func TestParseRejectsTheMalformedCorpus(t *testing.T) {
 	}
 }
 
-// The corpus also holds two injectors whose result types share an unqualified
-// name and denote different types. The generator that this sketch replaces
-// rejects that pair, because it derives a namespace from the unqualified name.
-// A lifecycle file states the stub's own signature and derives no name from a
-// result type, so the pair reaches no name of Yama's own.
+// The corpus also holds two injectors with result types that share an
+// unqualified name and denote different types. The generator that this sketch
+// replaces rejects that pair, because it derives a namespace from the
+// unqualified name. A lifecycle file states the stub's own signature and
+// derives no name from a result type. The pair therefore reaches no name of
+// Yama's own.
 func TestParseTakesTwoResultsThatShareAName(t *testing.T) {
 	injectors, err := graph.Parse(malformedFixture(t, "resultcollision"), injectorNames)
 
@@ -95,7 +97,7 @@ func corpusFixture(t *testing.T, name string) []byte {
 	return src
 }
 
-// A field name is not a dependency. The corpus states the shape twice over: a
+// A field name is not a dependency. The corpus states the shape two times: a
 // key of a composite literal, and a field in the middle of a selection. Each
 // one carries the name of another component, and neither one consumes it.
 func TestParseTakesNoEdgeFromAFieldName(t *testing.T) {
@@ -118,9 +120,10 @@ func TestParseTakesNoEdgeFromAFieldName(t *testing.T) {
 	assert.Equal(t, []string{"port"}, deps["dup"])
 }
 
-// The cleanup that pairs with the value an injector returns is a cleanup like
-// any other. Google Wire binds every cleanup to the one name "cleanup", and the
-// lifecycle file holds each one under the name of the component it cleans up.
+// The cleanup that pairs with the value that an injector returns is a cleanup
+// like any other. Google Wire binds every cleanup to the one name "cleanup".
+// The lifecycle file holds each one under the name of the component that it
+// cleans up.
 func TestParseTakesTheCleanupOfTheReturnedValue(t *testing.T) {
 	injectors, err := graph.Parse(corpusFixture(t, "resultcleanup"), []string{"InitApp"})
 	require.NoError(t, err)
@@ -137,8 +140,8 @@ func TestParseTakesTheCleanupOfTheReturnedValue(t *testing.T) {
 	assert.Equal(t, []string{"dep := NewDep()", "app, appCleanup := NewApp(dep)"}, inj.Statements)
 }
 
-// An injector whose only creation is the value it returns yields that one
-// component, and it consumes nothing.
+// An injector can create only the value that it returns. Such an injector
+// yields that one component, and it consumes nothing.
 func TestParseTakesAnInjectorOfOneComponent(t *testing.T) {
 	injectors, err := graph.Parse(corpusFixture(t, "minimal"), []string{"InitApp"})
 	require.NoError(t, err)

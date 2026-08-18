@@ -166,8 +166,9 @@ var _ = Describe("source", func() {
 			})
 		})
 
-		// A stub may sit behind the run's own tag as well as Tag. Google Wire
-		// receives that tag, and Load must read the same file Google Wire does.
+		// A stub can be behind the run's own tag as well as Tag. Google Wire
+		// receives that tag, and Load must read the same file that Google Wire
+		// reads.
 		Context("when a stub names one of the run's own tags beside the yamainject tag", func() {
 			BeforeEach(func() {
 				write("lifecycle.go", "//go:build yamainject && special\n\n"+
@@ -197,8 +198,9 @@ var _ = Describe("source", func() {
 			})
 		})
 
-		// The run's own tags are set whether or not the yamainject tag is. A file
-		// that only names one of them is in an ordinary build, and it is no stub.
+		// The run's own tags are set whether or not the yamainject tag is set. A
+		// file that only names one of them is in an ordinary build, and it is
+		// no stub.
 		Context("when a file names one of the run's own tags alone", func() {
 			BeforeEach(func() {
 				write("other.go", "//go:build special\n\npackage app\n\nfunc Other() {}\n")
@@ -381,8 +383,8 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 		})
 
 		// A stub declares the signature that an emitted constructor needs. Load
-		// reports one that does not, rather than let a later phase write a file
-		// that no build accepts.
+		// reports a stub that does not declare it. Load does not let a later
+		// phase write a file that no build accepts.
 		Describe("the signature that a stub declares", func() {
 			// guarded wraps a declaration in a guarded file that imports Yama.
 			guarded := func(declaration string) string {

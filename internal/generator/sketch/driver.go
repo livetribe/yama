@@ -30,12 +30,12 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/work"
 )
 
-// headerCheckClause stands in for the package clause that follows a header in
-// every file that a run writes.
+// headerCheckClause supplies the package clause that follows a header in every
+// file that a run writes.
 const headerCheckClause = "package yama\n"
 
 // A Driver runs one generation over a set of target packages. It holds no
-// per-package state, it moves no file, and it composes no path.
+// per-package state. It moves no file. It composes no path.
 type Driver struct {
 	dir      string
 	patterns []string
@@ -43,9 +43,9 @@ type Driver struct {
 	progress io.Writer
 }
 
-// NewDriver returns a Driver over patterns. Each one takes Go's own package
-// pattern syntax, "./..." among it. dir is the directory that Google Wire runs
-// from, and the directory that a pattern resolves against.
+// NewDriver returns a Driver over patterns. Each pattern uses Go's own package
+// pattern syntax. "./..." is one such pattern. dir is the directory that Google
+// Wire runs in. Yama also resolves each pattern from dir.
 //
 // A run writes what it did to os.Stderr. A test in this package assigns
 // progress a buffer of its own to read that output back.
@@ -53,13 +53,13 @@ func NewDriver(dir string, patterns []string, args wire.Args) *Driver {
 	return &Driver{dir: dir, patterns: patterns, args: args, progress: os.Stderr}
 }
 
-// Run creates one work item for each target package, and it puts every item
-// through three phases in order. It invokes Google Wire once, between the first
-// phase and the second.
+// Run creates one work item for each target package. It puts every item
+// through three phases in order. It invokes Google Wire one time, between the
+// first phase and the second.
 //
-// A run has two error channels, and both are bare signals. Google Wire's own
-// failure travels on RunWire. A package's failure travels on its item, and it
-// reaches Run through Complete.
+// A run reports a failure in two ways, and neither way carries detail. RunWire
+// returns Google Wire's own failure. A package's failure stays on its item, and
+// Complete gives that failure to Run.
 func (d *Driver) Run(ctx context.Context) error {
 	header, err := d.header()
 	if err != nil {
@@ -94,8 +94,8 @@ func (d *Driver) Run(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// RunWire invokes Google Wire once over the directories that are still in the
-// run. It prints Google Wire's diagnostic where the failure happened, and it
+// RunWire invokes Google Wire one time over the directories that are still in
+// the run. It prints Google Wire's diagnostic of where the failure happened. It
 // converts no item.
 //
 // The error that RunWire returns carries no detail. Google Wire already stated
@@ -114,8 +114,8 @@ func (d *Driver) RunWire(ctx context.Context, items work.Items) error {
 }
 
 // header reads the file that the run's -header_file names. It returns nil when
-// the run named none. A relative name is relative to the directory that Google
-// Wire runs from, which is what Google Wire itself does with that flag.
+// the run named no file. A relative name is relative to the directory that
+// Google Wire runs in. Google Wire itself reads that flag the same way.
 //
 // header reports a file that no Go file can carry above its package clause.
 func (d *Driver) header() ([]byte, error) {
@@ -141,8 +141,8 @@ func (d *Driver) header() ([]byte, error) {
 }
 
 // checkHeader reports a header that a Go file cannot carry. Every file that a
-// run writes puts the header above its own package clause, so a header holds
-// comments and blank lines alone.
+// run writes puts the header above its own package clause. A header therefore
+// holds comments and blank lines only.
 func checkHeader(content []byte) error {
 	src := string(content) + "\n\n" + headerCheckClause
 
@@ -154,9 +154,9 @@ func checkHeader(content []byte) error {
 	return nil
 }
 
-// stubTags returns the tags that resolution loads under. A package whose only
-// file is a lifecycle stub holds no file without the stub tag, and a run must
-// still reach it.
+// stubTags returns the tags that resolution uses for the load. Some packages
+// declare a lifecycle stub as their only file. Without the stub tag, such a
+// package holds no file, and a run must still reach that package.
 func stubTags(tags []string) []string {
 	stub := make([]string, 0, len(tags)+1)
 	stub = append(stub, pkg.Tag)

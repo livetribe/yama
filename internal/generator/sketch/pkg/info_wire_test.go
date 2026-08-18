@@ -24,8 +24,8 @@ import (
 )
 
 // The lifecycle file carries the stub files' import block and Google Wire's
-// own. One name in that file answers to one path, and the check that says so
-// reads both blocks rather than either one alone.
+// own. One name in that file refers to one path. The check that states this
+// rule reads both blocks rather than either one alone.
 func TestTakeOutputImportsFromReportsANameThatTwoPathsAnswerTo(t *testing.T) {
 	info := pkg.NewInfo(t.TempDir())
 	info.TakeStubFile("app", nil, []pkg.Import{{Name: "cfg", Path: "example.com/a/config"}})

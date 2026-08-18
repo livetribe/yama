@@ -32,10 +32,11 @@ import (
 // which level a component takes, and which builder call a member produces.
 //
 // Each of these packages holds Google Wire's own input and no lifecycle stub.
-// These tests run Google Wire over a copy, and they then put its output through
-// the same three steps a run puts it through.
+// These tests run Google Wire over a copy. They then put its output through the
+// same three steps that a run uses.
 
-// analyzed is the levels of one injector, and the components it left out.
+// analyzed holds the levels of one injector, and the components that it left
+// out.
 type analyzed struct {
 	levels  [][]graph.Member
 	omitted map[string]bool
@@ -75,8 +76,8 @@ func (a analyzed) member(name string) (graph.Member, bool) {
 	return m, ok
 }
 
-// analyzeCorpus runs Google Wire over a copy of one corpus package, and it
-// returns the levels of the named injector.
+// analyzeCorpus runs Google Wire over a copy of one corpus package. It returns
+// the levels of the named injector.
 func analyzeCorpus(t *testing.T, name, injector string) analyzed {
 	t.Helper()
 	requireGo(t)
@@ -111,9 +112,9 @@ func analyzeCorpus(t *testing.T, name, injector string) analyzed {
 	return a
 }
 
-// assertLevels asserts the analysis puts exactly these components in exactly
-// these levels. Two components in one level have no order between them, so
-// membership of a level is order-independent.
+// assertLevels asserts that the analysis puts exactly these components in
+// exactly these levels. Two components in one level have no order between them.
+// The membership of a level is therefore independent of the order.
 func assertLevels(t *testing.T, want [][]string, a analyzed) {
 	t.Helper()
 
@@ -126,12 +127,12 @@ func assertLevels(t *testing.T, want [][]string, a analyzed) {
 	}
 }
 
-// A type declares a capability by declaring the method that the capability
-// names. The corpus spans the combinations: one type for each single
-// capability, one that declares all three, one whose method names match and
-// whose signatures do not, one bound under an interface that declares one of
-// the three, and one whose methods sit on a receiver the bound value does not
-// have.
+// A type declares a capability when it declares the method that the capability
+// names. The corpus covers the combinations: one type for each single
+// capability, one type that declares all three, one type with method names that
+// match and signatures that do not, one type bound under an interface that
+// declares one of the three, and one type with methods on a receiver that the
+// bound value does not have.
 func TestCorpusDetectsEveryCapabilityCombination(t *testing.T) {
 	a := analyzeCorpus(t, "capabilities", "InitApp")
 
@@ -157,15 +158,16 @@ func TestCorpusDetectsEveryCapabilityCombination(t *testing.T) {
 
 	assert.Equal(t, want, got)
 
-	// decoy declares a near miss of each of the three, plain declares none, and
-	// valueStopper declares Stop on a receiver the injector never binds.
+	// decoy declares a near miss of each of the three. plain declares no
+	// capability. valueStopper declares Stop on a receiver that the injector
+	// never binds.
 	for _, name := range []string{"decoy", "plain", "valueStopper"} {
 		assert.Truef(t, a.omitted[name], "%s must take no level", name)
 	}
 }
 
-// A component declares a capability by declaring the method. The package that
-// declares it refers to Yama nowhere.
+// A component declares a capability when it declares the method. The package
+// that declares it refers to Yama nowhere.
 func TestCorpusDetectsACapabilityWithoutAnImportOfYama(t *testing.T) {
 	a := analyzeCorpus(t, "noyama", "InitApp")
 
@@ -176,11 +178,11 @@ func TestCorpusDetectsACapabilityWithoutAnImportOfYama(t *testing.T) {
 	assert.Equal(t, graph.Start|graph.Stop, worker.Capabilities)
 }
 
-// A cleanup runs at the position of the value it cleans up. The corpus states
-// the cases in one graph: a cleanup on a value with no capability, a cleanup on
-// a Stopper, a cleanup on a value whose one capability is not Stop, a Stopper
-// with no cleanup, a value with neither, and a cleanup on the root's own
-// provider.
+// A cleanup runs at the position of the value that it cleans up. The corpus
+// states the cases in one graph: a cleanup on a value with no capability, a
+// cleanup on a Stopper, a cleanup on a value with one capability that is not
+// Stop, a Stopper with no cleanup, a value with neither, and a cleanup on the
+// root's own provider.
 func TestCorpusPutsACleanupAtThePositionOfItsValue(t *testing.T) {
 	a := analyzeCorpus(t, "cleanup", "InitApp")
 
@@ -192,7 +194,7 @@ func TestCorpusPutsACleanupAtThePositionOfItsValue(t *testing.T) {
 	}, a)
 
 	// A member takes one of three builder calls. A cleanup with no capability
-	// takes the cleanup alone, and a cleanup with one takes both.
+	// takes the cleanup call only. A cleanup with a capability takes both.
 	want := map[string]graph.Member{
 		"pool":   {Name: "pool", Capabilities: graph.None, Cleanup: "poolCleanup"},
 		"worker": {Name: "worker", Capabilities: graph.Stop},
@@ -206,7 +208,7 @@ func TestCorpusPutsACleanupAtThePositionOfItsValue(t *testing.T) {
 }
 
 // A component that Google Wire built out of a struct literal takes a level for
-// the cleanup its provider returned, and it declares no capability of its own.
+// the cleanup that its provider returned. It declares no capability of its own.
 func TestCorpusTakesAComponentBuiltFromAStructLiteral(t *testing.T) {
 	a := analyzeCorpus(t, "structcomp", "InitRoot")
 
@@ -225,7 +227,7 @@ func TestCorpusTakesAGraphWithNothingToRun(t *testing.T) {
 	assert.Empty(t, a.levels)
 }
 
-// A package that does not compile fails the run, and the failure carries the
+// A package that does not compile fails the run. The failure carries the
 // compiler's own message. The message names the file and states what the
 // compiler found there.
 func TestCorpusReportsAPackageThatDoesNotCompile(t *testing.T) {

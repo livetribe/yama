@@ -22,8 +22,8 @@ import (
 )
 
 // names returns the name of every member of every level, level by level. Most
-// specs assert on this rather than on whole Member values, because the question
-// they ask is which level a component landed in.
+// specs assert on this rather than on whole Member values, because they ask
+// which level holds a component.
 func names(levels [][]graph.Member) [][]string {
 	out := make([][]string, len(levels))
 

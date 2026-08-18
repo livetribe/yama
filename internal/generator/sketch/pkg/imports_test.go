@@ -129,9 +129,9 @@ func TestCheckImports(t *testing.T) {
 			block: []pkg.Import{{Path: "example.com/a/lib"}, {Name: "blib", Path: "example.com/b/lib"}},
 		},
 		{
-			// Two paths that a guess reads as one name may declare names of
-			// their own that differ. The name a package declares is what the
-			// check reads.
+			// Two paths that a guess reads as one name can declare names of
+			// their own that differ. The check reads the name that a package
+			// declares.
 			name:  "the name that each package declares",
 			block: []pkg.Import{{Path: "example.com/a/yaml.v3"}, {Path: "example.com/b/yaml.v3"}},
 			names: map[string]string{"example.com/a/yaml.v3": "yaml", "example.com/b/yaml.v3": "yamlv3"},

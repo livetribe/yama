@@ -13,9 +13,9 @@
 // limitations under the License.
 
 // Package graph turns one injector's construction sequence into the lifecycle
-// levels that a run emits. Every value it takes and every value it returns is a
-// string or a plain struct of strings, so nothing from the Go toolchain crosses
-// into the package that renders the file.
+// levels that a run emits. Every value that it takes and every value that it
+// returns is a string or a plain struct of strings. Nothing from the Go
+// toolchain therefore reaches the package that renders the file.
 package graph
 
 import "strings"
@@ -59,9 +59,9 @@ func (c Capability) String() string {
 }
 
 // A Component is one value that an injector builds. Deps names the components
-// it consumes, and every name is the name of another component in the same
-// injector. Cleanup is the name of the cleanup function that the provider
-// returned, and it is empty when the provider returned none.
+// that it consumes. Every such name is the name of another component in the
+// same injector. Cleanup is the name of the cleanup function that the provider
+// returned. Cleanup is empty when the provider returned no cleanup function.
 type Component struct {
 	Name         string
 	Deps         []string
@@ -76,23 +76,24 @@ type Member struct {
 	Cleanup      string
 }
 
-// Levels assigns each component that occupies a level to one level, and it
-// returns the levels in the order a run starts them.
+// Levels assigns each component that occupies a level to one level. It returns
+// the levels in the order that a run starts them.
 //
-// A component sits one level behind the deepest level of anything it consumes.
-// A component that occupies no level still carries ordering across itself: a
-// component that reaches another only through such a component still lands
-// after it.
+// A component is one level behind the deepest level of anything that it
+// consumes. A component that occupies no level still transmits the order. One
+// component can reach a second component only through such a component. The
+// first component is still after the second component.
 //
-// The result is deterministic. Levels walks components in the order it received
-// them, which Google Wire already emitted in a valid topological order, and
-// each level keeps that order.
+// The result is deterministic. Levels walks components in the order that it
+// received them. Google Wire already emitted that order as a valid topological
+// order. Each level keeps that order.
 func Levels(components []Component) [][]Member {
 	var levels [][]Member
 
-	// How many levels a component sits behind: one past its own level when it
-	// occupies one, and the deepest count among its dependencies when it does
-	// not.
+	// behind holds how many levels a component is behind. The count is one
+	// more than the component's own level, if the component occupies a level.
+	// The count is the deepest count among its dependencies, if the component
+	// occupies no level.
 	behind := make(map[string]int, len(components))
 
 	for _, c := range components {
@@ -131,9 +132,9 @@ func deepest(deps []string, behind map[string]int) int {
 }
 
 // occupiesLevel reports whether c takes a place of its own in the level list.
-// Every component that declares a lifecycle method does. So does a component
-// whose provider returned a cleanup, because that cleanup runs at the
-// component's own position.
+// Every component that declares a lifecycle method takes such a place. A
+// component also takes such a place if its provider returned a cleanup, because
+// that cleanup runs at the component's own position.
 func occupiesLevel(c Component) bool {
 	return c.Capabilities != None || c.Cleanup != ""
 }

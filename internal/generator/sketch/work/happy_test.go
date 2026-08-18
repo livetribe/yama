@@ -32,21 +32,21 @@ import (
 // A PIt in this file marks a spec pending. Ginkgo reports a pending spec
 // separately from a pass.
 //
-// A scenario names the situation that a run meets. The comment above each one
-// states what the target directory holds. Each scenario runs the three phases
-// in order, and a nested context names a condition that arose during the phase
-// before it.
+// A scenario names the situation that a run meets. The comment above each
+// scenario states what the target directory holds. Each scenario runs the three
+// phases in order. A nested context names a condition that arose during the
+// phase before it.
 //
 // Each spec runs against a real directory, so a spec observes a move by reading
-// the directory. A spec stands in for Google Wire: it writes the output that
-// Google Wire would have written, between Prepare and Generate.
+// the directory. A spec takes the place of Google Wire. It writes the output
+// that Google Wire would have written, between Prepare and Generate.
 
 const (
 	lifecycleName = "lifecycle_gen.go"
 	wireName      = "wire_gen.go"
 )
 
-// fixtureRoot holds the files that a spec puts in the directory it runs
+// fixtureRoot holds the files that a spec puts in the directory that it runs
 // against. testdata/target holds the target package and its stub.
 // testdata/output holds one directory for each Google Wire output, and the
 // comment at the top of each one states what that output does to Generate.
@@ -131,9 +131,9 @@ var _ = Describe("a work item over one target package", func() {
 		write(wireName, content)
 	}
 
-	// denyWrites takes writes away from the package directory, so a phase that
-	// writes in it fails. It gives the writes back afterwards, so a later phase
-	// runs against a directory it can change.
+	// denyWrites removes write permission from the package directory, so a
+	// phase that writes in it fails. It gives the permission back afterwards,
+	// so a later phase runs against a directory that it can change.
 	//
 	// Windows does not apply the permission bits of a directory, and the
 	// superuser writes to a read-only directory, so a spec that needs the
@@ -202,8 +202,8 @@ var _ = Describe("a work item over one target package", func() {
 		return state.Generate()
 	}
 
-	// collided runs Prepare, puts output whose import block collides with the
-	// stub file's in the directory, and runs Generate.
+	// collided runs Prepare, puts output with an import block that collides
+	// with the stub file's block in the directory, and runs Generate.
 	collided := func() State {
 		state := prepared()
 		writeOutput(collidingFixture)
@@ -220,8 +220,9 @@ var _ = Describe("a work item over one target package", func() {
 		return state.Generate()
 	}
 
-	// complete runs Complete on what a phase produced and drops what it
-	// returned. A spec that reads the directory afterwards calls this one.
+	// complete runs Complete on what a phase produced, and it drops what
+	// Complete returned. A spec that reads the directory afterwards calls this
+	// one.
 	complete := func(state State) {
 		_ = state.Complete()
 	}
@@ -395,8 +396,8 @@ var _ = Describe("a work item over one target package", func() {
 			})
 
 			// The lifecycle file carries the stub file's import block and Google
-			// Wire's own. One name in that file answers to one path.
-			Context("and Google Wire wrote output whose import block collides", func() {
+			// Wire's own. One name in that file refers to one path.
+			Context("and Google Wire wrote output with an import block that collides", func() {
 				It("settles as a package that failed to generate", func() {
 					Expect(collided()).To(BeAssignableToTypeOf(&GenerateFailed{}))
 				})
@@ -435,10 +436,10 @@ var _ = Describe("a work item over one target package", func() {
 	})
 
 	// A refresh. The directory holds a lifecycle_gen.go that an earlier run
-	// committed, and no wire_gen.go, because that earlier run removed the one it
-	// made. The committed file must move aside, or it declares the same
+	// committed, and no wire_gen.go, because that earlier run removed the file
+	// that it made. The committed file must move aside, or it declares the same
 	// constructors as the placeholders in the derived injector file.
-	Context("a refresh of a package Yama already generated", func() {
+	Context("a refresh of a package that Yama already generated", func() {
 		BeforeEach(func() {
 			writeTarget()
 			write(lifecycleName, "committed\n")
@@ -548,7 +549,7 @@ var _ = Describe("a work item over one target package", func() {
 	})
 
 	// Adoption beside Google Wire. The application runs Google Wire for its own
-	// injectors and commits the wire_gen.go that comes out. The directory holds
+	// injectors and commits the wire_gen.go that it produced. The directory holds
 	// no lifecycle_gen.go, so this is the package's first Yama run. Yama borrows
 	// the wire_gen.go name, so it must give the application's file back.
 	Context("a package that also runs Google Wire for itself", func() {
@@ -593,11 +594,11 @@ var _ = Describe("a work item over one target package", func() {
 			})
 
 			Describe("Complete", func() {
-				// The custodian cannot tell a live wire_gen.go with no backup
-				// from Google Wire's own output. It settles this one by the
-				// record that SetAside left, and it must not delete a file the
-				// application owns and Yama cannot write again.
-				It("does not delete the file the application owns", func() {
+				// The custodian cannot separate a live wire_gen.go with no
+				// backup from Google Wire's own output. It settles this file by
+				// the record that SetAside left. It must not delete a file that
+				// the application owns and that Yama cannot write again.
+				It("does not delete the file that the application owns", func() {
 					settled := prepared()
 
 					Expect(settled.Complete()).NotTo(Succeed())
@@ -648,9 +649,9 @@ var _ = Describe("a work item over one target package", func() {
 
 						// This state holds no error of its own, so the restore
 						// is the only call that can produce one. The error
-						// names the backup that still holds the file the
-						// application owns.
-						It("returns the error of a restore it could not make", func() {
+						// names the backup that still holds the file that
+						// the application owns.
+						It("returns the error of a restore that it could not make", func() {
 							settled := generated()
 
 							denyWrites()
@@ -667,9 +668,9 @@ var _ = Describe("a work item over one target package", func() {
 	})
 
 	// A refresh beside Google Wire. The directory holds both files. They settle
-	// on different terms: Yama writes the lifecycle file again, and Yama can
-	// never write the application's wire_gen.go again. This is the scenario that
-	// the move order of Rule 2 exists for.
+	// on different terms. Yama writes the lifecycle file again, and Yama can
+	// never write the application's wire_gen.go again. The move order of Rule 2
+	// exists for this scenario.
 	Context("a refresh of a package that also runs Google Wire for itself", func() {
 		BeforeEach(func() {
 			writeTarget()
@@ -806,11 +807,11 @@ var _ = Describe("a work item over one target package", func() {
 		})
 	})
 
-	// A refresh of a package whose directory already holds one of the two
+	// A refresh of a package. Its directory already holds one of the two
 	// intermediate names. Prepare writes the intermediate files before it moves
-	// the committed files aside, so the name it cannot take stops it at the
-	// first step. The committed lifecycle file stays where the run found it,
-	// and every package that imports this one still declares what that file
+	// the committed files aside, so the name that it cannot take stops it at
+	// the first step. The committed lifecycle file stays where the run found
+	// it, and every package that imports this one still declares what that file
 	// declares for the rest of the run.
 	Context("a refresh of a package that already holds an intermediate name", func() {
 		BeforeEach(func() {
@@ -847,13 +848,13 @@ var _ = Describe("a work item over one target package", func() {
 		})
 	})
 
-	// A package whose live lifecycle name the run cannot take. A run that did
-	// not finish left a backup, so the custodian deletes the live name rather
-	// than move it, and no remove takes out a directory that holds a file.
+	// A package with a live lifecycle name that the run cannot take. A run that
+	// did not finish left a backup, so the custodian deletes the live name
+	// rather than move it. No remove takes out a directory that holds a file.
 	//
 	// Prepare writes the intermediate files before it asks for custody, so this
 	// directory reaches the custody step and stops there.
-	Context("a package whose live name the run cannot take", func() {
+	Context("a package with a live name that the run cannot take", func() {
 		BeforeEach(func() {
 			writeTarget()
 			write(backup(lifecycleName), "committed\n")
@@ -888,11 +889,11 @@ var _ = Describe("a work item over one target package", func() {
 		})
 	})
 
-	// A package whose stubs do not load. The directory holds a wire_gen.go that
-	// the application owns, and a stub file that does not parse. The run reads
-	// the package before it takes custody of any directory. The failed load
-	// leaves every name where the run found it.
-	Context("a package whose stubs do not load", func() {
+	// A package with stubs that do not load. The directory holds a wire_gen.go
+	// that the application owns, and a stub file that does not parse. The run
+	// reads the package before it takes custody of any directory. The failed
+	// load keeps every name where the run found it.
+	Context("a package with stubs that do not load", func() {
 		BeforeEach(func() {
 			write(wireName, "legacy\n")
 			write("broken_yamainject.go", "//go:build yamainject\n\npackage app\n\nfunc (\n")
@@ -1028,8 +1029,8 @@ var _ = Describe("CreateWorkItems", func() {
 	})
 
 	// The facts that CreateWorkItems reads decide the first state of each
-	// package. CreateWorkItems reads each package into one PackageInfo. A Happy
-	// carries that record through every later phase.
+	// package. CreateWorkItems reads each package into one Info. A Happy carries
+	// that record through every later phase.
 	It("gives each item the stubs that its own package declares", func() {
 		items := CreateWorkItems([]string{stubbed()}, "", nil, nil, io.Discard)
 
@@ -1039,7 +1040,7 @@ var _ = Describe("CreateWorkItems", func() {
 		Expect(stubs[0].Name).To(Equal("NewAppLifecycle"))
 	})
 
-	It("carries the error of a directory it cannot read to Complete", func() {
+	It("carries the error of a directory that it cannot read to Complete", func() {
 		missing := filepath.Join(GinkgoT().TempDir(), "absent")
 
 		items := CreateWorkItems([]string{missing}, "", nil, nil, io.Discard)

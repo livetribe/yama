@@ -15,26 +15,26 @@
 package work
 
 // A State is one target package at one point of the run. Each phase returns a
-// State, and a phase that fails returns a State of a different type. The type
-// of the item is therefore the record of what happened to that package.
+// State. A phase that fails returns a State of a different type. The type of
+// the item is therefore the record of what happened to that package.
 type State interface {
-	// PackagePath returns the directory to name to Google Wire, and whether to
-	// name it at all. A state that Google Wire is not to run over reports no
-	// directory and false.
+	// PackagePath returns the directory to name to Google Wire. It also
+	// returns whether to name that directory at all. A state that Google
+	// Wire does not run over reports no directory and false.
 	PackagePath() (path string, runWire bool)
 
 	// Prepare runs before the run calls Google Wire. It puts the intermediate
-	// files in the package's directory, and it moves both generated files out
-	// of Google Wire's way.
+	// files in the package's directory. It also sets both generated files
+	// aside.
 	Prepare() State
 
 	// Generate runs after the run calls Google Wire. It reads Google Wire's
-	// output for this package, and it writes the lifecycle file.
+	// output for this package. Then it writes the lifecycle file.
 	Generate() State
 
-	// Complete settles the package's files, and it takes the intermediate
-	// files out of the directory. It returns this package's error, so a
-	// failure of any phase reaches the caller through this call.
+	// Complete settles the package's files. It also takes the intermediate
+	// files out of the directory. It returns this package's error. A failure
+	// of any phase reaches the caller through this call.
 	Complete() error
 }
 
@@ -42,7 +42,7 @@ type State interface {
 // holds them in the order that the run resolved their directories.
 type Items []State
 
-// Paths returns the directory of each item that Google Wire is to run over.
+// Paths returns the directory of each item that Google Wire runs over.
 func (items Items) Paths() []string {
 	var paths []string
 

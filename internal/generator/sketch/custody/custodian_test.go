@@ -71,9 +71,9 @@ var _ = Describe("Custodian", func() {
 		return custody.BackupPrefix + name
 	}
 
-	// denyWrites takes writes away from the directory, so a move inside it
-	// fails. It gives the writes back after the spec. Windows does not apply
-	// the permission bits of a directory, and the superuser writes to a
+	// denyWrites removes write permission from the directory, so a move inside
+	// it fails. It gives the permission back after the spec. Windows does not
+	// apply the permission bits of a directory, and the superuser writes to a
 	// read-only directory, so a spec that needs the failure stops on both.
 	denyWrites := func() {
 		if runtime.GOOS == "windows" {
@@ -270,15 +270,16 @@ var _ = Describe("Custodian", func() {
 				BeforeEach(func() {
 					write(wire, "application\n")
 
-					// A directory that denies writes makes the move fail, and
-					// leaves the application's file at the live name with no
+					// A directory that denies writes makes the move fail. It
+					// keeps the application's file at the live name with no
 					// backup beside it.
 					denyWrites()
 
 					Expect(c.SetAside()).NotTo(Succeed())
 
-					// Give the directory its writes back, so a surviving file
-					// proves the record rather than the permission.
+					// Give the directory its write permission back, so a
+					// surviving file proves the record rather than the
+					// permission.
 					Expect(os.Chmod(dir, 0o700)).To(Succeed())
 				})
 
@@ -291,9 +292,9 @@ var _ = Describe("Custodian", func() {
 		})
 	})
 
-	// A restore hands the owner back a file that the run moved. A run that
-	// cannot hand it back leaves that file at the backup name, and it states
-	// which name holds it. Both names restore, so both report.
+	// A restore returns to its owner a file that the run moved. A run that
+	// cannot return that file keeps it at the backup name, and it states which
+	// name holds it. Both names restore, so both report.
 	Describe("Complete, over a directory it cannot write", func() {
 		for _, name := range []string{lifecycle, wire} {
 			Context("the backup of "+name, func() {

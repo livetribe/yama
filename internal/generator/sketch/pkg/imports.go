@@ -30,10 +30,10 @@ type Import struct {
 	Path string
 }
 
-// NameIn is the name that a file refers to the import by. The file's own alias
-// wins. The name that the package declares comes next, which resolved holds for
-// every path the Go toolchain could read. A guess from the path itself is the
-// last resort.
+// NameIn returns the name that a file uses for the import. The file's own alias
+// has priority. The name that the package declares comes next. resolved holds
+// that name for every path that the Go toolchain could read. If neither is
+// available, NameIn makes a guess from the path itself.
 func (imp Import) NameIn(resolved map[string]string) string {
 	if imp.Name != "" {
 		return imp.Name
@@ -46,7 +46,7 @@ func (imp Import) NameIn(resolved map[string]string) string {
 	return PackageName("", imp.Path)
 }
 
-// PackageName is the name that a file refers to an import by. It is the alias
+// PackageName returns the name that a file uses for an import. It is the alias
 // when the import declares one. Otherwise it is the last element of the path,
 // the element before a major-version element, or the last element without a
 // major-version suffix.
@@ -65,8 +65,8 @@ func PackageName(name, path string) string {
 	return withoutVersionSuffix(last)
 }
 
-// ImportsIn returns the import block that src declares, in the order src states
-// it. It returns nothing for source that does not parse.
+// ImportsIn returns the import block that src declares, in the order that src
+// states it. It returns nothing for source that does not parse.
 func ImportsIn(src []byte) []Import {
 	file, err := parser.ParseFile(token.NewFileSet(), "imports.go", src, parser.ImportsOnly)
 	if err != nil {
@@ -92,18 +92,18 @@ func ImportsIn(src []byte) []Import {
 	return block
 }
 
-// CheckImports reports one name that two paths answer to.
+// CheckImports reports one name that two paths use.
 //
-// A package states its imports one file at a time, and every file may bind a
-// name of its own. Each file that Yama writes carries the imports of several
-// such files at once, and one name in the written file answers to one path. A
+// A package states its imports one file at a time. Every file can bind a name
+// of its own. Each file that Yama writes carries the imports of several such
+// files at one time, and one name in the written file refers to one path. A
 // caller passes the whole set that one written file will carry, so a run calls
-// CheckImports once for each file it writes.
+// CheckImports one time for each file that it writes.
 //
 // CheckImports reads every import in that set, whether or not the written file
-// goes on to state each one. A set that holds an import the written file leaves
-// out is the one case that CheckImports rejects and Google Wire would have
-// taken. An alias on either import settles it.
+// goes on to state each one. A set can hold an import that the written file
+// leaves out. That is the one case that CheckImports rejects and that Google
+// Wire would have accepted. An alias on either import removes the collision.
 func CheckImports(block []Import, names map[string]string) error {
 	paths := make(map[string]string, len(block))
 
@@ -125,9 +125,9 @@ func CheckImports(block []Import, names map[string]string) error {
 	return nil
 }
 
-// Qualifiers returns every name that src uses to qualify a selection, which is
-// every package name the code refers to. It returns an empty set for source
-// that does not parse.
+// Qualifiers returns every name that src uses to qualify a selection. Those
+// names are every package name that the code refers to. It returns an empty set
+// for source that does not parse.
 //
 // Qualifiers reads the parsed source rather than the text, so neither a comment
 // nor a field of a local value reads as a package.
@@ -155,8 +155,8 @@ func Qualifiers(src []byte) map[string]bool {
 	return used
 }
 
-// withoutVersionSuffix takes a major-version suffix off a path element. A path
-// under gopkg.in carries the version this way, as in "yaml.v3".
+// withoutVersionSuffix removes a major-version suffix from a path element. A
+// path under gopkg.in carries the version this way, as in "yaml.v3".
 func withoutVersionSuffix(elem string) string {
 	base, version, found := strings.Cut(elem, ".")
 	if found && base != "" && majorVersion(version) {

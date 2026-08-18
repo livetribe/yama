@@ -25,7 +25,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// writeHeader puts content at name in dir and returns the path it wrote.
+// writeHeader puts content at name in dir. It returns the path that it wrote.
 func writeHeader(t *testing.T, dir, name, content string) string {
 	t.Helper()
 
@@ -35,9 +35,9 @@ func writeHeader(t *testing.T, dir, name, content string) string {
 	return path
 }
 
-// A Driver writes to os.Stderr, and no caller of NewDriver hands it a stream.
-// The command that runs a generation reads this default rather than setting one,
-// so a run reports what it wrote only while the default stands.
+// A Driver writes to os.Stderr, and no caller of NewDriver gives it a stream.
+// The command that runs a generation reads this default. It sets no stream of
+// its own, so a run reports what it wrote only while the default holds.
 func TestDriverWritesToStandardErrorByDefault(t *testing.T) {
 	d := NewDriver(t.TempDir(), nil, wire.Args{})
 
@@ -86,8 +86,8 @@ func TestDriverHeaderReportsAFileItCannotRead(t *testing.T) {
 }
 
 // Every file that a run writes puts the header above its own package clause, so
-// a header holds comments and blank lines alone. A run reports one that does
-// not rather than failing to render.
+// a header holds comments and blank lines only. A run reports a header that
+// holds something else. It does not fail to render.
 func TestDriverHeaderReportsAFileThatNoGoFileCanCarry(t *testing.T) {
 	dir := t.TempDir()
 	writeHeader(t, dir, "NOTICE", "Copyright 2026 the authors.\n")

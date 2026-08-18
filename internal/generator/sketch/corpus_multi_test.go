@@ -33,7 +33,7 @@ import (
 // several packages. These tests run one whole generation over each family.
 //
 // A family states its own import paths, so a copy of it has to state the paths
-// of where the copy sits.
+// of the directory that holds the copy.
 
 // corpusPrefix begins the import path of every package in the corpus.
 const corpusPrefix = "l7e.io/yama/v2/internal/generator/testdata/"
@@ -41,9 +41,10 @@ const corpusPrefix = "l7e.io/yama/v2/internal/generator/testdata/"
 // sketchPrefix begins the import path of a copy that these tests make.
 const sketchPrefix = "l7e.io/yama/v2/internal/generator/sketch/testdata/"
 
-// TestCorpusGeneratesAcrossPackages runs over a family whose one package builds
-// a graph out of another's providers. Both packages take a lifecycle file, and
-// the one that reads the other reads what this run wrote.
+// TestCorpusGeneratesAcrossPackages runs over a family. One package of that
+// family builds a graph out of another package's providers. Both packages take
+// a lifecycle file, and the package that reads the other one reads what this
+// run wrote.
 func TestCorpusGeneratesAcrossPackages(t *testing.T) {
 	requireGo(t)
 
@@ -61,8 +62,8 @@ func TestCorpusGeneratesAcrossPackages(t *testing.T) {
 }
 
 // TestCorpusGeneratesEveryPackageThatGoogleWireTakes runs over a family that
-// holds one package Google Wire rejects. The run reports that rejection, and it
-// writes a lifecycle file for every other package.
+// holds one package that Google Wire rejects. The run reports that rejection,
+// and it writes a lifecycle file for every other package.
 func TestCorpusGeneratesEveryPackageThatGoogleWireTakes(t *testing.T) {
 	requireGo(t)
 
@@ -80,8 +81,8 @@ func TestCorpusGeneratesEveryPackageThatGoogleWireTakes(t *testing.T) {
 	assertNoTransient(t, dir)
 }
 
-// TestCorpusReportsAPackageGoogleWireRejects runs over a package whose graph
-// Google Wire cannot build.
+// TestCorpusReportsAPackageGoogleWireRejects runs over a package with a graph
+// that Google Wire cannot build.
 func TestCorpusReportsAPackageGoogleWireRejects(t *testing.T) {
 	requireGo(t)
 
@@ -95,8 +96,8 @@ func TestCorpusReportsAPackageGoogleWireRejects(t *testing.T) {
 	assertNoTransient(t, dir)
 }
 
-// TestCorpusGeneratesUnderTheRunsOwnTags runs over a package whose providers
-// sit behind a build tag of the application's own.
+// TestCorpusGeneratesUnderTheRunsOwnTags runs over a package with providers
+// behind a build tag of the application's own.
 func TestCorpusGeneratesUnderTheRunsOwnTags(t *testing.T) {
 	requireGo(t)
 
@@ -110,10 +111,11 @@ func TestCorpusGeneratesUnderTheRunsOwnTags(t *testing.T) {
 	assertNoTransient(t, dir)
 }
 
-// TestCorpusLeavesABrokenGraphToTheApplication runs over a package whose graph
-// Google Wire cannot build, and whose only injector is the application's own.
-// The package declares no lifecycle stub, so the run states no path for it and
-// Google Wire never reads it. The run reports nothing and it writes nothing.
+// TestCorpusLeavesABrokenGraphToTheApplication runs over a package with a graph
+// that Google Wire cannot build. The only injector of that package is the
+// application's own. The package declares no lifecycle stub, so the run states
+// no path for it and Google Wire never reads it. The run reports nothing, and
+// it writes nothing.
 func TestCorpusLeavesABrokenGraphToTheApplication(t *testing.T) {
 	requireGo(t)
 
@@ -131,15 +133,15 @@ func TestCorpusLeavesABrokenGraphToTheApplication(t *testing.T) {
 	assertNoTransient(t, dir)
 }
 
-// sentinelOutput stands for Google Wire output that the application committed.
-// A run must hand back the bytes it found, and not what Google Wire wrote over
-// them.
+// sentinelOutput takes the place of Google Wire output that the application
+// committed. A run must return the bytes that it found, and not what Google
+// Wire wrote over them.
 const sentinelOutput = "// sentinel\n\n//go:build !wireinject\n\npackage nogen\n"
 
 // TestCorpusKeepsTheApplicationsOwnWireOutput runs over a package that declares
 // no lifecycle stub and builds a graph of its own. Google Wire's output there
-// belongs to the application, so a run writes no lifecycle file and hands the
-// output back untouched.
+// belongs to the application. A run therefore writes no lifecycle file, and it
+// returns the output with no change.
 func TestCorpusKeepsTheApplicationsOwnWireOutput(t *testing.T) {
 	dir := runOverNogen(t, "wire_gen.go", wire.Args{})
 
@@ -147,10 +149,10 @@ func TestCorpusKeepsTheApplicationsOwnWireOutput(t *testing.T) {
 	assertNoYamaTrace(t, dir)
 }
 
-// TestCorpusLeavesABackupOfAnEarlierRunAlone runs over the same package with its
-// output under the backup name, where an interrupted earlier run left it. A run
-// takes no custody of a package that declares no stub. The backup stays where it
-// sat, and the live name stays empty.
+// TestCorpusLeavesABackupOfAnEarlierRunAlone runs over the same package. Its
+// output is under the backup name, where an interrupted earlier run left it. A
+// run takes no custody of a package that declares no stub. The backup stays at
+// that name, and the live name stays empty.
 func TestCorpusLeavesABackupOfAnEarlierRunAlone(t *testing.T) {
 	const backup = ".yama.wire_gen.go"
 
@@ -161,8 +163,9 @@ func TestCorpusLeavesABackupOfAnEarlierRunAlone(t *testing.T) {
 }
 
 // TestCorpusKeepsTheApplicationsOwnPrefixedWireOutput runs the same package
-// under an output-file prefix. Yama builds the name by Google Wire's own rule,
-// so the file it sets aside and hands back is the one Google Wire writes.
+// under an output-file prefix. Yama builds the name by Google Wire's own rule.
+// The file that Yama sets aside and returns is therefore the file that Google
+// Wire writes.
 func TestCorpusKeepsTheApplicationsOwnPrefixedWireOutput(t *testing.T) {
 	dir := runOverNogen(t, "foo_wire_gen.go", wire.Args{Prefix: "foo_"})
 
@@ -172,7 +175,7 @@ func TestCorpusKeepsTheApplicationsOwnPrefixedWireOutput(t *testing.T) {
 }
 
 // runOverNogen puts the sentinel at one name in a copy of the package that
-// declares no stub, and runs over it.
+// declares no stub. It then runs over that copy.
 func runOverNogen(t *testing.T, start string, args wire.Args) string {
 	t.Helper()
 	requireGo(t)
@@ -191,7 +194,8 @@ func runOverNogen(t *testing.T, start string, args wire.Args) string {
 	return dir
 }
 
-// assertSentinel asserts the file at path holds the bytes the run found there.
+// assertSentinel asserts that the file at path holds the bytes that the run
+// found there.
 func assertSentinel(t *testing.T, path string) {
 	t.Helper()
 
@@ -201,8 +205,8 @@ func assertSentinel(t *testing.T, path string) {
 	assert.Equal(t, sentinelOutput, string(content))
 }
 
-// copyFamily copies one family into a directory of its own, and it states the
-// import paths of where that copy sits.
+// copyFamily copies one family into a directory of its own. It states the
+// import paths of the directory that holds that copy.
 func copyFamily(t *testing.T, name string) string {
 	t.Helper()
 
@@ -249,7 +253,7 @@ func copyFamily(t *testing.T, name string) string {
 			return err
 		}
 
-		//nolint:gosec // target sits under the directory MkdirTemp just made.
+		//nolint:gosec // target is under the directory that MkdirTemp just made.
 		return os.WriteFile(target, []byte(stated), 0o600)
 	}))
 
@@ -268,7 +272,7 @@ func assertFamilyBuilds(t *testing.T) {
 }
 
 // assertNoTransient reports a file that a run writes for Google Wire and takes
-// back out, and a backup that a run moves and puts back.
+// back out. It also reports a backup that a run moves and puts back.
 func assertNoTransient(t *testing.T, dir string) {
 	t.Helper()
 
@@ -276,8 +280,8 @@ func assertNoTransient(t *testing.T, dir string) {
 }
 
 // assertNoYamaTrace reports a file that Yama itself writes into a target
-// package. It says nothing about Google Wire's output, which a package that
-// declares no lifecycle stub keeps.
+// package. It states nothing about Google Wire's output. A package that
+// declares no lifecycle stub keeps that output.
 func assertNoYamaTrace(t *testing.T, dir string) {
 	t.Helper()
 
@@ -302,18 +306,18 @@ func transient(name string) bool {
 // names that a run takes back out, and the lifecycle file that it leaves.
 //
 // The generator that this sketch replaces runs in place over the same corpus
-// directories, and `go test ./...` runs the two packages at once. A copy of a
-// fixture leaves these names behind for two reasons. One that reaches the copy
-// changes what the copy generates. One that the other run takes back out
-// between the listing and the read fails the copy itself.
+// directories, and `go test ./...` runs the two packages at one time. A copy of
+// a fixture leaves these names behind for two reasons. A name that reaches the
+// copy changes what the copy generates. A name that the other run takes back
+// out between the listing and the read fails the copy itself.
 //
 // No fixture states a lifecycle file of its own. An emit fixture states its
-// outcome in a want directory, which a copy never walks into.
+// outcome in a want directory, and a copy never walks into that directory.
 func generated(name string) bool {
 	return transient(name) || name == wantFile
 }
 
-// assertAbsent reports every file under dir whose name transient accepts.
+// assertAbsent reports every file under dir with a name that transient accepts.
 func assertAbsent(t *testing.T, dir string, transient func(name string) bool) {
 	t.Helper()
 

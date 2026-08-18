@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package emit assembles the lifecycle file and writes it. Every input is
-// data, so emit needs no Go toolchain and no Google Wire run.
+// Package emit assembles the lifecycle file. It then writes that file. Every
+// input is data, so emit needs no Go toolchain and no Google Wire run.
 package emit
 
 import (
@@ -35,25 +35,27 @@ const (
 	generateDirective = "//go:generate go tool yama"
 
 	// buildConstraint keeps the lifecycle file out of the load that reads the
-	// stub, so the two never declare the same constructor at once.
+	// stub. The two files therefore never declare the same constructor at the
+	// same time.
 	buildConstraint = "//go:build !yamainject"
 )
 
-// fileMode is the mode that emit asks for the lifecycle file it writes. The
-// umask of the run applies to it, and a file already in the package keeps the
-// mode it carries.
+// fileMode is the mode that emit asks for the lifecycle file that it writes.
+// The umask of the run applies to that mode. A file that is already in the
+// package keeps the mode that it carries.
 //
-// The lifecycle file is committed source that every build reads, so it takes
-// the mode that the other files of the package take. The transient files that a
-// run writes and removes take a mode of their own.
+// The lifecycle file is committed source that every build reads. It therefore
+// takes the mode that the other files of the package take. The transient files
+// that a run writes and removes take a mode of their own.
 const fileMode = 0o666
 
-// A Package is everything the lifecycle file of one target package holds.
+// A Package is everything that the lifecycle file of one target package holds.
 //
-// Yama and Rt are the names that the file refers to Yama's own two packages by.
-// The file shares a block with the package it sits in and a scope with each
-// constructor's parameters, so a name that either one holds is a name these two
-// cannot take. A caller that leaves them empty gets the plain names.
+// Yama and Rt are the names that the file uses for Yama's own two packages. The
+// file shares a block with the package that contains it. It also shares a scope
+// with each constructor's parameters. Yama and Rt cannot take a name that the
+// block or a scope holds. A caller that leaves Yama and Rt empty gets the plain
+// names.
 type Package struct {
 	Name         string
 	Imports      []pkg.Import
@@ -63,7 +65,7 @@ type Package struct {
 	Rt   string
 }
 
-// yamaName returns the name that the file refers to Yama's public package by.
+// yamaName returns the name that the file uses for Yama's public package.
 func (p *Package) yamaName() string {
 	if p.Yama == "" {
 		return "yama"
@@ -72,7 +74,7 @@ func (p *Package) yamaName() string {
 	return p.Yama
 }
 
-// rtName returns the name that the file refers to Yama's runtime package by.
+// rtName returns the name that the file uses for Yama's runtime package.
 func (p *Package) rtName() string {
 	if p.Rt == "" {
 		return "rt"
@@ -81,12 +83,12 @@ func (p *Package) rtName() string {
 	return p.Rt
 }
 
-// A Constructor is one lifecycle function. Doc is the comment above it, and it
-// carries no comment markers.
+// A Constructor is one lifecycle function. Doc is the comment above that
+// function. Doc carries no comment markers.
 //
 // Statements is the construction that Google Wire performed, one entry for each
-// line. Result names the value the constructor returns first. Levels holds the
-// members of each lifecycle level, in the order a run starts them.
+// line. Result names the value that the constructor returns first. Levels holds
+// the members of each lifecycle level, in the order that a run starts them.
 type Constructor struct {
 	Doc        string
 	Signature  string
@@ -94,30 +96,30 @@ type Constructor struct {
 	Result     string
 	Levels     [][]Member
 
-	// Opts names the parameter that carries the run's options. It is empty
-	// when the stub declared none, and the builder then takes nothing.
+	// Opts names the parameter that carries the run's options. Opts is empty
+	// when the stub declared no options. The builder then takes no argument.
 	Opts string
 }
 
 // A Member is one component's place in a level.
 //
-// Cleanup names the cleanup function that this component's provider returned,
-// and it is empty when the provider returned none. Capable reports whether the
-// component's type declares a lifecycle capability.
+// Cleanup names the cleanup function that this component's provider returned.
+// Cleanup is empty when the provider returned no cleanup function. Capable
+// reports whether the component's type declares a lifecycle capability.
 type Member struct {
 	Name    string
 	Cleanup string
 	Capable bool
 }
 
-// The packages that every lifecycle file uses.
+// These are the packages that every lifecycle file uses.
 const (
 	yamaPath = "l7e.io/yama/v2"
 	rtPath   = "l7e.io/yama/v2/rt"
 )
 
 // runtimeImports are the packages that every lifecycle file uses, under the
-// names that this file refers to them by. Render adds them, so no caller has to
+// names that this file uses for them. Render adds them, so no caller has to
 // remember them.
 func runtimeImports(p *Package) []pkg.Import {
 	return []pkg.Import{
@@ -132,7 +134,7 @@ func FileName(prefix string) string {
 }
 
 // Render assembles the lifecycle file. header holds the bytes of the file that
-// -header_file names, and it is nil when the run set no such flag. Render
+// -header_file names. header is nil when the run set no such flag. Render
 // writes those bytes above Yama's own provenance line.
 //
 // Render panics when go/format rejects what it assembled. Every such failure is
@@ -184,7 +186,7 @@ func Render(p Package, header []byte) []byte {
 
 // needed returns the imports that the rendered code refers to. An import that
 // nothing refers to does not reach the file, because Go rejects a file that
-// imports a package it never uses.
+// imports a package that it never uses.
 func needed(block []pkg.Import, used map[string]bool) []pkg.Import {
 	out := make([]pkg.Import, 0, len(block))
 
@@ -199,7 +201,7 @@ func needed(block []pkg.Import, used map[string]bool) []pkg.Import {
 	return out
 }
 
-// Write puts content at name in dir, and it returns the path that it wrote.
+// Write puts content at name in dir. It returns the path that it wrote.
 func Write(dir, name string, content []byte) (string, error) {
 	path := filepath.Join(dir, name)
 
@@ -211,7 +213,7 @@ func Write(dir, name string, content []byte) (string, error) {
 }
 
 // withRuntime adds the packages that every lifecycle file uses, under the names
-// that Render writes them by. It drops a caller's import of either path, so the
+// that Render uses for them. It drops a caller's import of either path, so the
 // name in the import block always matches the name in the code.
 func withRuntime(p *Package) []pkg.Import {
 	stated := p.Imports
@@ -233,8 +235,8 @@ func withRuntime(p *Package) []pkg.Import {
 	return append(out, runtime...)
 }
 
-// writeImports assembles the import block. Standard-library paths come first,
-// and a blank line separates them from the rest.
+// writeImports assembles the import block. Standard-library paths come first.
+// A blank line separates them from the other paths.
 func writeImports(buf *bytes.Buffer, block []pkg.Import) {
 	if len(block) == 0 {
 		return
@@ -297,9 +299,9 @@ func writeConstructor(buf *bytes.Buffer, c *Constructor, rt string) {
 
 	buf.WriteString(c.Signature + " {\n")
 
-	// Each line goes in at the left margin, and go/format lays the body out.
-	// A tab of emit's own would reach the inside of a raw string literal, which
-	// go/format leaves as it stands.
+	// Each line goes in at the left margin, and go/format indents the body.
+	// A tab of emit's own would reach the inside of a raw string literal.
+	// go/format makes no change to such a literal.
 	for _, line := range c.Statements {
 		buf.WriteString(line + "\n")
 	}
@@ -308,8 +310,8 @@ func writeConstructor(buf *bytes.Buffer, c *Constructor, rt string) {
 	buf.WriteString("}\n")
 }
 
-// writeLifecycle writes the return, which hands back the built value, the
-// lifecycle that the builder assembled, and a nil error.
+// writeLifecycle writes the return statement. That statement returns the built
+// value, the lifecycle that the builder assembled, and a nil error.
 func writeLifecycle(buf *bytes.Buffer, c *Constructor, rt string) {
 	forwarded := ""
 	if c.Opts != "" {
@@ -329,7 +331,8 @@ func writeLifecycle(buf *bytes.Buffer, c *Constructor, rt string) {
 }
 
 // writeLevel writes the builder calls of one level, one call for each member
-// and in the order the level holds them. A member takes one of three calls:
+// and in the order that the level holds them. A member takes one of three
+// calls:
 //
 //	cleanup   capability   call
 //	no        any          WithComponents
@@ -354,8 +357,8 @@ func memberCall(m Member) string {
 	return "WithCleanup(" + m.Cleanup + ")"
 }
 
-// isStdlib reports whether path names a standard-library package. A path whose
-// first element holds no dot is in the standard library.
+// isStdlib reports whether path names a standard-library package. A path is in
+// the standard library if its first element holds no dot.
 func isStdlib(path string) bool {
 	first, _, _ := strings.Cut(path, "/")
 

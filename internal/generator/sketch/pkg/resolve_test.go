@@ -30,7 +30,7 @@ func TestNamesReadsTheNameAPackageDeclares(t *testing.T) {
 }
 
 // A path that ends in a major version holds no package name. The element before
-// it does, and every guess from the path alone has to know that rule.
+// it holds the name. Every guess from the path alone has to know that rule.
 func TestNamesReadsAPathThatEndsInAMajorVersion(t *testing.T) {
 	names := pkg.Names(".", []string{"l7e.io/yama/v2"})
 
@@ -63,8 +63,8 @@ func TestNamesReturnsAnEmptyMapForNoPaths(t *testing.T) {
 	assert.Empty(t, names)
 }
 
-// A path the toolchain cannot read leaves no entry. The caller keeps whatever
-// it already had for that path.
+// A path that the toolchain cannot read leaves no entry. The caller keeps
+// whatever it already had for that path.
 func TestNamesLeavesOutAPathItCannotRead(t *testing.T) {
 	names := pkg.Names(".", []string{"example.com/absent"})
 
@@ -87,8 +87,7 @@ func TestBuildFlagsSetsNoFlagForNoTags(t *testing.T) {
 	assert.Empty(t, pkg.BuildFlags(nil))
 }
 
-// Every load that a run makes sets the same tags, and one flag carries them
-// all.
+// Every load that a run makes sets the same tags. One flag carries all of them.
 func TestBuildFlagsJoinsEveryTagIntoOneFlag(t *testing.T) {
 	flags := pkg.BuildFlags([]string{"yamainject", "integration"})
 

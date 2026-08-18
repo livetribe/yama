@@ -57,8 +57,8 @@ func TestPackagesResolvesOneDirectory(t *testing.T) {
 	assert.Equal(t, []string{here(t)}, dirs)
 }
 
-// "./..." is the pattern a run over a whole tree uses, and the one a caller
-// cannot expand for itself.
+// "./..." is the pattern that a run over a whole tree uses. It is also the
+// pattern that a caller cannot expand for itself.
 func TestPackagesExpandsARecursivePattern(t *testing.T) {
 	dirs, err := resolve.Packages(context.Background(), "..", nil, []string{"./..."})
 
@@ -88,7 +88,7 @@ func TestPackagesReturnsNoDirectoryTwice(t *testing.T) {
 }
 
 // testdata holds no package that a pattern matches. The Go toolchain leaves it
-// out of every wildcard, which is what keeps a fixture out of a run.
+// out of every wildcard. This is what keeps a fixture out of a run.
 func TestPackagesLeavesOutTestdata(t *testing.T) {
 	dirs, err := resolve.Packages(context.Background(), "..", nil, []string{"./..."})
 
@@ -114,14 +114,14 @@ func TestPackagesResolvesUnderTheTagsItWasGiven(t *testing.T) {
 	assert.Equal(t, []string{here(t)}, dirs)
 }
 
-// A run names each package it wrote for by the import path that package
-// declares.
+// A run names each package that it wrote a file for. It uses the import path
+// that the package declares.
 func TestPackagePathNamesThePackageInTheDirectory(t *testing.T) {
 	assert.Equal(t, herePath, pkg.ImportPath(here(t), nil))
 }
 
-// A directory that holds no package states no import path, and that is not a
-// failure: a run still writes the file it generated.
+// A directory that holds no package states no import path. That is not a
+// failure. A run still writes the file that it generated.
 func TestPackagePathTakesADirectoryThatHoldsNoPackage(t *testing.T) {
 	assert.Empty(t, pkg.ImportPath(t.TempDir(), nil))
 }

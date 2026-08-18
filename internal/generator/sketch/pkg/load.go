@@ -14,14 +14,14 @@
 
 package pkg
 
-// CollectPackageInfo reads everything a run knows about the package in path.
-// tags are the build tags that the run set, and they reach both the stub files
-// and the load that names the package.
+// CollectPackageInfo reads everything that a run knows about the package in
+// path. tags are the build tags that the run set. They reach both the stub
+// files and the load that names the package.
 //
-// CollectPackageInfo reports the failure that reading the stub files produced.
-// It reports none for a fact that the Go toolchain would not state: a package
-// it cannot read leaves PkgPath empty, and a path it cannot read leaves that
-// path out of ImportNames.
+// CollectPackageInfo reports the failure that the read of the stub files
+// produced. It reports no error for a fact that the Go toolchain would not
+// state. A package that the toolchain cannot read leaves PkgPath empty. A path
+// that the toolchain cannot read stays out of ImportNames.
 func CollectPackageInfo(path string, tags []string) (*Info, error) {
 	info, err := Load(path, tags)
 	if err != nil {
@@ -47,8 +47,9 @@ func CollectPackageInfo(path string, tags []string) (*Info, error) {
 	return info, nil
 }
 
-// withStubTag puts the stub tag in front of the run's own tags. A package whose
-// every file is a lifecycle stub holds no file without that tag.
+// withStubTag puts the stub tag in front of the run's own tags. Some packages
+// declare a lifecycle stub in every file. Without that tag, such a package
+// holds no file.
 func withStubTag(tags []string) []string {
 	all := make([]string, 0, len(tags)+1)
 	all = append(all, Tag)

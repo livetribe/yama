@@ -15,16 +15,18 @@
 package pkg
 
 // LifecycleImports returns every import that the lifecycle file can carry, each
-// under the name that refers to it, and without a repeat: the stub files' own,
-// which a signature names, and Google Wire's own, which the construction names.
+// under the name that refers to it, and without a repeat. The set holds the
+// stub files' own imports, which a signature names. It also holds Google Wire's
+// own imports, which the construction names.
 //
-// Google Wire itself is not among them. A stub imports it for its Build call,
+// Google Wire itself is not in the set. A stub imports it for its Build call,
 // and the lifecycle file calls nothing from it.
 //
-// One path reaches the set twice when a stub file and Google Wire's output both
-// state it, and one entry stands for both. One path under two names reaches it
-// twice as well, and both entries stay: a signature may name a package by the
-// alias a stub gave it, and the construction by the name Google Wire used.
+// One path reaches the set two times when a stub file and Google Wire's output
+// both state it. One entry then holds both. One path under two names also
+// reaches the set two times, and both entries stay. A signature can name a
+// package by the alias that a stub gave it, and the construction can name the
+// same package by the name that Google Wire used.
 func (info *Info) LifecycleImports() []Import {
 	all := info.AllImports()
 

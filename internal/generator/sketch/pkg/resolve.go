@@ -22,11 +22,11 @@ import (
 )
 
 // ImportPath returns the import path that the package in dir declares. It sets
-// tags on the load, so a directory whose every file sits behind a build tag
-// still resolves.
+// tags on the load. A directory therefore still resolves if a build tag guards
+// every file in it.
 //
-// ImportPath returns an empty path for a directory that holds no package, and
-// it reports no error for one.
+// ImportPath returns an empty path for a directory that holds no package. It
+// reports no error for such a directory.
 func ImportPath(dir string, tags []string) string {
 	cfg := &packages.Config{
 		Mode:       packages.NeedName,
@@ -44,15 +44,15 @@ func ImportPath(dir string, tags []string) string {
 }
 
 // Names returns the name that each path's package declares, keyed by path. It
-// resolves each path from dir, which is the directory whose module states what
-// each path means.
+// resolves each path from dir. The module of that directory states what each
+// path means.
 //
 // Names leaves out a path that it could not read, and it reports no error for
-// one. A caller that finds no entry for a path still has the path itself to
-// work from, and the last element of a path names its package most of the time.
+// such a path. A caller that finds no entry for a path still has the path
+// itself. The last element of a path names its package most of the time.
 //
-// Names reaches no network. It reads the module cache of the machine it runs
-// on. A path that a build of dir resolves is a path in that cache already.
+// Names reaches no network. It reads the module cache of the machine that it
+// runs on. A path that a build of dir resolves is a path in that cache already.
 func Names(dir string, paths []string) map[string]string {
 	names := make(map[string]string, len(paths))
 
@@ -82,12 +82,12 @@ func Names(dir string, paths []string) map[string]string {
 	return names
 }
 
-// BuildFlags returns the flags that set tags on a load. It returns none when
+// BuildFlags returns the flags that set tags on a load. It returns no flag when
 // the caller passed no tag.
 //
-// Every load that a run makes sets the same tags. A load that set another set
-// would see another set of files, and a provider that only one load can see
-// builds no graph.
+// Every load that a run makes sets the same tags. A load that set other tags
+// would see another set of files. A provider that only one load can see builds
+// no graph.
 func BuildFlags(tags []string) []string {
 	if len(tags) == 0 {
 		return nil
