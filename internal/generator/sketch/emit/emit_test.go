@@ -15,8 +15,10 @@
 package emit_test
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -330,6 +332,48 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(got.Mode()).To(Equal(want.Mode()))
+		})
+
+		// An application can set a mode of its own on the lifecycle file that
+		// it committed. A run that writes over that file keeps the mode that
+		// the file carries. The mode that Write asks for reaches a new file
+		// alone.
+		It("keeps the mode of a file that it writes over", func() {
+			if runtime.GOOS == "windows" {
+				Skip("Windows tracks a read-only attribute alone, so it stages no 0600 file")
+			}
+
+			path := filepath.Join(dir, "lifecycle_gen.go")
+			Expect(os.WriteFile(path, []byte("package stale\n"), 0o600)).To(Succeed())
+
+			_, err := emit.Write(dir, "lifecycle_gen.go", []byte("package app\n"))
+			Expect(err).NotTo(HaveOccurred())
+
+			info, err := os.Stat(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(info.Mode().Perm()).To(Equal(fs.FileMode(0o600)))
+		})
+
+		// The file system refuses the write as the file opens, and before
+		// anything empties it. The package keeps the lifecycle file that it
+		// committed, so it still compiles.
+		It("leaves a file whole that it cannot write over", func() {
+			if os.Geteuid() == 0 {
+				Skip("the superuser writes to a read-only file, so the refusal stages nothing")
+			}
+
+			path := filepath.Join(dir, "lifecycle_gen.go")
+			Expect(os.WriteFile(path, []byte("package committed\n"), 0o600)).To(Succeed())
+			Expect(os.Chmod(path, 0o444)).To(Succeed())
+
+			_, err := emit.Write(dir, "lifecycle_gen.go", []byte("package app\n"))
+			Expect(err).To(MatchError(ContainSubstring("lifecycle_gen.go")))
+
+			b, err := os.ReadFile(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(string(b)).To(Equal("package committed\n"))
 		})
 
 		It("reports a directory it cannot write to", func() {

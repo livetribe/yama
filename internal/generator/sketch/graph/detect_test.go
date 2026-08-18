@@ -60,6 +60,27 @@ type Named struct{}
 
 func (Named) Quiesce(ctx context.Context, extra int) {}
 
+type Logger interface {
+	Start(ctx context.Context) error
+}
+
+type ConsoleLogger struct{}
+
+func (c *ConsoleLogger) Start(ctx context.Context) error { return nil }
+
+type Boxed struct{}
+
+func (b *Boxed) Stop(ctx context.Context) {}
+
+type Settings struct {
+	Full Full
+}
+
+var _wireSettingsValue = Settings{}
+
+func NewConsoleLogger() *ConsoleLogger { return &ConsoleLogger{} }
+func NewLogger() Logger                { return &ConsoleLogger{} }
+
 func NewFull() Full              { return Full{} }
 func NewStarter() Starter        { return Starter{} }
 func NewPointer() *Pointer       { return &Pointer{} }
@@ -82,6 +103,12 @@ func NewApp(
 	wrongResult WrongResult,
 	wrongParam WrongParam,
 	named Named,
+	bound *ConsoleLogger,
+	iface Logger,
+	settings Settings,
+	field Full,
+	boxed *Boxed,
+	unboxed Boxed,
 ) *App {
 	return &App{}
 }
@@ -96,7 +123,13 @@ func Init() *App {
 	wrongResult := NewWrongResult()
 	wrongParam := NewWrongParam()
 	named := NewNamed()
-	app := NewApp(full, starter, pointer, value, embeds, plain, wrongResult, wrongParam, named)
+	bound := NewConsoleLogger()
+	iface := NewLogger()
+	settings := _wireSettingsValue
+	field := settings.Full
+	boxed := &Boxed{}
+	unboxed := Boxed{}
+	app := NewApp(full, starter, pointer, value, embeds, plain, wrongResult, wrongParam, named, bound, iface, settings, field, boxed, unboxed)
 	return app
 }
 `
@@ -196,6 +229,54 @@ var _ = Describe("Detect", func() {
 
 		It("is no capability when Quiesce takes more than a context", func() {
 			Expect(capsOf()["named"]).To(Equal(graph.None))
+		})
+	})
+
+	// Detect reports no component that it left out. A component that it left
+	// out reads as graph.None, which is also what a type with no capability
+	// reads as.
+	It("fills in every shape that Google Wire writes", func() {
+		caps := capsOf()
+
+		for _, name := range []string{"bound", "iface", "settings", "field", "boxed", "unboxed"} {
+			Expect(caps).To(HaveKey(name))
+		}
+	})
+
+	// Google Wire writes a call for a bound interface. The name takes the
+	// concrete type that the binding names. The interface reaches the graph at
+	// the position that consumes the name.
+	Context("a component that Google Wire binds to an interface", func() {
+		It("reads what the concrete type declares", func() {
+			Expect(capsOf()["bound"]).To(Equal(graph.Start))
+		})
+
+		It("reads what an interface type declares", func() {
+			Expect(capsOf()["iface"]).To(Equal(graph.Start))
+		})
+	})
+
+	// Google Wire writes a read of a package-level name for a bound value. It
+	// writes a read of a field for a field of that value.
+	Context("a component that Google Wire binds to a value", func() {
+		It("reads what the value's type declares", func() {
+			Expect(capsOf()["settings"]).To(Equal(graph.None))
+		})
+
+		It("reads what a field of that value declares", func() {
+			Expect(capsOf()["field"]).To(Equal(graph.Start | graph.Quiesce | graph.Stop))
+		})
+	})
+
+	// Google Wire writes a struct literal for a struct provider. It writes the
+	// address operator for a provider of a pointer.
+	Context("a component that Google Wire builds from a struct literal", func() {
+		It("reads what the pointer type declares", func() {
+			Expect(capsOf()["boxed"]).To(Equal(graph.Stop))
+		})
+
+		It("reads none for the value type", func() {
+			Expect(capsOf()["unboxed"]).To(Equal(graph.None))
 		})
 	})
 
