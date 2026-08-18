@@ -883,7 +883,7 @@ learns a backup name. It returns the path that it wrote.
 May not import: `go/ast`, `go/token`, `go/types`, `go/printer`, `golang.org/x/tools/go/packages`,
 `custody`, `wire`, `work`.
 
-### 6.6 `../internal/generator/sketch/work`
+### 6.6 `internal/generator/work`
 
 ```go
 type Config struct {

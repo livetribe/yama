@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/sketch/wire"
+	"l7e.io/yama/v2/internal/generator/wire"
 )
 
 // requireGo skips a test that needs the go command, which the command shells out

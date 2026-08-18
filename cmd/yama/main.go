@@ -29,8 +29,8 @@ import (
 	"io"
 	"os"
 
-	"l7e.io/yama/v2/internal/generator/sketch"
-	"l7e.io/yama/v2/internal/generator/sketch/wire"
+	"l7e.io/yama/v2/internal/generator"
+	"l7e.io/yama/v2/internal/generator/wire"
 )
 
 // The exit codes are `wire gen`'s own, measured against it: 2 for arguments it
@@ -70,7 +70,7 @@ func run(ctx context.Context, stderr io.Writer, args []string) error {
 		return err
 	}
 
-	d := sketch.NewDriver(".", parsed.patterns, parsed.args)
+	d := generator.NewDriver(".", parsed.patterns, parsed.args)
 
 	return d.Run(ctx)
 }
