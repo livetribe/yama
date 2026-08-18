@@ -29,8 +29,8 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// The corpus of the generator that this sketch replaces holds families of
-// several packages. These tests run one whole generation over each family.
+// The corpus under internal/generator/testdata holds families of several
+// packages. These tests run one whole generation over each family.
 //
 // A family states its own import paths, so a copy of it has to state the paths
 // of the directory that holds the copy.
@@ -303,13 +303,9 @@ func transient(name string) bool {
 }
 
 // generated reports every name that a generation puts in a target package: the
-// names that a run takes back out, and the lifecycle file that it leaves.
-//
-// The generator that this sketch replaces runs in place over the same corpus
-// directories, and `go test ./...` runs the two packages at one time. A copy of
-// a fixture leaves these names behind for two reasons. A name that reaches the
-// copy changes what the copy generates. A name that the other run takes back
-// out between the listing and the read fails the copy itself.
+// names that a run takes back out, and the lifecycle file that it leaves. A
+// copy of a fixture leaves these names behind. A name that reaches the copy
+// changes what the copy generates.
 //
 // No fixture states a lifecycle file of its own. An emit fixture states its
 // outcome in a want directory, and a copy never walks into that directory.

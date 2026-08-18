@@ -25,7 +25,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/graph"
 )
 
-// The generator that this sketch replaces keeps a corpus of Google Wire output.
+// The corpus under internal/generator/testdata holds Google Wire output.
 // No parser can derive an order from that output. Each fixture states one
 // shape.
 //

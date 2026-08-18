@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,13 +29,15 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// A corpus of target packages under internal/generator/testdata tests the
-// generator that this sketch replaces. Each emit fixture ships the lifecycle
-// file that that generator writes for it.
+// A corpus of target packages under internal/generator/testdata states what a
+// generation produces. Each emit fixture ships the lifecycle file that a
+// generation must write for it.
 //
 // These tests run the sketch over each fixture and compare what it wrote. The
-// corpus states what a generation produces for shapes that no fixture of the
-// sketch's own covers. Every fixture in it came from outside the sketch.
+// corpus covers shapes that no fixture of the sketch's own covers. Every
+// fixture in it came from outside the sketch, and nothing in this module
+// writes one. A fixture's committed file is therefore a fixed record, and a
+// change to one is a deliberate change to what a generation must produce.
 
 // corpusRoot is the directory that holds the fixtures.
 const corpusRoot = "../testdata/emit"
@@ -44,11 +45,11 @@ const corpusRoot = "../testdata/emit"
 // wantFile is the lifecycle file that the fixture states.
 const wantFile = "lifecycle_gen.go"
 
-// TestCorpusMatchesTheGeneratorItReplaces renders every fixture and compares it
-// with the file that the other generator writes. It then builds the package the
-// way an application builds it. That build takes the fixture's own sources and
-// the file that the run wrote.
-func TestCorpusMatchesTheGeneratorItReplaces(t *testing.T) {
+// TestCorpusMatchesTheFileEachFixtureStates renders every fixture and compares
+// it with the file that the fixture states. It then builds the package the way
+// an application builds it. That build takes the fixture's own sources and the
+// file that the run wrote.
+func TestCorpusMatchesTheFileEachFixtureStates(t *testing.T) {
 	requireGo(t)
 
 	for _, name := range corpusFixtures(t) {
@@ -187,22 +188,13 @@ func runChainWith(t *testing.T, extra map[string]string) string {
 // its own runs against that file.
 const testappRoot = "../testapp"
 
-// snapshotWait bounds how long snapshotTestApp waits for the committed
-// lifecycle file to come back. snapshotPoll separates one copy from the next. A
-// generation of the other generator's own holds that file aside for as long as
-// it runs.
-const (
-	snapshotWait = 20 * time.Second
-	snapshotPoll = 50 * time.Millisecond
-)
-
-// TestCorpusMatchesTheCommittedApplication runs over the application that the
-// generator this sketch replaces keeps committed. It compares the lifecycle
-// file with the file that the application ships.
+// TestCorpusMatchesTheCommittedApplication runs over the application that keeps
+// its lifecycle file committed. It compares that file with the file that the
+// run wrote.
 func TestCorpusMatchesTheCommittedApplication(t *testing.T) {
 	requireGo(t)
 
-	src := snapshotTestApp(t)
+	src := copyTestApp(t)
 
 	want, err := os.ReadFile(filepath.Join(src, wantFile))
 	require.NoError(t, err)
@@ -215,53 +207,19 @@ func TestCorpusMatchesTheCommittedApplication(t *testing.T) {
 	assertFamilyBuilds(t)
 }
 
-// snapshotTestApp copies the committed application into a directory of this
-// test's own. It returns that directory. Every later read of the application
-// goes to the copy.
-//
-// The generator that this sketch replaces runs in place over the same
-// directory, and `go test ./...` runs the two packages at one time. That run
-// holds the committed lifecycle file at a backup name for as long as it runs,
-// so the live directory states no such file over that whole span. A copy that
-// this test makes during that span holds no such file either. snapshotTestApp
-// then waits for the run to put the file back, and it copies again.
-//
-// The other run puts the file back byte for byte, and it asserts this itself. A
-// copy that holds the file therefore holds the committed bytes.
-func snapshotTestApp(t *testing.T) string {
+// copyTestApp copies the committed application into a directory of this test's
+// own. It returns that directory. Every later read of the application goes to
+// the copy.
+func copyTestApp(t *testing.T) string {
 	t.Helper()
 
 	src, err := filepath.Abs(testappRoot)
 	require.NoError(t, err)
 
 	dir := t.TempDir()
-	deadline := time.Now().Add(snapshotWait)
-
-	for !copyTestApp(t, src, dir) {
-		if time.Now().After(deadline) {
-			t.Fatalf("%s stated no %s for %s; the generator that this sketch replaces holds that file "+
-				"aside while it runs in place over the same directory", src, wantFile, snapshotWait)
-		}
-
-		time.Sleep(snapshotPoll)
-	}
-
-	return dir
-}
-
-// copyTestApp copies the application's Go files one time. It reports whether
-// the copy holds the committed lifecycle file.
-//
-// The listing can give a name that a later read no longer finds. Such a name
-// belongs to the other generator's run, and copyTestApp leaves it out of the
-// copy.
-func copyTestApp(t *testing.T, src, dir string) bool {
-	t.Helper()
 
 	entries, err := os.ReadDir(src)
 	require.NoError(t, err)
-
-	committed := false
 
 	for _, entry := range entries {
 		name := filepath.Base(entry.Name())
@@ -270,21 +228,13 @@ func copyTestApp(t *testing.T, src, dir string) bool {
 		}
 
 		content, err := os.ReadFile(filepath.Join(src, name))
-		if os.IsNotExist(err) {
-			continue
-		}
-
 		require.NoError(t, err)
 
 		//nolint:gosec // the name comes from a directory listing of the application, and dir is one TempDir just made.
 		require.NoError(t, os.WriteFile(filepath.Join(dir, name), content, 0o600))
-
-		if name == wantFile {
-			committed = true
-		}
 	}
 
-	return committed
+	return dir
 }
 
 // TestSketchTakesNoInternalPackageOfGoogleWire asserts that the sketch reaches

@@ -24,7 +24,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/pkg"
 )
 
-// The generator that this sketch replaces keeps a corpus of stub packages. Each
+// The corpus under internal/generator/testdata holds stub packages. Each
 // one states a stub that it takes or a stub that it rejects.
 //
 // These tests read that corpus. Every fixture in it came from outside the

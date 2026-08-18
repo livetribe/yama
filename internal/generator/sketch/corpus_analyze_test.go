@@ -27,7 +27,7 @@ import (
 	"l7e.io/yama/v2/internal/generator/sketch/wire"
 )
 
-// The corpus of the generator that this sketch replaces holds packages that
+// The corpus under internal/generator/testdata holds packages that
 // state one property of the analysis each: which capability a type declares,
 // which level a component takes, and which builder call a member produces.
 //
