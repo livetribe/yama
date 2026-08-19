@@ -15,7 +15,6 @@
 package rt_test
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -48,7 +47,7 @@ func TestRT(t *testing.T) {
 // run rather than let recovery noise print to stderr on every green pass.
 var _ = BeforeSuite(func() {
 	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	DeferCleanup(func() { slog.SetDefault(prev) })
 })
 

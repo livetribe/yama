@@ -15,7 +15,6 @@
 package testapp_test
 
 import (
-	"io"
 	"log/slog"
 	"testing"
 
@@ -34,6 +33,6 @@ func TestTestApp(t *testing.T) {
 // that noise print on every green pass.
 var _ = BeforeSuite(func() {
 	prev := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	slog.SetDefault(slog.New(slog.DiscardHandler))
 	DeferCleanup(func() { slog.SetDefault(prev) })
 })
