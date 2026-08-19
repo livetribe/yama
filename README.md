@@ -166,6 +166,11 @@ file only to hold a file of yours.
 [`examples/hello`](examples/hello) is a working application built this way. It
 is its own Go module, so it reaches Yama the way an application does.
 
+## Guide
+
+[`docs/guide.md`](docs/guide.md) is the behavior reference: the lifecycle
+model, ordering, errors, interceptors, the context, and the command.
+
 ## Design
 
 For the design, see:
