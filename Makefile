@@ -13,7 +13,6 @@ test:
 
 coverage:
 	go test -v -covermode=count -coverpkg=./... -coverprofile=coverage.out -timeout 5m ./...
-	grep -v '/internal/generator/sandbox/' coverage.out > coverage.filtered && mv coverage.filtered coverage.out
 	go tool cover -func=coverage.out
 
 $(GOLANGCI_LINT):
