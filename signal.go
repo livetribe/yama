@@ -25,8 +25,7 @@ import (
 // starts lc, then blocks until one of the given OS signals arrives, or until ctx
 // is done. It then calls lc.Stop and returns. When signals is empty,
 // RunUntilSignal waits on the interrupt and termination signals. If Start fails,
-// RunUntilSignal returns an error that matches ErrStartFailed. RunUntilSignal
-// does not block.
+// RunUntilSignal returns an error that matches ErrStartFailed.
 //
 // RunUntilSignal gives ctx to lc.Start and to lc.Stop without a change. The
 // values, a cancellation, and a deadline on ctx therefore reach each component
