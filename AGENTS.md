@@ -193,6 +193,9 @@ alongside its stated output checks.
   level of shapes and roles, not concrete identifiers. Run the
   `architecture-doc-check` skill before treating an edit to this file as
   done.
+- `docs/guide.md` — the behavior reference for applications that use Yama:
+  the lifecycle model, ordering, errors, interceptors, the context, and the
+  command. States behavior only; the ADRs keep the rationale.
 - `implementation_plan_claude.md` — the phase-by-phase build plan: goal, files
   touched, risk, Definition of Done, and which ADRs/Architecture sections that
   phase must read first.
