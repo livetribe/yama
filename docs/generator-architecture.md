@@ -2,10 +2,10 @@
 
 ## Status
 
-The tree holds a rough sketch of the driver and of the state machine. Every method body in that
-sketch is a comment. This document describes the planned internal organization of
-`internal/generator`. It gives package boundaries, exported signatures, and control flow. It gives no
-function bodies.
+The tree holds the generator that this document describes, in `internal/generator`. This document
+gives the package boundaries, the exported signatures, and the control flow. It gives no function
+bodies. The document preceded the implementation. Where the document and the code disagree, the code
+is authoritative.
 
 The public runtime API, `package yama` and `package rt`, is frozen and out of scope. The *content* of
 the emitted `lifecycle_gen.go` must not change. Every golden file under
