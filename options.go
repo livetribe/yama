@@ -27,9 +27,11 @@ type optionFunc func(*bridge.Config)
 
 func (f optionFunc) Apply(c *bridge.Config) { f(c) }
 
-// WithBeginComponents registers components as begin boundary components: each
-// joins every lifecycle pass and runs before the pass's graph components, with
-// no ordering relative to them. WithBeginComponents is variadic, accumulating
+// WithBeginComponents registers components at the begin boundary. A begin
+// component participates through the capability interfaces it implements,
+// as a graph component does. It starts before every graph component, and it
+// quiesces and stops after every graph component. Begin components have no
+// ordering among themselves. WithBeginComponents is variadic and accumulates
 // registered components across calls.
 func WithBeginComponents(components ...any) Option {
 	return optionFunc(func(c *bridge.Config) {
@@ -37,9 +39,11 @@ func WithBeginComponents(components ...any) Option {
 	})
 }
 
-// WithEndComponents registers components as end boundary components: each
-// joins every lifecycle pass and runs after the pass's graph components, with
-// no ordering relative to them. WithEndComponents is variadic, accumulating
+// WithEndComponents registers components at the end boundary. An end
+// component participates through the capability interfaces it implements,
+// as a graph component does. It starts after every graph component, and it
+// quiesces and stops before every graph component. End components have no
+// ordering among themselves. WithEndComponents is variadic and accumulates
 // registered components across calls.
 func WithEndComponents(components ...any) Option {
 	return optionFunc(func(c *bridge.Config) {

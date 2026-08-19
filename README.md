@@ -94,6 +94,30 @@ that context, such as a node identifier, reach all of them. A cancellation and a
 deadline reach them too. A cancellation also stops the application in the same way
 that a signal does.
 
+## Boundary components
+
+Some components belong at the edges of the graph's order rather than inside it.
+Two options on the generated constructor register them:
+
+```go
+app, lc, err := hello.NewLifecycle(os.Stdout,
+	yama.WithBeginComponents(telemetry),
+	yama.WithEndComponents(readiness),
+)
+```
+
+A begin component starts before every graph component, and it quiesces and
+stops after every graph component. Base services such as telemetry belong
+here. They outlive everything that uses them.
+
+An end component starts after every graph component, and it quiesces and
+stops before every graph component. A readiness flip belongs here. It turns
+on only when the whole application is up, and it turns off first.
+
+A boundary component participates through the capabilities it implements,
+exactly as a graph component does. Both options are variadic and accumulate
+across calls.
+
 ## Files in the package directory
 
 `lifecycle_gen.go` is the only file generation commits. A run also writes two
