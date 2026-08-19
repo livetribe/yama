@@ -114,6 +114,24 @@ func TestExampleGenerationMatchesTheCommittedFile(t *testing.T) {
 	assert.Equal(t, string(first), string(second), "a second run changed the file the first one wrote")
 }
 
+// TestExampleLifecycleTestsPass runs the example module's own tests. Those
+// tests start the generated lifecycle, assert the order of its component
+// calls, and assert its startup error contract. The inner run adds -race
+// only when this binary has the race detector.
+func TestExampleLifecycleTestsPass(t *testing.T) {
+	requireGo(t)
+
+	trackExampleSources(t)
+
+	args := []string{"test"}
+	if raceDetectorEnabled {
+		args = append(args, "-race")
+	}
+	args = append(args, "./...")
+
+	runInExample(t, args...)
+}
+
 // runInExample runs the go command in the example module and returns its
 // combined output, failing the test if the command does.
 func runInExample(t *testing.T, args ...string) string {
@@ -170,4 +188,22 @@ func realPath(t *testing.T, path string) string {
 	require.NoError(t, err)
 
 	return resolved
+}
+
+// trackExampleSources reads every Go source file and both module files in the
+// example module. The Go test cache records the reads. A later change to one
+// of those files makes this package's cached test result stale.
+func trackExampleSources(t *testing.T) {
+	t.Helper()
+
+	patterns := []string{"*.go", "go.mod", "go.sum", filepath.Join("cmd", "hello", "*.go")}
+	for _, pattern := range patterns {
+		matches, err := filepath.Glob(filepath.Join(exampleDir, pattern))
+		require.NoError(t, err)
+
+		for _, match := range matches {
+			_, err := os.ReadFile(match)
+			require.NoError(t, err)
+		}
+	}
 }
