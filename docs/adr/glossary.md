@@ -36,6 +36,9 @@ in the same commit that introduces it.
 - **Cleanup** — a Google Wire cleanup function returned by a provider. Yama
   supports one for backward compatibility; it is not a lifecycle capability in
   its own right. See ADR-008.
+- **Reached level** — a level that the startup traversal entered before it
+  stopped. On a startup failure, the level that failed is reached, and the
+  levels after it are unreached. See ADR-015.
 - **Target package** — a package that a run generates for, named by the
   command's package-pattern argument. See ADR-012.
 - **Work item** — one target package's participation in one run. It records

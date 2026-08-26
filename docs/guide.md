@@ -117,8 +117,10 @@ Components already in flight in the level where the `Start` failed run until
 they finish. Yama does not cancel them.
 
 Yama then runs the normal shutdown sequence (the quiesce pass, then the
-teardown pass) over the components that started. `Start` then returns the
-failure. The application does not call `Stop` after a failed `Start`. A call
+teardown pass) over the components that started. The teardown pass also runs
+the Google Wire cleanups of the levels that startup did not reach. The
+components in those levels receive no lifecycle calls. `Start` then returns
+the failure. The application does not call `Stop` after a failed `Start`. A call
 that arrives anyway is a no-op.
 
 ## Errors

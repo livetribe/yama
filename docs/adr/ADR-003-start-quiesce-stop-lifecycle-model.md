@@ -201,9 +201,12 @@ A component that implements `Starter` counts as started only if its `Start` retu
 without error or panic. A component that does not implement `Starter` has no start to succeed
 or fail; it counts as started if, and only if, its level was reached during startup — the
 traversal advanced to it before failing. Reaching a component's level is that component's
-start. Consequently, a non-`Starter` in a level the failed startup never reached is not
-brought up and takes no part in shutdown, exactly as a `Starter` whose level was never
-reached does not.
+start. Consequently, the lifecycle manager does not bring up a non-`Starter` in a level
+that the failed startup never reached. That component takes no part in the quiesce and
+teardown capability passes. A `Starter` in an unreached level takes no part in them
+either. A Google Wire cleanup in an unreached level still runs during the teardown pass
+(ADR-015). A cleanup releases what its provider acquired during construction, and
+construction completed before startup began.
 
 The lifecycle manager then automatically initiates shutdown processing for those successfully started components.
 

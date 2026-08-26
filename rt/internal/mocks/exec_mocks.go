@@ -52,6 +52,18 @@ func (mr *MockCompleteLifecycleMockRecorder) Quiesce(arg0 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Quiesce", reflect.TypeOf((*MockCompleteLifecycle)(nil).Quiesce), arg0)
 }
 
+// Release mocks base method.
+func (m *MockCompleteLifecycle) Release(ctx context.Context) {
+	m.ctrl.T.Helper()
+	m.ctrl.Call(m, "Release", ctx)
+}
+
+// Release indicates an expected call of Release.
+func (mr *MockCompleteLifecycleMockRecorder) Release(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Release", reflect.TypeOf((*MockCompleteLifecycle)(nil).Release), ctx)
+}
+
 // Start mocks base method.
 func (m *MockCompleteLifecycle) Start(arg0 context.Context) error {
 	m.ctrl.T.Helper()

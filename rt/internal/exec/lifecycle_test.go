@@ -117,6 +117,10 @@ func lcHeld(
 		}
 	}).AnyTimes()
 
+	m.EXPECT().Release(gomock.Any()).Do(func(ctx context.Context) {
+		rec.add(ctx, name+".release")
+	}).AnyTimes()
+
 	m.EXPECT().Stop(gomock.Any()).Do(func(ctx context.Context) {
 		rec.add(ctx, name+".stop")
 	}).AnyTimes()
@@ -244,7 +248,7 @@ var _ = Describe("Lifecycle state machine", func() {
 
 	Describe("startup failure", func() {
 		It("halts at the failing level and tears down everything reached, including it", func() {
-			levels := append(lcGraph(ctrl, rec, 3, 2), Level{execmocks.NewMockCompleteLifecycle(ctrl)})
+			levels := append(lcGraph(ctrl, rec, 3, 2), Level{lcMember(ctrl, rec, "L3", nil)})
 			lc := NewLifecycle(levels)
 
 			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
@@ -252,6 +256,7 @@ var _ = Describe("Lifecycle state machine", func() {
 			Expect(rec.labels()).To(Equal([]string{
 				"L0.start", "L1.start", "L2.start",
 				"L2.quiesce", "L1.quiesce", "L0.quiesce",
+				"L3.release",
 				"L2.stop", "L1.stop", "L0.stop",
 			}))
 		})
@@ -259,14 +264,18 @@ var _ = Describe("Lifecycle state machine", func() {
 		It("quiesces and tears down the first level when that is the one that failed", func() {
 			levels := []Level{
 				{lcMember(ctrl, rec, "L0", errLcBoom)},
-				{execmocks.NewMockCompleteLifecycle(ctrl)},
-				{execmocks.NewMockCompleteLifecycle(ctrl)},
+				{lcMember(ctrl, rec, "L1", nil)},
+				{lcMember(ctrl, rec, "L2", nil)},
 			}
 			lc := NewLifecycle(levels)
 
 			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
 
-			Expect(rec.labels()).To(Equal([]string{"L0.start", "L0.quiesce", "L0.stop"}))
+			Expect(rec.labels()).To(Equal([]string{
+				"L0.start", "L0.quiesce",
+				"L2.release", "L1.release",
+				"L0.stop",
+			}))
 		})
 
 		It("tears down the sole level when the whole graph is that one level", func() {
@@ -287,7 +296,7 @@ var _ = Describe("Lifecycle state machine", func() {
 				{lcMember(ctrl, rec, "L0", nil)},
 				{},
 				{lcMember(ctrl, rec, "L2", errLcBoom)},
-				{execmocks.NewMockCompleteLifecycle(ctrl)},
+				{lcMember(ctrl, rec, "L3", nil)},
 			}
 			lc := NewLifecycle(levels)
 
@@ -296,7 +305,33 @@ var _ = Describe("Lifecycle state machine", func() {
 			Expect(rec.labels()).To(Equal([]string{
 				"L0.start", "L2.start",
 				"L2.quiesce", "L0.quiesce",
+				"L3.release",
 				"L2.stop", "L0.stop",
+			}))
+		})
+
+		It("runs the Wire cleanups of the unreached levels, touching no component there", func() {
+			// untouched and plain carry no expectations, so any call to either
+			// fails the spec. The spec wraps plain through the chains. The
+			// builder wraps a graph component the same way.
+			untouched := execmocks.NewMockCompleteLifecycle(ctrl)
+			plain := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			levels := []Level{
+				{lcMember(ctrl, rec, "L0", nil)},
+				{lcMember(ctrl, rec, "L1", errLcBoom)},
+				{NewCleanableComponent(untouched, func() { rec.add(ctx, "L2.cleanup") }), NewChains(nil).WrapComponent(plain)},
+				{Cleanup(func() { rec.add(ctx, "L3.cleanup") })},
+			}
+			lc := NewLifecycle(levels)
+
+			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
+
+			Expect(rec.labels()).To(Equal([]string{
+				"L0.start", "L1.start",
+				"L1.quiesce", "L0.quiesce",
+				"L3.cleanup", "L2.cleanup",
+				"L1.stop", "L0.stop",
 			}))
 		})
 	})
@@ -327,6 +362,7 @@ var _ = Describe("Lifecycle state machine", func() {
 			Expect(settled).To(Equal([]string{
 				"L0.start", "L1.start",
 				"L1.quiesce", "L0.quiesce",
+				"L2.release",
 				"L1.stop", "L0.stop",
 			}))
 		})
@@ -541,12 +577,17 @@ var _ = Describe("Lifecycle state machine", func() {
 
 		It("runs startup-failure cleanup under the failing Start's context", func() {
 			startCtx := context.WithValue(ctx, lcKey{}, "start")
-			lc := NewLifecycle(lcGraph(ctrl, rec, 2, 1))
+			lc := NewLifecycle(lcGraph(ctrl, rec, 3, 1))
 
 			Expect(lc.Start(startCtx)).To(MatchError(yama.ErrStartFailed))
 
-			seen := rec.contexts("L0.start", "L1.start", "L1.quiesce", "L0.quiesce", "L1.stop", "L0.stop")
-			Expect(seen).To(HaveLen(6))
+			seen := rec.contexts(
+				"L0.start", "L1.start",
+				"L1.quiesce", "L0.quiesce",
+				"L2.release",
+				"L1.stop", "L0.stop",
+			)
+			Expect(seen).To(HaveLen(7))
 			Expect(seen).To(HaveEach(BeIdenticalTo(startCtx)))
 		})
 
@@ -600,7 +641,7 @@ var _ = Describe("Lifecycle state machine", func() {
 			levels := []Level{
 				{lcMember(ctrl, rec, "L0", nil)},
 				{lcHeld(ctrl, rec, "L1", errLcBoom, release, nil)},
-				{execmocks.NewMockCompleteLifecycle(ctrl)},
+				{lcMember(ctrl, rec, "L2", nil)},
 			}
 			lc := NewLifecycle(levels)
 
@@ -621,6 +662,7 @@ var _ = Describe("Lifecycle state machine", func() {
 			Expect(rec.labels()).To(Equal([]string{
 				"L0.start", "L1.start",
 				"L1.quiesce", "L0.quiesce",
+				"L2.release",
 				"L1.stop", "L0.stop",
 			}))
 		})

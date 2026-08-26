@@ -129,6 +129,17 @@ var _ = Describe("A Wire cleanup paired with a component", func() {
 		})
 	})
 
+	Context("the release pass", func() {
+		It("runs the cleanup and gives the component no call", func() {
+			// comp carries no expectations, so any call to it fails the spec.
+			comp := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			NewCleanableComponent(comp, rec.recording("cleanup")).Release(ctx)
+
+			Expect(rec.taken()).To(Equal([]string{"cleanup"}))
+		})
+	})
+
 	Context("the teardown pass", func() {
 		It("releases the provider's resources before the outermost stop interceptor is entered", func() {
 			comp := execmocks.NewMockCompleteLifecycle(ctrl)
@@ -537,6 +548,12 @@ var _ = Describe("A standalone Wire cleanup", func() {
 
 	It("runs the cleanup as its whole teardown", func() {
 		Cleanup(rec.recording("cleanup")).Stop(ctx)
+
+		Expect(rec.taken()).To(Equal([]string{"cleanup"}))
+	})
+
+	It("runs the cleanup on Release, exactly as on Stop", func() {
+		Cleanup(rec.recording("cleanup")).Release(ctx)
 
 		Expect(rec.taken()).To(Equal([]string{"cleanup"}))
 	})

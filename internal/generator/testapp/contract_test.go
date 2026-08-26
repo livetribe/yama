@@ -180,6 +180,19 @@ var _ = Describe("the generated lifecycle constructor", func() {
 			Expect(rec.Matching("cleanup")).To(ConsistOf("cleanup leaf", "cleanup res"))
 		})
 
+		It("runs the cleanups of the levels the failing start never reached", func() {
+			_, lifecycle, err := testapp.NewLifecycle(rec, testapp.Fault{FailStart: "base"})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(lifecycle.Start(ctx)).NotTo(Succeed())
+
+			Expect(rec.Matching("cleanup")).To(ConsistOf("cleanup leaf", "cleanup res"))
+			Expect(rec.Events()).NotTo(ContainElement("quiesce leaf"))
+			Expect(rec.Events()).NotTo(ContainElement("stop leaf"))
+			Expect(rec.Events()).NotTo(ContainElement(HaveSuffix(" mid")), "an unreached plain component receives no call")
+			Expect(rec.Events()).NotTo(ContainElement(HaveSuffix(" top")), "an unreached plain component receives no call")
+		})
+
 		It("gates the component whose Start failed out of both shutdown passes", func() {
 			_, lifecycle, err := testapp.NewLifecycle(rec, testapp.Fault{FailStart: "mid"})
 			Expect(err).NotTo(HaveOccurred())

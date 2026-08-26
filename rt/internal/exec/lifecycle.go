@@ -23,15 +23,19 @@ import (
 	"l7e.io/yama/v2"
 )
 
-// CompleteLifecycle is the union of the three capabilities. Everything the
-// lifecycle drives — a component, a component paired with its cleanup, a whole
-// level — satisfies it, so each composes with the others uniformly. An element
-// that does not participate in a pass implements that pass as a no-op rather than
-// being absent.
+// CompleteLifecycle is the union of the three capabilities and the Release
+// operation. Everything the lifecycle drives — a component, a component paired
+// with its cleanup, a whole level — satisfies it, and each composes with the
+// others uniformly. An element that does not participate in a pass implements
+// that pass as a no-op rather than being absent.
 type CompleteLifecycle interface {
 	yama.Starter
 	yama.Quiescer
 	yama.Stopper
+
+	// Release runs the element's Google Wire cleanup and nothing else. The
+	// teardown pass calls Release on each level that startup did not reach.
+	Release(ctx context.Context)
 }
 
 type lifecycleState int
@@ -126,13 +130,17 @@ func (l *lifecycle) Stop(ctx context.Context) {
 	l.state = stateStopped
 }
 
-// stop runs the quiesce pass over levels level..0, then the teardown pass over
-// the same range. The passes are separate traversals, so every quiesce completes
-// before any teardown begins. Levels above level were never reached and take no
-// part.
+// stop runs the quiesce pass over levels level..0. It then runs the teardown
+// pass over every level in reverse. The passes are separate traversals, so
+// every quiesce completes before any teardown begins. Startup did not reach
+// the levels above level. Those levels run only their cleanups.
 func (l *lifecycle) stop(ctx context.Context, level int) {
 	for i := level; 0 <= i; i-- {
 		l.levels[i].Quiesce(ctx)
+	}
+
+	for i := len(l.levels) - 1; level < i; i-- {
+		l.levels[i].Release(ctx)
 	}
 
 	for i := level; 0 <= i; i-- {

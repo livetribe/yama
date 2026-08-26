@@ -201,9 +201,11 @@ package rather than in generated fields. Every wrapped component carries it, so
 shutdown gates uniformly: a `Starter` is gated out of both shutdown passes unless
 its `Start` returned without error or panic. A component that implements no
 `Starter` has no start to fail and is never gated out. A component in a level the
-failed startup never reached is not gated at all. The traversal simply stops at
-the failing level and never walks past it, so unreached levels take no part in
-either pass.
+failed startup never reached is not gated at all. The quiesce pass covers only
+the reached levels, and an unreached level's components receive no lifecycle
+calls. The teardown pass walks every level in reverse. An unreached level runs
+only its cleanups, and a reached level tears down as in a normal `Stop`. No
+start outcome scopes a cleanup (ADR-015).
 
 The generated constructor returns only Google Wire's own construction error.
 Lifecycle execution returns only public lifecycle errors. Component-level errors

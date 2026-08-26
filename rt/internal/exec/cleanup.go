@@ -37,8 +37,13 @@ func (fn Cleanup) Start(_ context.Context) error {
 // Quiesce does nothing; a cleanup has no quiesce work.
 func (fn Cleanup) Quiesce(_ context.Context) {}
 
-// Stop runs the cleanup. It runs whether or not the level was reached during a
-// failed startup, since a cleanup carries no start outcome to gate on.
+// Release runs the cleanup, exactly as Stop does. The teardown pass calls
+// Release in a level that startup did not reach.
+func (fn Cleanup) Release(_ context.Context) {
+	fn()
+}
+
+// Stop runs the cleanup. A start outcome does not gate it.
 func (fn Cleanup) Stop(_ context.Context) {
 	fn()
 }
@@ -75,6 +80,13 @@ func (c *cleanableComponent) Quiesce(ctx context.Context) {
 	c.component.Quiesce(ctx)
 }
 
+// Release runs the cleanup and not the component's Stop. The teardown pass
+// calls Release in a level that startup did not reach. The component there
+// receives no lifecycle call.
+func (c *cleanableComponent) Release(_ context.Context) {
+	c.cleanup()
+}
+
 // Stop releases the provider's resources and then tears the component down.
 //
 // The order between the two is fixed but arbitrary: a cleanup can release what
@@ -85,6 +97,6 @@ func (c *cleanableComponent) Quiesce(ctx context.Context) {
 // The cleanup runs whether or not the component started, since it sits outside
 // the gate that drops a failed component's teardown.
 func (c *cleanableComponent) Stop(ctx context.Context) {
-	c.cleanup()
+	c.Release(ctx)
 	c.component.Stop(ctx)
 }

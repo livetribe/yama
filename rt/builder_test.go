@@ -171,6 +171,29 @@ var _ = Describe("LifecycleBuilder", func() {
 			Expect(cleaned).To(BeTrue(), "the cleanup runs even though Start failed")
 		})
 
+		It("run in the levels a failing start never reached", func() {
+			// The owner and the plain component have no expectations, so any
+			// call to either fails the spec.
+			failing := execmocks.NewMockCompleteLifecycle(ctrl)
+			owner := execmocks.NewMockCompleteLifecycle(ctrl)
+			plain := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			failing.EXPECT().Start(gomock.Any()).Return(errors.New("boom"))
+
+			paired := false
+			standalone := false
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().WithComponents(failing).
+				NextLevel().WithCleanableComponent(owner, func() { paired = true }).WithComponents(plain).
+				NextLevel().WithCleanup(func() { standalone = true })
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(MatchError(yama.ErrStartFailed))
+			Expect(paired).To(BeTrue(), "the paired cleanup runs though its level was never reached")
+			Expect(standalone).To(BeTrue(), "the standalone cleanup runs though its level was never reached")
+		})
+
 		It("bypass the interceptor chain, which sees only the component's own Stop", func() {
 			owner := execmocks.NewMockCompleteLifecycle(ctrl)
 			interceptor := mocks.NewMockStopInterceptor(ctrl)

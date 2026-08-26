@@ -86,6 +86,17 @@ var lvlQuiescePass = lvlPass{
 	},
 }
 
+var lvlReleasePass = lvlPass{
+	expect: func(m *execmocks.MockCompleteLifecycle, body func(ctx context.Context)) {
+		m.EXPECT().Release(gomock.Any()).Do(func(ctx context.Context) {
+			body(ctx)
+		})
+	},
+	invoke: func(l Level, ctx context.Context) {
+		l.Release(ctx)
+	},
+}
+
 var lvlStopPass = lvlPass{
 	expect: func(m *execmocks.MockCompleteLifecycle, body func(ctx context.Context)) {
 		m.EXPECT().Stop(gomock.Any()).Do(func(ctx context.Context) {
@@ -242,6 +253,10 @@ var _ = Describe("Level", func() {
 				}).NotTo(Panic())
 
 				Expect(func() {
+					lv.Release(context.Background())
+				}).NotTo(Panic())
+
+				Expect(func() {
 					lv.Stop(context.Background())
 				}).NotTo(Panic())
 
@@ -271,6 +286,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -291,6 +307,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -310,6 +327,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -330,6 +348,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 	})
@@ -510,6 +529,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -535,6 +555,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -554,6 +575,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 
@@ -711,6 +733,7 @@ var _ = Describe("Level", func() {
 			},
 			Entry("start", lvlStartPass),
 			Entry("quiesce", lvlQuiescePass),
+			Entry("release", lvlReleasePass),
 			Entry("stop", lvlStopPass),
 		)
 

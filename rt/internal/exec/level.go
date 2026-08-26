@@ -60,7 +60,7 @@ func (l Level) Start(ctx context.Context) error {
 	return nil
 }
 
-// Quiesce runs every member and waits for all of them. It reports nothing; a
+// Quiesce runs every member and waits for all of them. It reports nothing. A
 // member that panics does not stop the rest.
 func (l Level) Quiesce(ctx context.Context) {
 	l.spawn(ctx, func(ctx context.Context, c CompleteLifecycle) {
@@ -68,8 +68,16 @@ func (l Level) Quiesce(ctx context.Context) {
 	})
 }
 
-// Stop runs every member and waits for all of them. It reports nothing; a member
-// that panics does not stop the rest.
+// Release runs every member's Release and waits for all of them. It reports
+// nothing. A member that panics does not stop the rest.
+func (l Level) Release(ctx context.Context) {
+	l.spawn(ctx, func(ctx context.Context, c CompleteLifecycle) {
+		c.Release(ctx)
+	})
+}
+
+// Stop runs every member and waits for all of them. It reports nothing. A
+// member that panics does not stop the rest.
 func (l Level) Stop(ctx context.Context) {
 	l.spawn(ctx, func(ctx context.Context, c CompleteLifecycle) {
 		c.Stop(ctx)

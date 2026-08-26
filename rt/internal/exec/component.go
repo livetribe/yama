@@ -65,6 +65,10 @@ func (c *component) Quiesce(ctx context.Context) {
 	c.quiesce.Quiesce(withStatus(ctx, c.failed))
 }
 
+// Release does nothing. A component carries no cleanup. A cleanup pairs with
+// its component through cleanableComponent.
+func (c *component) Release(context.Context) {}
+
 // Stop runs the component's Stop, carrying the outcome of its Start so the gate
 // can drop a component that never came up.
 func (c *component) Stop(ctx context.Context) {
