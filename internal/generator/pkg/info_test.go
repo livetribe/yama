@@ -20,14 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 func TestCollectPackageInfoReadsTheClauseAndThePathOfTheShapesPackage(t *testing.T) {
 	info := collectShapes(t)
 
 	assert.Equal(t, "shapes", info.Name())
-	assert.Equal(t, "l7e.io/yama/v2/internal/generator/pkg/testdata/shapes", info.PkgPath())
+	assert.Equal(t, "l7e.io/yama/internal/generator/pkg/testdata/shapes", info.PkgPath())
 	assert.Equal(t, shapesDir, info.Dir())
 }
 

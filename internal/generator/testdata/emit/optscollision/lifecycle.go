@@ -19,7 +19,7 @@ package optscollision
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewALifecycle names its options parameter after the runtime-support package,

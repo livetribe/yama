@@ -24,8 +24,8 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/mocks"
+	yama "l7e.io/yama"
+	"l7e.io/yama/internal/mocks"
 )
 
 // TestRunUntilSignalBlocksAfterStart is the Windows-tagged counterpart to the

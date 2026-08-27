@@ -41,7 +41,7 @@ var updateGolden = flag.Bool("update", false, "update the API-surface golden fil
 
 // modulePath is this module's import path, used to turn a loaded package's
 // PkgPath into a path relative to the module root.
-const modulePath = "l7e.io/yama/v2"
+const modulePath = "l7e.io/yama"
 
 // goldenDir holds one snapshot per public package, named by its import path
 // relative to the module root.

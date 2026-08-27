@@ -19,7 +19,7 @@ package variadicgraphparam
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle declares a final parameter that is variadic but not

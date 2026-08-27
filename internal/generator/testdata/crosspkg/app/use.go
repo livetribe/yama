@@ -15,9 +15,9 @@
 package app
 
 import (
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 
-	"l7e.io/yama/v2/internal/generator/testdata/crosspkg/lib"
+	"l7e.io/yama/internal/generator/testdata/crosspkg/lib"
 )
 
 // StartLib calls the constructor the sibling package's stub declares. This file

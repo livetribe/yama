@@ -25,8 +25,8 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 
-	"l7e.io/yama/v2"
-	execmocks "l7e.io/yama/v2/rt/internal/mocks"
+	"l7e.io/yama"
+	execmocks "l7e.io/yama/rt/internal/mocks"
 )
 
 // errLcBoom is the failure a level member reports from its Start.

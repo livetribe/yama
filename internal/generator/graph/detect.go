@@ -22,7 +22,7 @@ import (
 
 	"golang.org/x/tools/go/packages"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // This is the type that every capability method takes.

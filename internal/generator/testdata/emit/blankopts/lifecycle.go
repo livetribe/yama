@@ -19,7 +19,7 @@ package blankopts
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle binds the blank identifier to its options parameter, which the

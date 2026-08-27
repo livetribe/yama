@@ -6,8 +6,8 @@
 package collision
 
 import (
-	yama2 "l7e.io/yama/v2"
-	rt2 "l7e.io/yama/v2/rt"
+	yama2 "l7e.io/yama"
+	rt2 "l7e.io/yama/rt"
 )
 
 // NewLifecycle orchestrates a graph whose component locals take the names Yama

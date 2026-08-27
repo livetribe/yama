@@ -24,13 +24,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
-	"l7e.io/yama/v2/internal/generator/resolve"
+	"l7e.io/yama/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/resolve"
 )
 
 // herePath is the import path of the resolve package itself, which is the
 // package that these tests run in.
-const herePath = "l7e.io/yama/v2/internal/generator/resolve"
+const herePath = "l7e.io/yama/internal/generator/resolve"
 
 // here is the directory that these tests run in, which is the directory of the
 // resolve package itself.

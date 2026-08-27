@@ -19,7 +19,7 @@ package optsshadow
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle names its options parameter rt, which is also the name the

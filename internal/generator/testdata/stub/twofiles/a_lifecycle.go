@@ -19,7 +19,7 @@ package twofiles
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewSecondLifecycle is declared first in the file that sorts first, so stub

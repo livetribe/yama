@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // writeHeader puts content at name in dir. It returns the path that it wrote.

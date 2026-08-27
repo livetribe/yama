@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewAppLifecycle builds the app from a wire.Value provider.

@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // GraphSet builds the whole graph from the io.Writer the lifecycle constructor

@@ -31,10 +31,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/graph"
-	"l7e.io/yama/v2/internal/generator/resolve"
-	"l7e.io/yama/v2/internal/generator/wire"
-	"l7e.io/yama/v2/internal/generator/work"
+	"l7e.io/yama/internal/generator/graph"
+	"l7e.io/yama/internal/generator/resolve"
+	"l7e.io/yama/internal/generator/wire"
+	"l7e.io/yama/internal/generator/work"
 )
 
 // wireShapes names every statement shape that Google Wire writes at the top

@@ -1,4 +1,4 @@
-package yama // l7e.io/yama/v2
+package yama // l7e.io/yama
 
 var ErrStartFailed error
 

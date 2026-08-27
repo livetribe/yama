@@ -21,8 +21,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // A run takes no custody of the two intermediate names. It never puts back a

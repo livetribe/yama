@@ -30,9 +30,9 @@ import (
 // Go module, so what it builds against reaches it as an ordinary external
 // dependency.
 //
-// Its module path must stay outside l7e.io/yama/v2/. Go's internal-package rule
+// Its module path must stay outside l7e.io/yama/. Go's internal-package rule
 // is keyed on the import-path prefix, not on the module: a module path under
-// l7e.io/yama/v2/ may import l7e.io/yama/v2/internal/..., and the boundary these
+// l7e.io/yama/ may import l7e.io/yama/internal/..., and the boundary these
 // tests prove is then no longer under test.
 var exampleDir = filepath.Join("..", "..", "examples", "hello")
 
@@ -56,7 +56,7 @@ func TestExampleBuildsAsItsOwnModule(t *testing.T) {
 func TestExampleResolvesTheLocalCheckout(t *testing.T) {
 	requireGo(t)
 
-	resolved := runInExample(t, "list", "-m", "-f", "{{.Dir}}", "l7e.io/yama/v2")
+	resolved := runInExample(t, "list", "-m", "-f", "{{.Dir}}", "l7e.io/yama")
 
 	root, err := filepath.Abs(filepath.Join("..", ".."))
 	require.NoError(t, err)

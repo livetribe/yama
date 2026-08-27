@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // The corpus under internal/generator/testdata holds stub packages. Each

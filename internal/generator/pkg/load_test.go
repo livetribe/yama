@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // loadStub writes one stub file and reads the package that it declares.
@@ -48,7 +48,7 @@ package app
 
 import (
 	"github.com/google/wire"
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 	"go.uber.org/zap"
 )
 
@@ -71,7 +71,7 @@ package app
 
 import (
 	gwire "github.com/google/wire"
-	y "l7e.io/yama/v2"
+	y "l7e.io/yama"
 )
 
 func NewApp(opts ...y.Option) (*App, y.Lifecycle, error) {
@@ -101,5 +101,5 @@ func TestCollectPackageInfoTakesADirectoryThatDeclaresNoStub(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, info.Stubs())
-	assert.Equal(t, "l7e.io/yama/v2/internal/generator/wire", info.PkgPath())
+	assert.Equal(t, "l7e.io/yama/internal/generator/wire", info.PkgPath())
 }

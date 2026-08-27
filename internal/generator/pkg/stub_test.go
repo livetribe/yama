@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // A package states its stubs one file at a time, in the order of the file names

@@ -20,7 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 func TestNamesReadsTheNameAPackageDeclares(t *testing.T) {
@@ -32,9 +32,9 @@ func TestNamesReadsTheNameAPackageDeclares(t *testing.T) {
 // A path that ends in a major version holds no package name. The element before
 // it holds the name. Every guess from the path alone has to know that rule.
 func TestNamesReadsAPathThatEndsInAMajorVersion(t *testing.T) {
-	names := pkg.Names(".", []string{"l7e.io/yama/v2"})
+	names := pkg.Names(".", []string{"l7e.io/yama"})
 
-	assert.Equal(t, "yama", names["l7e.io/yama/v2"])
+	assert.Equal(t, "yama", names["l7e.io/yama"])
 }
 
 // gopkg.in/yaml.v3 declares the package yaml. No rule over the path alone
@@ -46,14 +46,14 @@ func TestNamesReadsAPathThatNoRuleCouldGuess(t *testing.T) {
 }
 
 func TestNamesReadsEveryPathItWasGiven(t *testing.T) {
-	paths := []string{"context", "gopkg.in/yaml.v3", "l7e.io/yama/v2"}
+	paths := []string{"context", "gopkg.in/yaml.v3", "l7e.io/yama"}
 
 	names := pkg.Names(".", paths)
 
 	assert.Equal(t, map[string]string{
 		"context":          "context",
 		"gopkg.in/yaml.v3": "yaml",
-		"l7e.io/yama/v2":   "yama",
+		"l7e.io/yama":      "yama",
 	}, names)
 }
 
@@ -74,7 +74,7 @@ func TestNamesLeavesOutAPathItCannotRead(t *testing.T) {
 func TestImportPathReadsThePathAPackageDeclares(t *testing.T) {
 	path := pkg.ImportPath(filepath.Join(stubRoot, "noparams"), []string{pkg.Tag})
 
-	assert.Equal(t, "l7e.io/yama/v2/internal/generator/testdata/stub/noparams", path)
+	assert.Equal(t, "l7e.io/yama/internal/generator/testdata/stub/noparams", path)
 }
 
 func TestImportPathIsEmptyForADirectoryThatHoldsNoPackage(t *testing.T) {

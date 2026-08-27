@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"l7e.io/yama/v2"
+	"l7e.io/yama"
 )
 
 // CompleteLifecycle is the union of the three capabilities and the Release

@@ -18,15 +18,15 @@ import (
 	"regexp"
 	"strconv"
 
-	"l7e.io/yama/v2/internal/generator/graph"
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/graph"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // These are the paths of Yama's own two packages. Every lifecycle file imports
 // them.
 const (
-	yamaPath = "l7e.io/yama/v2"
-	rtPath   = "l7e.io/yama/v2/rt"
+	yamaPath = "l7e.io/yama"
+	rtPath   = "l7e.io/yama/rt"
 )
 
 // blankName binds nothing. A parameter that carries it states no name that the

@@ -33,7 +33,7 @@ import (
 	"strings"
 	"unicode"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 const (

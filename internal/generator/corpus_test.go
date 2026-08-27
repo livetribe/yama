@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // A corpus of target packages under internal/generator/testdata states what a
@@ -244,7 +244,7 @@ func TestGeneratorTakesNoInternalPackageOfGoogleWire(t *testing.T) {
 	requireGo(t)
 
 	list := exec.CommandContext(t.Context(), "go", "list", "-deps",
-		"l7e.io/yama/v2/internal/generator")
+		"l7e.io/yama/internal/generator")
 
 	out, err := list.CombinedOutput()
 

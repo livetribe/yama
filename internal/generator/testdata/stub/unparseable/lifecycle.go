@@ -19,7 +19,7 @@ package unparseable
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle is missing a closing paren, so this file does not parse.

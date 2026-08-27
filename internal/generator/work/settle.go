@@ -17,8 +17,8 @@ package work
 import (
 	"errors"
 
-	"l7e.io/yama/v2/internal/generator/custody"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/custody"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // settle puts a package's files back. It also takes the intermediate files out

@@ -21,7 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"l7e.io/yama/v2"
+	"l7e.io/yama"
 )
 
 // Level is one set of members with no ordering between them. Every pass runs all

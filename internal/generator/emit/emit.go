@@ -24,7 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // BaseFileName is the name that emit writes when a run sets no prefix.
@@ -114,8 +114,8 @@ type Member struct {
 
 // These are the packages that every lifecycle file uses.
 const (
-	yamaPath = "l7e.io/yama/v2"
-	rtPath   = "l7e.io/yama/v2/rt"
+	yamaPath = "l7e.io/yama"
+	rtPath   = "l7e.io/yama/rt"
 )
 
 // runtimeImports are the packages that every lifecycle file uses, under the

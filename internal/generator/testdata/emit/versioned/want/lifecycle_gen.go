@@ -6,9 +6,9 @@
 package versioned
 
 import (
-	yama "l7e.io/yama/v2"
-	thing "l7e.io/yama/v2/internal/generator/testdata/emit/versioned/v2"
-	"l7e.io/yama/v2/rt"
+	"l7e.io/yama"
+	thing "l7e.io/yama/internal/generator/testdata/emit/versioned/v2"
+	"l7e.io/yama/rt"
 )
 
 // NewLifecycle takes a parameter whose type comes from a package imported

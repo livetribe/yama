@@ -26,10 +26,10 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 
-	"l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/bridge"
-	apimocks "l7e.io/yama/v2/internal/mocks"
-	execmocks "l7e.io/yama/v2/rt/internal/mocks"
+	"l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
+	apimocks "l7e.io/yama/internal/mocks"
+	execmocks "l7e.io/yama/rt/internal/mocks"
 )
 
 // itcKey types the context keys these specs attach.

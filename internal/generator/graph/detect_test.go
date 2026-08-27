@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/graph"
+	"l7e.io/yama/internal/generator/graph"
 )
 
 // app is a package that declares one type for each capability shape that

@@ -18,7 +18,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/graph"
+	"l7e.io/yama/internal/generator/graph"
 )
 
 // names returns the name of every member of every level, level by level. Most

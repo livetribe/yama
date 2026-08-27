@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // The var blocks below assert, at compile time, which lifecycle interfaces each

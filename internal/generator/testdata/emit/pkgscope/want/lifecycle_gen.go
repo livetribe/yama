@@ -6,8 +6,8 @@
 package pkgscope
 
 import (
-	yama "l7e.io/yama/v2"
-	rt2 "l7e.io/yama/v2/rt"
+	"l7e.io/yama"
+	rt2 "l7e.io/yama/rt"
 )
 
 // NewLifecycle orchestrates a graph in a package that already declares rt.

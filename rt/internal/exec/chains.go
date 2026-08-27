@@ -17,8 +17,8 @@ package exec
 import (
 	"context"
 
-	"l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/bridge"
+	"l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
 )
 
 // Chains holds the start, quiesce, and stop interceptor Chains. It is built once,

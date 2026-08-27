@@ -17,7 +17,7 @@ package capabilities
 import (
 	"context"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // One component per capability set, so the level list holds every shape a

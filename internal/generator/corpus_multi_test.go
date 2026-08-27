@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // The corpus under internal/generator/testdata holds families of several
@@ -38,7 +38,7 @@ import (
 // corpusPrefix begins the import path of every package in the corpus. A copy
 // that these tests make goes beside the family that it copies, so a copy takes
 // the same prefix.
-const corpusPrefix = "l7e.io/yama/v2/internal/generator/testdata/"
+const corpusPrefix = "l7e.io/yama/internal/generator/testdata/"
 
 // TestCorpusGeneratesAcrossPackages runs over a family. One package of that
 // family builds a graph out of another package's providers. Both packages take

@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 func TestNameIn(t *testing.T) {
@@ -59,7 +59,7 @@ func TestPackageName(t *testing.T) {
 	}{
 		{"the alias wins", "applib", "example.com/app/lib", "applib"},
 		{"the last element", "", "example.com/app/lib", "lib"},
-		{"the element before a major version", "", "l7e.io/yama/v2", "yama"},
+		{"the element before a major version", "", "l7e.io/yama", "yama"},
 		{"a gopkg.in version suffix", "", "gopkg.in/yaml.v3", "yaml"},
 		{"a gopkg.in version suffix on a hyphenated name", "", "gopkg.in/go-yaml.v2", "go-yaml"},
 		{"a single element", "", "context", "context"},

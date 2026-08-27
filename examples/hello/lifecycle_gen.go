@@ -8,8 +8,8 @@ package hello
 import (
 	"io"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/rt"
+	"l7e.io/yama"
+	"l7e.io/yama/rt"
 )
 
 // NewLifecycle orchestrates the graph GraphSet builds, reporting to w.

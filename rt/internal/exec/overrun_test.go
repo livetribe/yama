@@ -24,9 +24,9 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 
-	"l7e.io/yama/v2"
-	apimocks "l7e.io/yama/v2/internal/mocks"
-	execmocks "l7e.io/yama/v2/rt/internal/mocks"
+	"l7e.io/yama"
+	apimocks "l7e.io/yama/internal/mocks"
+	execmocks "l7e.io/yama/rt/internal/mocks"
 )
 
 // callerKey keys a value the caller plants on the context it starts with.

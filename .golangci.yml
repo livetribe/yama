@@ -143,10 +143,10 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(l7e.io/yama/v2)
+        - prefix(l7e.io/yama)
     goimports:
       local-prefixes:
-        - l7e.io/yama/v2
+        - l7e.io/yama
   exclusions:
     generated: lax
     paths:

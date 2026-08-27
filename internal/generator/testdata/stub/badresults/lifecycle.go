@@ -19,7 +19,7 @@ package badresults
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle returns Google Wire's aggregated cleanup where a stub declares

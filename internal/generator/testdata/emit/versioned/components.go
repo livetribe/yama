@@ -17,7 +17,7 @@ package versioned
 import (
 	"context"
 
-	"l7e.io/yama/v2/internal/generator/testdata/emit/versioned/v2"
+	"l7e.io/yama/internal/generator/testdata/emit/versioned/v2"
 )
 
 // A depends on a type from a package the stub imports without an alias.

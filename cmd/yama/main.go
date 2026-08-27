@@ -29,8 +29,8 @@ import (
 	"io"
 	"os"
 
-	"l7e.io/yama/v2/internal/generator"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // The exit codes are `wire gen`'s own, measured against it: 2 for arguments it

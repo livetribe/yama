@@ -19,7 +19,7 @@ package pkgscope
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle orchestrates a graph in a package that already declares rt.

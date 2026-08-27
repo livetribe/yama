@@ -21,7 +21,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // stubFile is one guarded file that declares one stub. Most specs write it and
@@ -34,7 +34,7 @@ import (
 	"context"
 
 	"example.com/app/lib"
-	"l7e.io/yama/v2"
+	"l7e.io/yama"
 	"github.com/google/wire"
 )
 
@@ -172,7 +172,7 @@ var _ = Describe("source", func() {
 		Context("when a stub names one of the run's own tags beside the yamainject tag", func() {
 			BeforeEach(func() {
 				write("lifecycle.go", "//go:build yamainject && special\n\n"+
-					"package app\n\nimport (\n\t\"github.com/google/wire\"\n\n\tyama \"l7e.io/yama/v2\"\n)\n\n"+
+					"package app\n\nimport (\n\t\"github.com/google/wire\"\n\n\tyama \"l7e.io/yama\"\n)\n\n"+
 					"func NewThing() (*App, yama.Lifecycle, error) {\n\tpanic(wire.Build(One))\n}\n")
 			})
 
@@ -268,7 +268,7 @@ var _ = Describe("source", func() {
 		Context("when a guarded file imports Google Wire under an alias", func() {
 			BeforeEach(func() {
 				write("lifecycle.go", "//go:build yamainject\n\npackage app\n\n"+
-					"import (\n\tw \"github.com/google/wire\"\n\n\tyama \"l7e.io/yama/v2\"\n)\n\n"+
+					"import (\n\tw \"github.com/google/wire\"\n\n\tyama \"l7e.io/yama\"\n)\n\n"+
 					"func NewApp() (*App, yama.Lifecycle, error) {\n\tpanic(w.Build(One))\n}\n")
 			})
 
@@ -307,7 +307,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 func NewPlain() (*App, yama.Lifecycle, error) {
@@ -334,7 +334,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 func NewFirst() (*App, yama.Lifecycle, error) {
@@ -365,7 +365,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 func NewThing(a, b string) (*App, yama.Lifecycle, error) {
@@ -389,7 +389,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 			// guarded wraps a declaration in a guarded file that imports Yama.
 			guarded := func(declaration string) string {
 				return "//go:build yamainject\n\npackage app\n\n" +
-					"import (\n\t\"github.com/google/wire\"\n\n\tyama \"l7e.io/yama/v2\"\n)\n\n" + declaration
+					"import (\n\t\"github.com/google/wire\"\n\n\tyama \"l7e.io/yama\"\n)\n\n" + declaration
 			}
 
 			It("takes the three results that a constructor returns", func() {
@@ -455,7 +455,7 @@ func NewThing(a, b string) (*App, yama.Lifecycle, error) {
 
 			It("reads the alias that the file gave Yama's own package", func() {
 				declaration := "//go:build yamainject\n\npackage app\n\n" +
-					"import (\n\t\"github.com/google/wire\"\n\n\ty \"l7e.io/yama/v2\"\n)\n\n" +
+					"import (\n\t\"github.com/google/wire\"\n\n\ty \"l7e.io/yama\"\n)\n\n" +
 					"func NewApp() (*App, y.Lifecycle, error) {\n\tpanic(wire.Build(One))\n}\n"
 
 				write("lifecycle.go", declaration)

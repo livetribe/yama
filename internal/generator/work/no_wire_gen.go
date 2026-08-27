@@ -15,8 +15,8 @@
 package work
 
 import (
-	"l7e.io/yama/v2/internal/generator/custody"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/custody"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // A NoWireGen is the item for a target package that holds no Google Wire

@@ -14,7 +14,7 @@ import (
 	reflect "reflect"
 
 	gomock "go.uber.org/mock/gomock"
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // MockStartInterceptor is a mock of StartInterceptor interface.

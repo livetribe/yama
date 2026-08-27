@@ -22,7 +22,7 @@ import (
 	"github.com/google/wire"
 	"gopkg.in/yaml.v3"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewAppLifecycle builds the app and its lifecycle. The yaml parameter is here

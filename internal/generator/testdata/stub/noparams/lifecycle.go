@@ -19,7 +19,7 @@ package noparams
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle declares no parameters at all: no graph parameter, and no

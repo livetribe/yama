@@ -17,7 +17,7 @@ package setrun
 import (
 	"context"
 
-	"l7e.io/yama/v2/internal/generator/testdata/setother"
+	"l7e.io/yama/internal/generator/testdata/setother"
 )
 
 type App struct{}

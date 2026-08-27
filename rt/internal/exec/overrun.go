@@ -20,8 +20,8 @@ import (
 	"log/slog"
 	"time"
 
-	"l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/bridge"
+	"l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
 )
 
 // overrunMessage is the log message emitted when a component's operation returns

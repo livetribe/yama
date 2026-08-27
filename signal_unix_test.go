@@ -28,8 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/mocks"
+	yama "l7e.io/yama"
+	"l7e.io/yama/internal/mocks"
 )
 
 // These tests deliver signals to the test process itself. An independent,

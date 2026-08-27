@@ -21,11 +21,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"l7e.io/yama/v2/internal/generator/custody"
-	"l7e.io/yama/v2/internal/generator/emit"
-	"l7e.io/yama/v2/internal/generator/graph"
-	"l7e.io/yama/v2/internal/generator/pkg"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/custody"
+	"l7e.io/yama/internal/generator/emit"
+	"l7e.io/yama/internal/generator/graph"
+	"l7e.io/yama/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // A Happy is the item for a target package that every phase so far settled

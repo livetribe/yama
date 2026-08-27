@@ -14,7 +14,7 @@
 
 package yama
 
-import "l7e.io/yama/v2/internal/bridge"
+import "l7e.io/yama/internal/bridge"
 
 // Option is a construction-time input to the generated lifecycle constructor.
 // It cannot be implemented outside Yama: doing so means naming *bridge.Config,

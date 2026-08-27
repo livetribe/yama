@@ -19,7 +19,7 @@ package noopts
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle orchestrates the graph NewApp builds. It takes a graph parameter

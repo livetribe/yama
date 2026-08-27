@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"l7e.io/yama/v2/internal/generator/graph"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/graph"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // The corpus under internal/generator/testdata holds packages that

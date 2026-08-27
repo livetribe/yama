@@ -6,8 +6,8 @@
 package optscollision
 
 import (
-	yama2 "l7e.io/yama/v2"
-	rt2 "l7e.io/yama/v2/rt"
+	yama2 "l7e.io/yama"
+	rt2 "l7e.io/yama/rt"
 )
 
 // NewALifecycle names its options parameter after the runtime-support package,

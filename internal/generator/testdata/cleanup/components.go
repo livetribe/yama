@@ -17,7 +17,7 @@ package cleanup
 import (
 	"context"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // The var block asserts, at compile time, which lifecycle interfaces each

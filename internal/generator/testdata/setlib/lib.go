@@ -19,7 +19,7 @@ package setlib
 import (
 	"github.com/google/wire"
 
-	"l7e.io/yama/v2/internal/generator/testdata/setother"
+	"l7e.io/yama/internal/generator/testdata/setother"
 )
 
 var ProviderSet = wire.NewSet(setother.NewThing)

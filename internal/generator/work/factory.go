@@ -17,9 +17,9 @@ package work
 import (
 	"io"
 
-	"l7e.io/yama/v2/internal/generator/custody"
-	"l7e.io/yama/v2/internal/generator/pkg"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/custody"
+	"l7e.io/yama/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // CreateWorkItems returns one item for each target package. paths are the

@@ -22,8 +22,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/generator/testapp"
+	yama "l7e.io/yama"
+	"l7e.io/yama/internal/generator/testapp"
 )
 
 // The graph the generated constructor builds, level by level:

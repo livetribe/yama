@@ -19,7 +19,7 @@ package bad
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle states no provider for Base, so Google Wire rejects it.

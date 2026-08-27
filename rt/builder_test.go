@@ -22,10 +22,10 @@ import (
 	. "github.com/onsi/gomega"
 	"go.uber.org/mock/gomock"
 
-	"l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/mocks"
-	"l7e.io/yama/v2/rt"
-	execmocks "l7e.io/yama/v2/rt/internal/mocks"
+	"l7e.io/yama"
+	"l7e.io/yama/internal/mocks"
+	"l7e.io/yama/rt"
+	execmocks "l7e.io/yama/rt/internal/mocks"
 )
 
 // A call a spec never sets an expectation for fails the moment it happens, so

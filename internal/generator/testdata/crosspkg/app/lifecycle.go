@@ -19,7 +19,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewAppLifecycle orchestrates the graph AppSet builds.

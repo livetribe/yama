@@ -19,7 +19,7 @@ package shapes
 import (
 	gwire "github.com/google/wire"
 
-	y "l7e.io/yama/v2"
+	y "l7e.io/yama"
 )
 
 // NewAliased states Yama and Google Wire under a name of this file's own. An

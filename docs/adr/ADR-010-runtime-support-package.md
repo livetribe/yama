@@ -44,7 +44,7 @@ ordering from the generated code (ADR-004).
 
 The generic execution machinery lives in a dedicated, Yama-owned
 **runtime-support package** (a sibling of `package yama`, for example
-`l7e.io/yama/v2/rt`). Its symbols are **exported so generated code can
+`l7e.io/yama/rt`). Its symbols are **exported so generated code can
 import and call them**. Yama documents the package as **"called by generated
 code; not part of the stable ADR-007 public API."**
 

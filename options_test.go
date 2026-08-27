@@ -21,8 +21,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/bridge"
+	yama "l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
 )
 
 // startLogger is a minimal StartInterceptor, standing in for a real interceptor

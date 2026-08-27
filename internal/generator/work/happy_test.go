@@ -25,8 +25,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/custody"
-	"l7e.io/yama/v2/internal/generator/wire"
+	"l7e.io/yama/internal/generator/custody"
+	"l7e.io/yama/internal/generator/wire"
 )
 
 // A PIt in this file marks a spec pending. Ginkgo reports a pending spec
@@ -120,7 +120,7 @@ var _ = Describe("a work item over one target package", func() {
 		repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
 		Expect(err).NotTo(HaveOccurred())
 
-		write("go.mod", "module app\n\ngo 1.25.0\n\nrequire l7e.io/yama/v2 v2.0.0\n\nreplace l7e.io/yama/v2 => "+repo+"\n")
+		write("go.mod", "module app\n\ngo 1.25.0\n\nrequire l7e.io/yama v0.0.0\n\nreplace l7e.io/yama => "+repo+"\n")
 	}
 
 	// writeOutput puts the named fixture at the wire_gen.go name in dir. A spec

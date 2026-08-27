@@ -19,7 +19,7 @@ package lib
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLibLifecycle orchestrates the graph LibSet builds.

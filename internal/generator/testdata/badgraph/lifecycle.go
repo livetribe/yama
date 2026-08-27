@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewAppLifecycle names no provider of *DB, so Google Wire rejects it.

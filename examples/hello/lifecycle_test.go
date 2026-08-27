@@ -25,7 +25,7 @@ import (
 	"sync"
 	"testing"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 
 	"example.com/hello"
 )

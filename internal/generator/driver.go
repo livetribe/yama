@@ -34,10 +34,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
-	"l7e.io/yama/v2/internal/generator/resolve"
-	"l7e.io/yama/v2/internal/generator/wire"
-	"l7e.io/yama/v2/internal/generator/work"
+	"l7e.io/yama/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/resolve"
+	"l7e.io/yama/internal/generator/wire"
+	"l7e.io/yama/internal/generator/work"
 )
 
 // headerCheckClause supplies the package clause that follows a header in every

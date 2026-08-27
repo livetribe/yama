@@ -14,7 +14,7 @@
 
 package testapp
 
-import yama "l7e.io/yama/v2"
+import yama "l7e.io/yama"
 
 // Start calls the constructor this package's stub declares, and returns what it
 // returns. This file carries no build tag.

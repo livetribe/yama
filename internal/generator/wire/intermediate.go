@@ -17,7 +17,7 @@ package wire
 import (
 	"errors"
 
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // An IntermediateYamaFiles is the pair of files that a run puts in a target

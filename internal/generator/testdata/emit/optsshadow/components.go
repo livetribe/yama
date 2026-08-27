@@ -19,7 +19,7 @@ import (
 
 	"github.com/google/wire"
 
-	"l7e.io/yama/v2/internal/generator/testdata/emit/optsshadow/rt"
+	"l7e.io/yama/internal/generator/testdata/emit/optsshadow/rt"
 )
 
 // AppSet reaches rt.NewClock, so the re-emitted body refers to rt even though

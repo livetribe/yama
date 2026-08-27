@@ -3,11 +3,11 @@ module example.com/hello
 go 1.25.0
 
 // The example builds against the checked-out Yama, not a published version.
-replace l7e.io/yama/v2 => ../..
+replace l7e.io/yama => ../..
 
 require (
 	github.com/google/wire v0.7.0
-	l7e.io/yama/v2 v2.0.0
+	l7e.io/yama v0.0.0
 )
 
 require (
@@ -20,5 +20,5 @@ require (
 
 tool (
 	github.com/google/wire/cmd/wire
-	l7e.io/yama/v2/cmd/yama
+	l7e.io/yama/cmd/yama
 )

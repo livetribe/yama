@@ -17,7 +17,7 @@ package yama
 import (
 	"context"
 
-	"l7e.io/yama/v2/internal/bridge"
+	"l7e.io/yama/internal/bridge"
 )
 
 // FromContext returns the lifecycle component Yama is currently invoking, and

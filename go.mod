@@ -1,4 +1,4 @@
-module l7e.io/yama/v2
+module l7e.io/yama
 
 go 1.25.0
 

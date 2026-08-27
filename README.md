@@ -7,7 +7,7 @@ interprets one.
 
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama)
-[![Documentation](https://godoc.org/l7e.io/yama/v2?status.svg)](http://godoc.org/l7e.io/yama/v2)
+[![Documentation](https://godoc.org/l7e.io/yama?status.svg)](http://godoc.org/l7e.io/yama)
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=v2)](https://coveralls.io/github/livetribe/yama?branch=v2)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
@@ -15,10 +15,10 @@ interprets one.
 
 ## Status
 
-This is v2, a green-field rewrite; it shares only a name and a repository
-with the earlier `v0.x` signal-watcher. v2 is under active construction: the
-public API surface is defined and frozen, but the code generator and runtime
-are still being built.
+This is a green-field rewrite; it shares only a name and a repository with
+the signal-watcher released as `v0.1.0` and `v0.2.0`. The public API surface
+is defined and frozen, and the generator and runtime are complete. The
+project is preparing its first alpha release.
 
 ## Setup
 
@@ -32,7 +32,7 @@ it:
 ```
 tool (
 	github.com/google/wire/cmd/wire
-	l7e.io/yama/v2/cmd/yama
+	l7e.io/yama/cmd/yama
 )
 ```
 

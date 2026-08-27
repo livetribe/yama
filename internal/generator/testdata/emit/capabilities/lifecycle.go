@@ -19,7 +19,7 @@ package capabilities
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
+	yama "l7e.io/yama"
 )
 
 // NewLifecycle orchestrates one component per capability set.

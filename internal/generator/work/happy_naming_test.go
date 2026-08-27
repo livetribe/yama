@@ -18,8 +18,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/graph"
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/graph"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // optionsStub is a stub that forwards options under the name that it states.

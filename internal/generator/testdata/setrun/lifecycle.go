@@ -21,8 +21,8 @@ import (
 
 	"github.com/google/wire"
 
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/generator/testdata/setlib"
+	yama "l7e.io/yama"
+	"l7e.io/yama/internal/generator/testdata/setlib"
 )
 
 // NewAppLifecycle names a provider set. It never names the package that

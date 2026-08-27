@@ -1,4 +1,4 @@
-package rt // l7e.io/yama/v2/rt
+package rt // l7e.io/yama/rt
 
 type LifecycleBuilder struct {
 }

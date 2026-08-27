@@ -18,7 +18,7 @@ import (
 	"context"
 	"log/slog"
 
-	"l7e.io/yama/v2"
+	"l7e.io/yama"
 )
 
 // component holds one graph component's chain-bound operations. A nil operation

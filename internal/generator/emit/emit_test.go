@@ -23,8 +23,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"l7e.io/yama/v2/internal/generator/emit"
-	"l7e.io/yama/v2/internal/generator/pkg"
+	"l7e.io/yama/internal/generator/emit"
+	"l7e.io/yama/internal/generator/pkg"
 )
 
 // simple is one target package with one constructor. Most specs render it and
@@ -73,8 +73,8 @@ import (
 	"context"
 
 	"example.com/app/lib"
-	yama "l7e.io/yama/v2"
-	"l7e.io/yama/v2/rt"
+	"l7e.io/yama"
+	"l7e.io/yama/rt"
 )
 
 // NewAppLifecycle builds the lifecycle of app.
@@ -155,18 +155,18 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 
 				rendered := string(emit.Render(p, nil))
 
-				Expect(rendered).To(ContainSubstring(`yama "l7e.io/yama/v2"`))
-				Expect(rendered).To(ContainSubstring(`"l7e.io/yama/v2/rt"`))
+				Expect(rendered).To(ContainSubstring(`"l7e.io/yama"`))
+				Expect(rendered).To(ContainSubstring(`"l7e.io/yama/rt"`))
 			})
 
 			It("names a runtime package itself, whatever the caller called it", func() {
 				p := simple()
-				p.Imports = append(p.Imports, pkg.Import{Name: "runtime", Path: "l7e.io/yama/v2/rt"})
+				p.Imports = append(p.Imports, pkg.Import{Name: "runtime", Path: "l7e.io/yama/rt"})
 
 				rendered := string(emit.Render(p, nil))
 
-				Expect(rendered).NotTo(ContainSubstring(`runtime "l7e.io/yama/v2/rt"`))
-				Expect(rendered).To(ContainSubstring(`"l7e.io/yama/v2/rt"`))
+				Expect(rendered).NotTo(ContainSubstring(`runtime "l7e.io/yama/rt"`))
+				Expect(rendered).To(ContainSubstring(`"l7e.io/yama/rt"`))
 			})
 		})
 

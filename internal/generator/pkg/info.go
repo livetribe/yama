@@ -18,7 +18,7 @@ package pkg
 const (
 	// PackagePath is Yama's own package. A stub names its Option and its
 	// Lifecycle through this import.
-	PackagePath = "l7e.io/yama/v2"
+	PackagePath = "l7e.io/yama"
 
 	// WirePackagePath is Google Wire's own package. A stub states its providers
 	// in a call to this package's Build function.

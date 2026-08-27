@@ -15,9 +15,9 @@
 package rt
 
 import (
-	"l7e.io/yama/v2"
-	"l7e.io/yama/v2/internal/bridge"
-	"l7e.io/yama/v2/rt/internal/exec"
+	"l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
+	"l7e.io/yama/rt/internal/exec"
 )
 
 // LifecycleBuilder assembles a Lifecycle one level at a time. NextLevel starts a
