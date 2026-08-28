@@ -2,13 +2,9 @@ on:
   push:
     branches:
       - master
-      - v2
-      - v2_refactor
   pull_request:
     branches:
       - master
-      - v2
-      - v2_refactor
   workflow_dispatch:
 name: CI
 jobs:

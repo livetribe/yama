@@ -8,7 +8,7 @@ interprets one.
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama)
 [![Documentation](https://godoc.org/l7e.io/yama?status.svg)](http://godoc.org/l7e.io/yama)
-[![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=v2)](https://coveralls.io/github/livetribe/yama?branch=v2)
+[![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=master)](https://coveralls.io/github/livetribe/yama?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 ![Image of Yama](https://github.com/livetribe/yama/raw/master/img/yama.jpg)

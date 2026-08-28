@@ -177,7 +177,7 @@ alike.
 decisions made while executing it. If a phase's work settles a question the
 plan left open — a naming choice, an ordering rule, a rejected alternative —
 write or update the ADR in the same phase, not later. A decision that reaches
-`master`/`v2` only in code and a commit message is undocumented, regardless of
+`master` only in code and a commit message is undocumented, regardless of
 how clearly the commit message explains it: nothing keeps that reasoning
 findable once the commit scrolls out of recent `git log` output. Treat "does
 this phase's work need an ADR?" as part of that phase's Definition of Done,
