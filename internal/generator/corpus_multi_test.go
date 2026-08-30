@@ -153,7 +153,7 @@ func TestCorpusKeepsTheApplicationsOwnWireOutput(t *testing.T) {
 // run takes no custody of a package that declares no stub. The backup stays at
 // that name, and the live name stays empty.
 func TestCorpusLeavesABackupOfAnEarlierRunAlone(t *testing.T) {
-	const backup = ".yama.wire_gen.go"
+	const backup = "wire_gen.go.bak"
 
 	dir := runOverNogen(t, backup, wire.Args{})
 
@@ -291,7 +291,7 @@ func assertNoYamaTrace(t *testing.T, dir string) {
 // a file that a run derives for Google Wire, or a backup that a run moves a
 // committed file to.
 func yamasOwn(name string) bool {
-	return strings.HasPrefix(name, "yama_") || strings.HasPrefix(name, ".yama.")
+	return strings.HasPrefix(name, "yama_") || strings.HasSuffix(name, ".bak")
 }
 
 // transient reports a name that a run writes and takes back out: a file that a

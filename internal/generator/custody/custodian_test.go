@@ -68,7 +68,7 @@ var _ = Describe("Custodian", func() {
 
 	// backup returns the backup name for name.
 	backup := func(name string) string {
-		return custody.BackupPrefix + name
+		return name + custody.BackupSuffix
 	}
 
 	// denyWrites removes write permission from the directory, so a move inside
@@ -308,7 +308,7 @@ var _ = Describe("Custodian", func() {
 					err := c.Complete()
 
 					Expect(err).To(MatchError(ContainSubstring("restore " + name)))
-					Expect(err).To(MatchError(ContainSubstring(custody.BackupPrefix + name)))
+					Expect(err).To(MatchError(ContainSubstring(name + custody.BackupSuffix)))
 				})
 			})
 		}

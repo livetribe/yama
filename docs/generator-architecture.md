@@ -537,7 +537,7 @@ sequenceDiagram
 ### 6.1 `internal/generator/custody`
 
 ```go
-const BackupPrefix = ".yama."
+const BackupSuffix = ".bak"
 
 func SetAside(dir, name string) error
 func Restore(dir, name string) error
@@ -1132,8 +1132,8 @@ other state restores everything and stays silent, so `NoWireGen` is a type.
 
 ### 7.4 The backup name and the set-aside order
 
-A set-aside moves `name` to `.yama.name` in the same directory. The Go toolchain ignores a file with a
-name that starts with a dot. A backup therefore sits beside a regenerated file without colliding with it,
+A set-aside moves `name` to `name.bak` in the same directory. The Go toolchain ignores a file with a
+name that does not end in `.go`. A backup therefore sits beside a regenerated file without colliding with it,
 and a load treats "set aside" and "never existed" as the same state.
 
 `Prepare` sets `lifecycle_gen.go` aside first, and Google Wire's output name second. Rule 2 of §4.6
@@ -1644,7 +1644,7 @@ mock against. A test therefore makes the real rename fail, and it does so throug
 directory.
 
 The test occupies the backup name with a non-empty directory. It writes `lifecycle_gen.go` into a
-temporary directory. It then creates `.yama.lifecycle_gen.go` as a directory, and it puts one file
+temporary directory. It then creates `lifecycle_gen.go.bak` as a directory, and it puts one file
 inside that directory. `custody.SetAside` then renames a file onto a non-empty directory, which fails
 on every platform Go supports. The source file stays where it was, which the test also asserts.
 

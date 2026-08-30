@@ -21,11 +21,11 @@ import (
 	"path/filepath"
 )
 
-// BackupPrefix starts the name of the backup that a Custodian makes. The Go
-// toolchain does not read a file with a name that starts with a dot. A backup
-// and a file of the live name can therefore share a directory without a
+// BackupSuffix ends the name of the backup that a Custodian makes. The Go
+// toolchain does not read a file with a name that does not end in ".go". A
+// backup and a file of the live name can therefore share a directory without a
 // collision.
-const BackupPrefix = ".yama."
+const BackupSuffix = ".bak"
 
 // These are the two names that a run settles. The run's output-file prefix
 // starts both names.
@@ -193,13 +193,13 @@ func (c *Custodian) wrapRestore(name string, err error) error {
 		return nil
 	}
 
-	return fmt.Errorf("restore %s in %s: %w; it is preserved at %s", name, c.path, err, BackupPrefix+name)
+	return fmt.Errorf("restore %s in %s: %w; it is preserved at %s", name, c.path, err, name+BackupSuffix)
 }
 
 // paths returns the live path and the backup path for name.
 func (c *Custodian) paths(name string) (live, backup string) {
 	live = filepath.Join(c.path, name)
-	backup = filepath.Join(c.path, BackupPrefix+name)
+	backup = filepath.Join(c.path, name+BackupSuffix)
 
 	return live, backup
 }

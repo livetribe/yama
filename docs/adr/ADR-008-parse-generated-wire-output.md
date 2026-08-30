@@ -115,7 +115,7 @@ An application may instead give Yama sole ownership of generation. It then point
 
 Google Wire writes `wire_gen.go` into the package directory. It offers no way to redirect the file. Yama therefore removes `wire_gen.go` after it emits the lifecycle file. The derived-injector file is transient on the same terms. Google Wire generates from a package, so Yama writes the derived injector into the package directory. Yama removes that file with `wire_gen.go`.
 
-Removal is non-destructive for `wire_gen.go`, if a file of that name is already present. Yama removes only a `wire_gen.go` it wrote. Yama moves the file it found to `.yama.wire_gen.go` before generation. Yama moves that file back afterward. Generation therefore never overwrites or deletes a `wire_gen.go` Yama does not own.
+Removal is non-destructive for `wire_gen.go`, if a file of that name is already present. Yama removes only a `wire_gen.go` it wrote. Yama moves the file it found to `wire_gen.go.bak` before generation. Yama moves that file back afterward. Generation therefore never overwrites or deletes a `wire_gen.go` Yama does not own.
 
 Yama moves the committed lifecycle file aside as well (ADR-011). The two files settle on different terms. Yama always puts `wire_gen.go` back, because the application owns that file whatever the run did. Yama keeps the lifecycle file that a run emitted, and it puts the previous one back only when that package failed. ADR-014 states the rule for each package.
 

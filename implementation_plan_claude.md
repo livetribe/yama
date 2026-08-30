@@ -958,7 +958,7 @@ cleanly when the target package is malformed.
     parses it, and removes it after emitting `lifecycle_gen.go`. The
     driver removes only a `wire_gen.go` it created itself. If a
     `wire_gen.go` already exists, the driver first moves it aside, to a
-    leading-dot name such as `.yama.wire_gen.go` (a name the Go toolchain
+    suffixed name such as `wire_gen.go.bak` (a name the Go toolchain
     ignores as a source file). The driver restores that file afterward,
     byte-for-byte. This way, generation never overwrites or deletes a file
     Yama does not own. Cleanup (the removal and the restore) runs even
@@ -1054,7 +1054,7 @@ mismatch, a gofmt version mismatch, or OS line-ending differences.
     boundary-component options; and what generation does to the package
     directory — which files are transient, that a committed `wire_gen.go`
     is moved aside and put back, that an interrupted run can leave
-    `.yama.wire_gen.go` holding it, and that two runs over one directory
+    `wire_gen.go.bak` holding it, and that two runs over one directory
     at once can delete it (ADR-008).
   - Large-graph generation is exercised (PRD §9, "Generated Code
     Complexity"). The example app used elsewhere in this phase is

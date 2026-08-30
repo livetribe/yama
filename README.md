@@ -130,9 +130,9 @@ transient files into the package directory and removes both before it returns:
 | `yama_wireinject.go` | Yama | no, transient |
 
 A run does not overwrite a `wire_gen.go` that it did not create. It moves that
-file to `.yama.wire_gen.go` for the run, and puts it back at the end. An
+file to `wire_gen.go.bak` for the run, and puts it back at the end. An
 application that commits its own Wire output therefore keeps it. A run moves a
-committed `lifecycle_gen.go` to `.yama.lifecycle_gen.go` the same way.
+committed `lifecycle_gen.go` to `lifecycle_gen.go.bak` the same way.
 
 Yama owns the name `yama_wireinject.go`. A run writes over a file already at
 that name. Do not keep a file of your own there.
@@ -146,8 +146,8 @@ that the first run put back.
 A run that stops before it completes does not reach its cleanup. It can leave
 these files behind:
 
-* `.yama.wire_gen.go` — your `wire_gen.go`, if you committed one.
-* `.yama.lifecycle_gen.go` — your committed `lifecycle_gen.go`.
+* `wire_gen.go.bak` — your `wire_gen.go`, if you committed one.
+* `lifecycle_gen.go.bak` — your committed `lifecycle_gen.go`.
 * `wire_gen.go` — Wire's output from that run, not yours.
 * `yama_wireinject.go` — Yama's derived injectors.
 
@@ -157,8 +157,8 @@ Generate again. The next run repairs the directory before it reads anything:
 go generate ./...
 ```
 
-It puts both `.yama.` files back under their original names first, and discards
-the output the interrupted run left. You lose nothing. Yama creates a `.yama.`
+It puts both `.bak` files back under their original names first, and discards
+the output the interrupted run left. You lose nothing. Yama creates a `.bak`
 file only to hold a file of yours.
 
 ## Example

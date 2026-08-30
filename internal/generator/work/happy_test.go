@@ -170,7 +170,7 @@ var _ = Describe("a work item over one target package", func() {
 
 	// backup returns the backup name for name.
 	backup := func(name string) string {
-		return custody.BackupPrefix + name
+		return name + custody.BackupSuffix
 	}
 
 	// prepared runs Prepare and returns what it produced.
