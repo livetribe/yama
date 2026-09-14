@@ -1,4 +1,4 @@
-GOLANGCI_LINT_VERSION := v2.12.2
+GOLANGCI_LINT_VERSION := v2.13.2
 GOLANGCI_LINT := $(shell go env GOPATH)/bin/golangci-lint
 
 .PHONY: all build test coverage lint fmt check-fmt generate tidy clean check ci
