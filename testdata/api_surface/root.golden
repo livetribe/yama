@@ -9,9 +9,7 @@ type Lifecycle interface {
 	Stop(context.Context)
 }
 
-type Option interface {
-	Apply(*bridge.Config)
-}
+type Option func(*bridge.Config)
 
 type QuiesceInterceptor interface {
 	Quiesce(ctx context.Context, next Quiescer)

@@ -17,15 +17,10 @@ package yama
 import "l7e.io/yama/internal/bridge"
 
 // Option is a construction-time input to the generated lifecycle constructor.
-// It cannot be implemented outside Yama: doing so means naming *bridge.Config,
-// which the internal/ rule forbids outside this module.
-type Option interface {
-	Apply(*bridge.Config)
-}
-
-type optionFunc func(*bridge.Config)
-
-func (f optionFunc) Apply(c *bridge.Config) { f(c) }
+// A function of this type must name *bridge.Config. The internal/ rule forbids
+// that name outside this module, so code outside Yama cannot construct an
+// Option.
+type Option func(*bridge.Config)
 
 // WithBeginComponents registers components at the begin boundary. A begin
 // component participates through the capability interfaces it implements,
@@ -34,9 +29,9 @@ func (f optionFunc) Apply(c *bridge.Config) { f(c) }
 // ordering among themselves. WithBeginComponents is variadic and accumulates
 // registered components across calls.
 func WithBeginComponents(components ...any) Option {
-	return optionFunc(func(c *bridge.Config) {
+	return func(c *bridge.Config) {
 		c.BeginComponents = append(c.BeginComponents, components...)
-	})
+	}
 }
 
 // WithEndComponents registers components at the end boundary. An end
@@ -46,9 +41,9 @@ func WithBeginComponents(components ...any) Option {
 // ordering among themselves. WithEndComponents is variadic and accumulates
 // registered components across calls.
 func WithEndComponents(components ...any) Option {
-	return optionFunc(func(c *bridge.Config) {
+	return func(c *bridge.Config) {
 		c.EndComponents = append(c.EndComponents, components...)
-	})
+	}
 }
 
 // WithInterceptors registers interceptors: pass values implementing one or more
@@ -58,7 +53,7 @@ func WithEndComponents(components ...any) Option {
 // WithInterceptors is variadic, accumulating across calls; interceptors run in
 // registration order.
 func WithInterceptors(interceptors ...any) Option {
-	return optionFunc(func(c *bridge.Config) {
+	return func(c *bridge.Config) {
 		c.Interceptors = append(c.Interceptors, interceptors...)
-	})
+	}
 }

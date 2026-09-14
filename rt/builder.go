@@ -50,7 +50,7 @@ type LifecycleBuilder struct {
 func NewLifecycleBuilder(opts ...yama.Option) *LifecycleBuilder {
 	cfg := &bridge.Config{}
 	for _, o := range opts {
-		o.Apply(cfg)
+		o(cfg)
 	}
 
 	chains := exec.NewChains(cfg.Interceptors)

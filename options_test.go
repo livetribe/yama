@@ -33,10 +33,10 @@ func (l *startLogger) Start(ctx context.Context, next yama.Starter) error {
 	return next.Start(ctx)
 }
 
-// TestOptionsApplyFromAnotherPackage lives in yama_test, a separate package,
-// standing in for the runtime-support package: it stops compiling if Apply is
-// ever unexported.
-func TestOptionsApplyFromAnotherPackage(t *testing.T) {
+// TestOptionsCallableFromAnotherPackage is in yama_test, a separate package
+// that represents the runtime-support package. This test does not compile if
+// code outside yama cannot call an Option.
+func TestOptionsCallableFromAnotherPackage(t *testing.T) {
 	begin, end := &component{name: "begin"}, &component{name: "end"}
 	interceptor := &startLogger{name: "start-logger"}
 
@@ -46,7 +46,7 @@ func TestOptionsApplyFromAnotherPackage(t *testing.T) {
 		yama.WithEndComponents(end),
 		yama.WithInterceptors(interceptor),
 	} {
-		opt.Apply(cfg)
+		opt(cfg)
 	}
 
 	if assert.Len(t, cfg.BeginComponents, 1, "WithBeginComponents did not record the component: %+v", cfg.BeginComponents) {
@@ -67,10 +67,10 @@ func TestOptionsAccumulate(t *testing.T) {
 	first, second, third := &component{name: "first"}, &component{name: "second"}, &component{name: "third"}
 
 	cfg := &bridge.Config{}
-	yama.WithBeginComponents(first).Apply(cfg)
-	yama.WithBeginComponents(second, third).Apply(cfg)
-	yama.WithEndComponents(first).Apply(cfg)
-	yama.WithEndComponents(second, third).Apply(cfg)
+	yama.WithBeginComponents(first)(cfg)
+	yama.WithBeginComponents(second, third)(cfg)
+	yama.WithEndComponents(first)(cfg)
+	yama.WithEndComponents(second, third)(cfg)
 
 	require.Len(t, cfg.BeginComponents, 3, "expected all begin components to accumulate, got %+v", cfg.BeginComponents)
 	assert.Same(t, first, cfg.BeginComponents[0])
@@ -85,8 +85,8 @@ func TestOptionsAccumulate(t *testing.T) {
 	// Interceptors accumulate in registration order across calls; that order is
 	// the interceptor chain's execution order.
 	l1, l2, l3 := &startLogger{name: "l1"}, &startLogger{name: "l2"}, &startLogger{name: "l3"}
-	yama.WithInterceptors(l1).Apply(cfg)
-	yama.WithInterceptors(l2, l3).Apply(cfg)
+	yama.WithInterceptors(l1)(cfg)
+	yama.WithInterceptors(l2, l3)(cfg)
 
 	require.Len(t, cfg.Interceptors, 3, "expected all interceptors to accumulate, got %+v", cfg.Interceptors)
 	assert.Same(t, l1, cfg.Interceptors[0])

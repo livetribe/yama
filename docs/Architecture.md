@@ -826,17 +826,15 @@ var ErrStartFailed error
 ### Options
 
 ```go
-type Option interface {
-    Apply(*bridge.Config)
-}
+type Option func(*bridge.Config)
 ```
 
-`Option` is the construction-time input to the generated constructor. It is
-exported so generated code and callers can name it, but it is **sealed**:
-implementing it outside Yama means naming `*bridge.Config`, which Go's `internal/`
-rule forbids outside this module. The `Option` constructors are therefore exactly
-`WithBeginComponents`, `WithEndComponents`, and `WithInterceptors`. A caller
-cannot introduce a fourth.
+`Option` is the construction-time input to the generated constructor. Yama
+exports it so that generated code and callers can name it. But `Option` is also
+**sealed**. A function of this type must name `*bridge.Config`, and Go's
+`internal/` rule forbids that name outside this module. The `Option`
+constructors are therefore exactly `WithBeginComponents`, `WithEndComponents`,
+and `WithInterceptors`. A caller cannot introduce a fourth.
 
 ### Helpers
 
