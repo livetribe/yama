@@ -307,7 +307,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 )
 
 func NewPlain() (*App, yama.Lifecycle, error) {
@@ -334,7 +334,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 )
 
 func NewFirst() (*App, yama.Lifecycle, error) {
@@ -365,7 +365,7 @@ package app
 import (
 	"github.com/google/wire"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 )
 
 func NewThing(a, b string) (*App, yama.Lifecycle, error) {

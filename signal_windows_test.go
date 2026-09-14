@@ -24,7 +24,7 @@ import (
 
 	"go.uber.org/mock/gomock"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 	"l7e.io/yama/internal/mocks"
 )
 

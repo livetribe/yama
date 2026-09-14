@@ -19,7 +19,7 @@ import (
 	"errors"
 	"fmt"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 )
 
 var (

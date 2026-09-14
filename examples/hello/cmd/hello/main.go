@@ -20,7 +20,7 @@ import (
 	"log"
 	"os"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 
 	"example.com/hello"
 )

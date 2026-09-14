@@ -48,7 +48,7 @@ package app
 
 import (
 	"github.com/google/wire"
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 	"go.uber.org/zap"
 )
 

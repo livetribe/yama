@@ -15,7 +15,7 @@
 package app
 
 import (
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 
 	"l7e.io/yama/internal/generator/testdata/crosspkg/lib"
 )

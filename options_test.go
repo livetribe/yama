@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 	"l7e.io/yama/internal/bridge"
 )
 

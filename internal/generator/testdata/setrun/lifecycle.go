@@ -21,7 +21,7 @@ import (
 
 	"github.com/google/wire"
 
-	yama "l7e.io/yama"
+	"l7e.io/yama"
 	"l7e.io/yama/internal/generator/testdata/setlib"
 )
 
