@@ -6,8 +6,10 @@ quiesces, and stops that graph in dependency order, rather than building a
 runtime engine that interprets one.
 
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama)
-[![Documentation](https://godoc.org/l7e.io/yama?status.svg)](http://godoc.org/l7e.io/yama)
+![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.25-%23007d9c)
+[![Documentation](https://pkg.go.dev/badge/l7e.io/yama.svg)](https://pkg.go.dev/l7e.io/yama)
+[![Go Report Card](https://goreportcard.com/badge/l7e.io/yama)](https://goreportcard.com/report/l7e.io/yama)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/livetribe/yama/badge)](https://scorecard.dev/viewer/?uri=github.com/livetribe/yama)
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=master)](https://coveralls.io/github/livetribe/yama?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
