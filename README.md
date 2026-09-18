@@ -15,10 +15,10 @@ runtime engine that interprets one.
 
 ## Status
 
-This is a green-field rewrite; it shares only a name and a repository with
-the signal-watcher released as `v0.1.0` and `v0.2.0`. The public API surface
-is defined and frozen, and the generator and runtime are complete. The
-project is preparing its first alpha release.
+This is a green-field rewrite; it shares only a name and a repository with the
+signal-watcher released as `v0.1.0` and `v0.2.0`. The generator and runtime are
+complete. The project is in alpha: `v0.3.0` was its first alpha release, and
+the public API can still change before `v1.0`.
 
 ## Setup
 
