@@ -36,6 +36,17 @@ in the same commit that introduces it.
 - **Cleanup** — a Google Wire cleanup function returned by a provider. Yama
   supports one for backward compatibility; it is not a lifecycle capability in
   its own right. See ADR-008.
+- **Closer directive** — the comment `//yama:closer` on what builds a
+  component: in the doc comment of a provider function's declaration, or on
+  a `wire.Struct` entry in a provider set. See ADR-016.
+- **Noclose directive** — the comment `//yama:noclose`, in the same
+  positions as the closer directive. It states that the lifecycle does
+  not close the component, and it stops the warning for an unmarked closer.
+  See ADR-016.
+- **Closer component** — a component that a provider with a closer
+  directive builds, or that a graph builds from a struct type that a closer
+  directive marks. Yama wraps it in a `Stopper` that calls its `Close`. The wrapped
+  component is lifecycle-capable. See ADR-016.
 - **Reached level** — a level that the startup traversal entered before it
   stopped. On a startup failure, the level that failed is reached, and the
   levels after it are unreached. See ADR-015.
