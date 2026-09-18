@@ -99,6 +99,30 @@ func TestCorpusWritesTheSameFileTwice(t *testing.T) {
 // Google Wire copies each declaration of that file into its output. A run reads
 // only the injectors that it asked Google Wire for. Neither the application's
 // own injector nor the declarations beside it reach the lifecycle file.
+func TestCorpusWarnsAboutACloserThatCarriesNoDirective(t *testing.T) {
+	requireGo(t)
+
+	src, err := filepath.Abs(filepath.Join(corpusRoot, "closer"))
+	require.NoError(t, err)
+
+	_, dir := runCorpusFixture(t, src)
+
+	var progress bytes.Buffer
+
+	d := NewDriver(dir, []string{"."}, wire.Args{})
+	d.progress = &progress
+
+	require.NoError(t, d.Run(context.Background()))
+
+	reported := progress.String()
+
+	assert.Contains(t, reported, ": warning: ", "marks the line as a warning")
+	assert.Contains(t, reported, "provider NewLog builds an io.Closer that nothing closes")
+	assert.NotContains(t, reported, "NewConn", "a closer directive stops the warning")
+	assert.NotContains(t, reported, "NewOut", "a noclose directive stops the warning")
+	assert.NotContains(t, reported, "Pool", "a directive on the wire.Struct entry stops the warning")
+}
+
 func TestCorpusReadsOnlyTheInjectorsItAskedFor(t *testing.T) {
 	requireGo(t)
 

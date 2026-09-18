@@ -1,5 +1,7 @@
 package rt // l7e.io/yama/rt
 
+func AsStopper(closer io.Closer) yama.Stopper
+
 type LifecycleBuilder struct {
 }
 	method Build() yama.Lifecycle

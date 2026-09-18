@@ -14,8 +14,12 @@
 
 package exec
 
+//go:generate go run go.uber.org/mock/mockgen -destination=../mocks/closer_mocks.go -package=mocks io Closer
+
 import (
 	"context"
+	"io"
+	"log/slog"
 
 	"l7e.io/yama"
 	"l7e.io/yama/internal/bridge"
@@ -61,6 +65,20 @@ func NewChains(interceptors []any) *Chains {
 // no-op for it, so the result participates in exactly the passes the component
 // declared and can be treated uniformly by the level that holds it.
 func (c *Chains) WrapComponent(a any) CompleteLifecycle {
+	return c.wrap(a)
+}
+
+// wrap binds a component through the Chains for each capability it implements.
+// A component that AsStopper wrapped binds under the identity of the closer
+// inside it. Its Start and its Quiesce are the closer's own.
+func (c *Chains) wrap(a any) *component {
+	if wrapped, ok := a.(*closerStopper); ok {
+		comp := c.wrap(wrapped.closer)
+		comp.stop = c.wrapStopAs(wrapped.closer, wrapped)
+
+		return comp
+	}
+
 	comp := &component{}
 
 	if s, ok := a.(yama.Starter); ok {
@@ -108,7 +126,13 @@ func (c *Chains) wrapQuiesce(component yama.Quiescer) yama.Quiescer {
 // component.Stop. stopGate is added outermost, ahead of every registered
 // interceptor.
 func (c *Chains) wrapStop(component yama.Stopper) yama.Stopper {
-	chain := component
+	return c.wrapStopAs(component, component)
+}
+
+// wrapStopAs binds stopper through the stop chain under the identity of
+// component. The context carries component, and the chain ends at stopper.
+func (c *Chains) wrapStopAs(component any, stopper yama.Stopper) yama.Stopper {
+	chain := stopper
 	for i := len(c.stop) - 1; i >= 0; i-- {
 		chain = &stopLink{interceptor: c.stop[i], next: chain}
 	}
@@ -116,6 +140,33 @@ func (c *Chains) wrapStop(component yama.Stopper) yama.Stopper {
 	chain = &stopLink{interceptor: StopGate, next: chain}
 
 	return &stopEntry{component: component, chain: chain}
+}
+
+// closerStopper wraps a closer component in a Stopper. Stop calls Close. Stop
+// logs an error that Close returns, and it returns.
+type closerStopper struct {
+	closer io.Closer
+}
+
+var _ yama.Stopper = (*closerStopper)(nil)
+
+// AsStopper wraps closer in a Stopper. It panics when closer implements
+// Stopper.
+func AsStopper(closer io.Closer) yama.Stopper {
+	if _, ok := closer.(yama.Stopper); ok {
+		panic("closer component implements Stopper")
+	}
+
+	return &closerStopper{closer: closer}
+}
+
+func (s *closerStopper) Stop(ctx context.Context) {
+	if err := s.closer.Close(); err != nil {
+		slog.ErrorContext(ctx, "component close failed",
+			slog.String("component", componentIdentity(ctx)),
+			slog.Any("error", err),
+		)
+	}
 }
 
 // startLink invokes one start interceptor with the rest of the chain as next.

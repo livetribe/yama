@@ -26,6 +26,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"l7e.io/yama"
+	"l7e.io/yama/internal/bridge"
 	apimocks "l7e.io/yama/internal/mocks"
 	execmocks "l7e.io/yama/rt/internal/mocks"
 )
@@ -708,6 +709,89 @@ var _ = Describe("Chains component wrapping", func() {
 		Expect(recs[0].Message).To(Equal(overrunMessage))
 	})
 
+	Describe("a component that AsStopper wrapped", func() {
+		It("runs Close in place of Stop, through the stop chain, under the closer's identity", func() {
+			closer := execmocks.NewMockCloser(ctrl)
+			closer.EXPECT().Close().DoAndReturn(func() error {
+				log.add("close")
+
+				return nil
+			})
+
+			var seen any
+			stop := apimocks.NewMockStopInterceptor(ctrl)
+			stop.EXPECT().Stop(gomock.Any(), gomock.Any()).Do(func(ctx context.Context, next yama.Stopper) {
+				seen, _ = bridge.FromContext[any](ctx)
+				log.add("stop-i enter")
+				next.Stop(ctx)
+				log.add("stop-i exit")
+			})
+
+			chains := NewChains([]any{chnStartOp.silent(ctrl), chnQuiesceOp.silent(ctrl), stop})
+
+			chnRunAll(context.Background(), chains.WrapComponent(AsStopper(closer)))
+
+			Expect(log.seen()).To(Equal([]string{"stop-i enter", "close", "stop-i exit"}))
+			Expect(seen).To(BeIdenticalTo(closer))
+		})
+
+		It("logs an error that Close returns and completes the pass", func() {
+			logs := captureSlog()
+
+			closer := execmocks.NewMockCloser(ctrl)
+			closer.EXPECT().Close().Return(errors.New("still busy"))
+
+			chains := NewChains(nil)
+
+			Expect(func() {
+				chains.WrapComponent(AsStopper(closer)).Stop(context.Background())
+			}).NotTo(Panic())
+
+			recs := logs.records()
+			Expect(recs).To(HaveLen(1))
+			Expect(recs[0].Message).To(Equal("component close failed"))
+			Expect(recs[0].Level).To(Equal(slog.LevelError))
+		})
+
+		It("keeps a closer whose start failed out of the teardown pass", func() {
+			logs := captureSlog()
+
+			// The closer has no Close expectation, so a Close fails the spec.
+			closer := &chnStartingCloser{MockCloser: execmocks.NewMockCloser(ctrl), err: errors.New("boom")}
+
+			chains := NewChains(nil)
+			wrapped := chains.WrapComponent(AsStopper(closer))
+
+			Expect(wrapped.Start(context.Background())).To(MatchError("boom"))
+			wrapped.Stop(context.Background())
+
+			recs := logs.records()
+			Expect(recs).To(HaveLen(1))
+			Expect(recs[0].Message).To(Equal(chnStopSkipMessage))
+		})
+
+		It("panics when the closer also declares Stop", func() {
+			closer := &chnStoppingCloser{MockCloser: execmocks.NewMockCloser(ctrl)}
+
+			Expect(func() { AsStopper(closer) }).To(PanicWith("closer component implements Stopper"))
+		})
+
+		It("binds Start when the closer also declares it", func() {
+			closer := &chnStartingCloser{MockCloser: execmocks.NewMockCloser(ctrl), log: log}
+			closer.MockCloser.EXPECT().Close().DoAndReturn(func() error {
+				log.add("close")
+
+				return nil
+			})
+
+			chains := NewChains(nil)
+
+			chnRunAll(context.Background(), chains.WrapComponent(AsStopper(closer)))
+
+			Expect(log.seen()).To(Equal([]string{"start", "close"}))
+		})
+	})
+
 	DescribeTable("participates in exactly the passes the component declared",
 		func(build func(*gomock.Controller, *chnLog) any, calls chnCalls, want []string) {
 			chains := NewChains([]any{
@@ -1125,3 +1209,26 @@ var _ = Describe("Chains outcomes", func() {
 		Entry("stop, from the component", chnStopOp, chnPanickingComponent),
 	)
 })
+
+// chnStartingCloser is a closer that also declares Start. Start records itself
+// and returns err.
+type chnStartingCloser struct {
+	*execmocks.MockCloser
+	err error
+	log *chnLog
+}
+
+func (c *chnStartingCloser) Start(context.Context) error {
+	if c.log != nil {
+		c.log.add("start")
+	}
+
+	return c.err
+}
+
+// chnStoppingCloser is a closer that also declares Stop.
+type chnStoppingCloser struct {
+	*execmocks.MockCloser
+}
+
+func (*chnStoppingCloser) Stop(context.Context) {}

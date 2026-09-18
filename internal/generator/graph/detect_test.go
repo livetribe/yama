@@ -165,7 +165,8 @@ var _ = Describe("Detect", func() {
 		injectors, err := graph.Parse([]byte(app), []string{"Init"})
 		Expect(err).NotTo(HaveOccurred())
 
-		filled, _, err := graph.Detect(dir, nil, injectors)
+		detected, err := graph.Detect(dir, nil, injectors)
+		filled := detected.Injectors
 		Expect(err).NotTo(HaveOccurred())
 		Expect(filled).To(HaveLen(1))
 
@@ -185,7 +186,7 @@ var _ = Describe("Detect", func() {
 		injectors, err := graph.Parse([]byte(unresolved), []string{"Ghost"})
 		Expect(err).NotTo(HaveOccurred())
 
-		_, _, err = graph.Detect(dir, nil, injectors)
+		_, err = graph.Detect(dir, nil, injectors)
 
 		Expect(err).To(MatchError(ContainSubstring("cannot resolve the type of")))
 	})
@@ -284,7 +285,7 @@ var _ = Describe("Detect", func() {
 		It("reports the directory it could not load", func() {
 			empty := GinkgoT().TempDir()
 
-			_, _, err := graph.Detect(empty, nil, nil)
+			_, err := graph.Detect(empty, nil, nil)
 
 			Expect(err).To(MatchError(ContainSubstring(empty)))
 		})

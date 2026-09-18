@@ -15,6 +15,8 @@
 package rt
 
 import (
+	"io"
+
 	"l7e.io/yama"
 	"l7e.io/yama/internal/bridge"
 	"l7e.io/yama/rt/internal/exec"
@@ -150,4 +152,16 @@ func (b *LifecycleBuilder) check() {
 	if b.built {
 		panic("lifecycle already built")
 	}
+}
+
+// AsStopper wraps a closer component in a Stopper. Stop calls Close and logs an
+// error that Close returns. Generated code passes the result to WithComponents.
+//
+// The lifecycle binds the wrapped component under the identity of closer. It
+// also binds the Start and the Quiesce that closer declares.
+//
+// AsStopper panics when closer implements Stopper. The generator rejects such a
+// closer, so the panic reports a generation bug.
+func AsStopper(closer io.Closer) yama.Stopper {
+	return exec.AsStopper(closer)
 }

@@ -73,6 +73,7 @@ func TestLifecycleRunsInDependencyOrder(t *testing.T) {
 		"start server",
 		"quiesce server",
 		"stop server",
+		"stop *hello.Client",
 		"stop store",
 	}
 	if !slices.Equal(all, wantAll) {
@@ -83,6 +84,7 @@ func TestLifecycleRunsInDependencyOrder(t *testing.T) {
 server: serving "hello"
 server: draining
 server: stopped
+client: closed
 store: released
 store: closed
 `
@@ -119,6 +121,7 @@ func TestStartFailureReturnsErrStartFailedAlone(t *testing.T) {
 	}
 
 	const wantOutput = `store: open
+client: closed
 store: released
 store: closed
 `
@@ -156,12 +159,17 @@ func (o *observer) Stop(ctx context.Context, next yama.Stopper) {
 }
 
 // record appends one "<phase> <component>" event under the lock.
+// record names the component by its String method. A component with no such
+// method is named by its type.
 func (o *observer) record(ctx context.Context, phase string) {
-	component, ok := yama.FromContext[fmt.Stringer](ctx)
+	component, ok := yama.FromContext[any](ctx)
 
 	name := "unknown"
 	if ok {
-		name = component.String()
+		name = fmt.Sprintf("%T", component)
+	}
+	if s, ok := component.(fmt.Stringer); ok {
+		name = s.String()
 	}
 
 	o.mu.Lock()

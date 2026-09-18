@@ -125,12 +125,14 @@ func (h *Happy) Generate() State {
 		return h.failed(err)
 	}
 
-	injectors, scope, err := graph.Detect(h.path, h.tags, injectors)
+	detected, err := graph.Detect(h.path, h.tags, injectors)
 	if err != nil {
 		return h.failed(err)
 	}
 
-	content := emit.Render(h.lifecycleFile(injectors, scope), h.header)
+	h.warn(detected.Warnings)
+
+	content := emit.Render(h.lifecycleFile(detected.Injectors, detected.Scope), h.header)
 
 	written, err := emit.Write(h.path, h.custodian.LifecycleFileName(), content)
 	if err != nil {
@@ -160,6 +162,13 @@ func (h *Happy) Complete() error {
 // Wire writes its own output on the same stream.
 func (h *Happy) report(file string) {
 	fmt.Fprintf(h.progress, "yama: %s: wrote %s\n", h.info.PkgPath(), file)
+}
+
+// warn prints one line for each warning, in the form of the progress line.
+func (h *Happy) warn(warnings []string) {
+	for _, w := range warnings {
+		fmt.Fprintf(h.progress, "yama: %s: warning: %s\n", h.info.PkgPath(), w)
+	}
 }
 
 // prepareFailed returns the state that a failed Prepare settles as.
@@ -236,6 +245,7 @@ func members(levels [][]graph.Member) [][]emit.Member {
 				Name:    m.Name,
 				Cleanup: m.Cleanup,
 				Capable: m.Capabilities != graph.None,
+				Closer:  m.Closer,
 			})
 		}
 	}

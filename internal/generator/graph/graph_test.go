@@ -178,6 +178,24 @@ var _ = Describe("graph", func() {
 			})
 		})
 
+		Context("when the component is a closer component", func() {
+			It("gives the component a level of its own", func() {
+				levels := graph.Levels([]graph.Component{
+					{Name: "conn", Closer: true},
+				})
+
+				Expect(names(levels)).To(Equal([][]string{{"conn"}}))
+			})
+
+			It("carries the mark onto the member", func() {
+				levels := graph.Levels([]graph.Component{
+					{Name: "conn", Closer: true},
+				})
+
+				Expect(levels[0][0].Closer).To(BeTrue())
+			})
+		})
+
 		Context("when a provider returned a cleanup", func() {
 			It("gives the component a level of its own", func() {
 				levels := graph.Levels([]graph.Component{

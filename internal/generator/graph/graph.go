@@ -62,11 +62,13 @@ func (c Capability) String() string {
 // that it consumes. Every such name is the name of another component in the
 // same injector. Cleanup is the name of the cleanup function that the provider
 // returned. Cleanup is empty when the provider returned no cleanup function.
+// Closer is true for a closer component, which Yama wraps in a Stopper.
 type Component struct {
 	Name         string
 	Deps         []string
 	Capabilities Capability
 	Cleanup      string
+	Closer       bool
 }
 
 // A Member is one component's place in a level.
@@ -74,6 +76,7 @@ type Member struct {
 	Name         string
 	Capabilities Capability
 	Cleanup      string
+	Closer       bool
 }
 
 // Levels assigns each component that occupies a level to one level. It returns
@@ -111,7 +114,7 @@ func Levels(components []Component) [][]Member {
 			levels = append(levels, nil)
 		}
 
-		member := Member{Name: c.Name, Capabilities: c.Capabilities, Cleanup: c.Cleanup}
+		member := Member{Name: c.Name, Capabilities: c.Capabilities, Cleanup: c.Cleanup, Closer: c.Closer}
 		levels[after] = append(levels[after], member)
 	}
 
@@ -134,7 +137,8 @@ func deepest(deps []string, behind map[string]int) int {
 // occupiesLevel reports whether c takes a place of its own in the level list.
 // Every component that declares a lifecycle method takes such a place. A
 // component also takes such a place if its provider returned a cleanup, because
-// that cleanup runs at the component's own position.
+// that cleanup runs at the component's own position. A closer component takes
+// such a place, because its Close runs at that position.
 func occupiesLevel(c Component) bool {
-	return c.Capabilities != None || c.Cleanup != ""
+	return c.Capabilities != None || c.Cleanup != "" || c.Closer
 }

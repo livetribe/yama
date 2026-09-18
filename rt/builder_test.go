@@ -304,6 +304,58 @@ var _ = Describe("LifecycleBuilder", func() {
 		})
 	})
 
+	Describe("closers", func() {
+		It("close at their level's position in the teardown pass, after every dependent stopped", func() {
+			conn := execmocks.NewMockCloser(ctrl)
+			top := execmocks.NewMockCompleteLifecycle(ctrl)
+
+			top.EXPECT().Start(gomock.Any())
+			gomock.InOrder(
+				top.EXPECT().Quiesce(gomock.Any()),
+				top.EXPECT().Stop(gomock.Any()),
+				conn.EXPECT().Close(),
+			)
+
+			b := rt.NewLifecycleBuilder()
+			b.NextLevel().WithComponents(rt.AsStopper(conn))
+			b.NextLevel().WithComponents(top)
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(Succeed())
+			lc.Stop(ctx)
+		})
+
+		It("pass through the stop interceptor chain", func() {
+			conn := execmocks.NewMockCloser(ctrl)
+			interceptor := mocks.NewMockStopInterceptor(ctrl)
+
+			gomock.InOrder(
+				interceptor.EXPECT().Stop(gomock.Any(), gomock.Any()).Do(func(ctx context.Context, next yama.Stopper) {
+					next.Stop(ctx)
+				}),
+				conn.EXPECT().Close(),
+			)
+
+			b := rt.NewLifecycleBuilder(yama.WithInterceptors(interceptor))
+			b.NextLevel().WithComponents(rt.AsStopper(conn))
+			lc := b.Build()
+
+			Expect(lc.Start(ctx)).To(Succeed())
+			lc.Stop(ctx)
+		})
+	})
+
+	Describe("AsStopper", func() {
+		It("panics for a closer that also implements Stopper", func() {
+			both := struct {
+				*execmocks.MockCloser
+				*execmocks.MockCompleteLifecycle
+			}{execmocks.NewMockCloser(ctrl), execmocks.NewMockCompleteLifecycle(ctrl)}
+
+			Expect(func() { rt.AsStopper(both) }).To(PanicWith("closer component implements Stopper"))
+		})
+	})
+
 	Describe("misuse", func() {
 		It("panics on any use of a builder after Build", func() {
 			component := execmocks.NewMockCompleteLifecycle(ctrl)

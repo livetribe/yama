@@ -95,7 +95,8 @@ func analyzeCorpus(t *testing.T, name, injector string) analyzed {
 	require.NoError(t, err)
 	require.Len(t, injectors, 1)
 
-	filled, _, err := graph.Detect(dir, nil, injectors)
+	detected, err := graph.Detect(dir, nil, injectors)
+	filled := detected.Injectors
 	require.NoError(t, err)
 	require.Len(t, filled, 1)
 
@@ -241,7 +242,7 @@ func TestCorpusReportsAPackageThatDoesNotCompile(t *testing.T) {
 	injectors, err := graph.Parse(src, []string{"InitializeApp"})
 	require.NoError(t, err)
 
-	_, _, err = graph.Detect(dir, nil, injectors)
+	_, err = graph.Detect(dir, nil, injectors)
 
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "components.go", "the message names the file that does not compile")

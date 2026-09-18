@@ -91,6 +91,90 @@ component's own `Stop`. A cleanup takes no context and passes through no
 interceptor chain. Yama supports it for compatibility with existing Wire
 providers. Prefer the capability interfaces in new code.
 
+### The closer directive
+
+A component from a package that the application does not own often declares
+`Close` and no capability. Mark its provider with the closer directive. The
+directive is the comment `//yama:closer`, with no space after the slashes,
+in the doc comment of the provider's declaration:
+
+```go
+// NewDB provides the database handle.
+//
+//yama:closer
+func NewDB(cfg Config) (*sql.DB, error) {
+	return sql.Open(cfg.Driver, cfg.DSN)
+}
+```
+
+When Yama adds that component to its level, it wraps the component in a
+`Stopper`. The wrapper's `Stop` calls the component's `Close`. The wrapped
+component is lifecycle-capable like any other. Its `Stop` runs under the
+pass context and through the `Stop` interceptor chain, and the context
+carries the component, not the wrapper. The provider still returns the
+component itself, and every consumer receives it. When `Close` returns an
+error, Yama logs the error and continues the pass.
+
+Yama reads the directive from the provider's declaration in any package. A
+marked provider is a closer in every graph that calls it.
+
+A `wire.Struct` entry builds a component with no provider function. Its
+directive goes on the entry in a `wire.NewSet` call, on its own line
+immediately before the entry:
+
+```go
+var GraphSet = wire.NewSet(NewConfig, NewServer,
+	//yama:closer
+	wire.Struct(new(Conn), "*"))
+```
+
+Yama reads such an entry only in the package that it generates for. One
+entry can build the struct, a pointer to it, or both. Yama wraps each form
+with a type that implements `io.Closer`.
+
+Yama reports an error for a closer directive in these cases:
+
+- the provider or the entry builds no component that implements `io.Closer`;
+- the provider also returns a cleanup;
+- the component's type already declares `Stop`.
+
+Prefer the directive to a cleanup for a third-party closer.
+
+### The warning for an unmarked closer
+
+Yama prints a warning when a provider or a `wire.Struct` entry builds a
+component that implements `io.Closer`, and nothing closes that component.
+Nothing closes it when it carries no directive, its provider returns no
+cleanup, and its type declares no `Stop`. A `Start` or a `Quiesce` does not
+stop the warning.
+
+```
+yama: example.com/app: warning: db.go:12:1: provider NewDB builds an io.Closer that nothing closes: add //yama:closer or //yama:noclose
+```
+
+The warning does not stop generation, and it does not change the exit
+status. Yama prints no warning for a component from a `wire.Value`, a
+`wire.InterfaceValue`, or a `wire.FieldsOf` entry.
+
+### The noclose directive
+
+Some closers must not be closed by the lifecycle. A provider can return
+`os.Stdout`, or a value that a different owner closes. The noclose
+directive states that decision and stops the warning. It takes the same
+positions as the closer directive, and it has no other effect:
+
+```go
+// NewOutput provides the stream that the application writes to.
+//
+//yama:noclose
+func NewOutput() *os.File {
+	return os.Stdout
+}
+```
+
+A provider cannot carry both directives. A noclose directive on a provider
+or an entry that builds no `io.Closer` is an error.
+
 ## Ordering
 
 Yama computes a dependency-ordered list of levels for each graph. Components

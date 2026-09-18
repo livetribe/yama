@@ -26,9 +26,10 @@ import (
 
 // GraphSet builds the whole graph from the io.Writer the lifecycle constructor
 // takes as an argument.
-var GraphSet = wire.NewSet(NewConfig, NewStore, NewServer)
+var GraphSet = wire.NewSet(NewConfig, NewStore, NewServer, NewClient)
 
-// The capabilities each component carries. Config declares none.
+// The capabilities each component carries. Config declares none. Client
+// declares Close, and the closer directive on NewClient binds it.
 var (
 	_ yama.Starter = (*Store)(nil)
 	_ yama.Stopper = (*Store)(nil)
@@ -36,6 +37,8 @@ var (
 	_ yama.Starter  = (*Server)(nil)
 	_ yama.Quiescer = (*Server)(nil)
 	_ yama.Stopper  = (*Server)(nil)
+
+	_ io.Closer = (*Client)(nil)
 )
 
 // Config is the application's configuration. It implements no lifecycle
@@ -80,16 +83,17 @@ func (s *Store) String() string {
 	return "store"
 }
 
-// Server serves requests from the Store. It depends on the Store, so it starts
-// after it and stops before it.
+// Server serves requests from the Store through the Client. It depends on
+// both, so it starts after them and stops before them.
 type Server struct {
-	w     io.Writer
-	store *Store
+	w      io.Writer
+	store  *Store
+	client *Client
 }
 
 // NewServer provides the Server.
-func NewServer(w io.Writer, store *Store) *Server {
-	return &Server{w: w, store: store}
+func NewServer(w io.Writer, store *Store, client *Client) *Server {
+	return &Server{w: w, store: store, client: client}
 }
 
 func (s *Server) Start(context.Context) error {

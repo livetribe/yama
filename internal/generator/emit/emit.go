@@ -110,7 +110,12 @@ type Member struct {
 	Name    string
 	Cleanup string
 	Capable bool
+	Closer  bool
 }
+
+// asStopperFunc is the runtime-support function that wraps a closer component
+// in a Stopper.
+const asStopperFunc = "AsStopper"
 
 // These are the packages that every lifecycle file uses.
 const (
@@ -323,7 +328,7 @@ func writeLifecycle(buf *bytes.Buffer, c *Constructor, rt string) {
 
 	for _, level := range c.Levels {
 		buf.WriteString("\t\t\tNextLevel().\n")
-		writeLevel(buf, level)
+		writeLevel(buf, level, rt)
 	}
 
 	buf.WriteString("\t\t\tBuild(),\n")
@@ -338,14 +343,21 @@ func writeLifecycle(buf *bytes.Buffer, c *Constructor, rt string) {
 //	no        any          WithComponents
 //	yes       yes          WithCleanableComponent
 //	yes       no           WithCleanup
-func writeLevel(buf *bytes.Buffer, level []Member) {
+//
+// A closer component goes into WithComponents inside the call that wraps it in
+// a Stopper. rt is the name that the file gives the runtime-support package.
+func writeLevel(buf *bytes.Buffer, level []Member, rt string) {
 	for _, m := range level {
-		buf.WriteString("\t\t\t" + memberCall(m) + ".\n")
+		buf.WriteString("\t\t\t" + memberCall(m, rt) + ".\n")
 	}
 }
 
 // memberCall is the builder call that adds one member.
-func memberCall(m Member) string {
+func memberCall(m Member, rt string) string {
+	if m.Closer {
+		return "WithComponents(" + rt + "." + asStopperFunc + "(" + m.Name + "))"
+	}
+
 	if m.Cleanup == "" {
 		return "WithComponents(" + m.Name + ")"
 	}

@@ -16,12 +16,15 @@ import (
 func NewLifecycle(w io.Writer, opts ...yama.Option) (*Server, yama.Lifecycle, error) {
 	config := NewConfig()
 	store, storeCleanup := NewStore(w, config)
-	server := NewServer(w, store)
+	client := NewClient(w, store)
+	server := NewServer(w, store, client)
 
 	return server,
 		rt.NewLifecycleBuilder(opts...).
 			NextLevel().
 			WithCleanableComponent(store, storeCleanup).
+			NextLevel().
+			WithComponents(rt.AsStopper(client)).
 			NextLevel().
 			WithComponents(server).
 			Build(),

@@ -55,7 +55,8 @@ func analyzeSandbox(t *testing.T) []graph.Injector {
 	require.NoError(t, err)
 	require.Len(t, injectors, 2)
 
-	filled, _, err := graph.Detect(sandboxDir, nil, injectors)
+	detected, err := graph.Detect(sandboxDir, nil, injectors)
+	filled := detected.Injectors
 	require.NoError(t, err)
 
 	return filled

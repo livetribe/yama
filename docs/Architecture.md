@@ -66,7 +66,7 @@ The generation pipeline is:
 5. Treat every new variable declaration in the injector body as a creation event (call expressions, `wire.Value`/`InterfaceValue` assignments, `wire.Struct` struct literals, and `FieldsOf` selector expressions). Top-to-bottom order is a valid topological order.
 6. Treat each injector function as an independent graph. Never merge them.
 7. Derive dependency edges from the arguments each creation event consumes.
-8. Detect lifecycle capabilities for each component. Yama supports a Google Wire cleanup function for backward compatibility. A cleanup is not a lifecycle capability. Yama folds it into the teardown of the value it cleans up, at that value's DAG position. That teardown runs before the value's own `Stop`.
+8. Detect lifecycle capabilities for each component. Yama supports a Google Wire cleanup function for backward compatibility. A cleanup is not a lifecycle capability. Yama folds it into the teardown of the value it cleans up, at that value's DAG position. That teardown runs before the value's own `Stop`. Yama also reads the closer directive. It wraps a closer component in a `Stopper`, so that component is lifecycle-capable (ADR-016).
 9. Compute lifecycle execution structure:
    * one dependency-ordered level list,
    * each member's teardown form.
@@ -168,7 +168,9 @@ concurrently. The three member forms are the only per-member decision generation
 makes and the runtime cannot: `WithComponents` for a value whose provider
 returned no cleanup, `WithCleanableComponent` for a value paired with the Google
 Wire cleanup its provider returned, and `WithCleanup` for that cleanup standing
-alone at the position of a value that implements no capability of its own.
+alone at the position of a value that implements no capability of its own. A
+closer component takes the first form, inside the call that wraps it in a
+`Stopper`.
 
 `WithInterceptors` (ADR-005), `WithBeginComponents`, and `WithEndComponents`
 (ADR-009) are public, non-generated `Option`s passed through to the builder.
@@ -851,4 +853,4 @@ func RunUntilSignal(ctx context.Context, lc Lifecycle, signals ...os.Signal) err
 
 ### Explicitly Not Public
 
-The exported symbols of the Yama-owned runtime-support package (ADR-010) are not part of this surface, even though they are exported so generated code can reach them: `NewLifecycleBuilder`, and `LifecycleBuilder` with `NextLevel`, `WithComponents`, `WithCleanableComponent`, `WithCleanup`, and `Build`. The generated constructor in the application's own package is not part of it either: it lives in the application, and the application names it (ADR-011). Applications should not depend on anything outside the list above.
+The exported symbols of the Yama-owned runtime-support package (ADR-010) are not part of this surface, even though they are exported so generated code can reach them: `NewLifecycleBuilder`, `AsStopper`, and `LifecycleBuilder` with `NextLevel`, `WithComponents`, `WithCleanableComponent`, `WithCleanup`, and `Build`. The generated constructor in the application's own package is not part of it either: it lives in the application, and the application names it (ADR-011). Applications should not depend on anything outside the list above.

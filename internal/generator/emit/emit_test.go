@@ -262,6 +262,18 @@ func NewAppLifecycle(ctx context.Context, opts ...yama.Option) (*lib.App, yama.L
 				Expect(rendered).NotTo(ContainSubstring("db,"))
 			})
 
+			It("adds a closer component inside the call that wraps it in a Stopper", func() {
+				p := simple()
+				p.Constructors[0].Levels = [][]emit.Member{
+					{{Name: "conn", Closer: true}},
+				}
+
+				rendered := string(emit.Render(p, nil))
+
+				Expect(rendered).To(ContainSubstring("WithComponents(rt.AsStopper(conn))."))
+				Expect(rendered).NotTo(ContainSubstring("WithComponents(conn)"))
+			})
+
 			It("writes one call for each member of a level that mixes the three", func() {
 				p := simple()
 				p.Constructors[0].Levels = [][]emit.Member{{
