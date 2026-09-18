@@ -19,6 +19,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	// The generator tests and the wirerun fixture import this package.
+	// This import keeps the package in go.mod.
+	_ "gopkg.in/yaml.v3"
 
 	"l7e.io/yama/internal/generator/pkg"
 )

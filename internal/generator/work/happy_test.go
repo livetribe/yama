@@ -120,7 +120,7 @@ var _ = Describe("a work item over one target package", func() {
 		repo, err := filepath.Abs(filepath.Join("..", "..", ".."))
 		Expect(err).NotTo(HaveOccurred())
 
-		write("go.mod", "module app\n\ngo 1.25.0\n\nrequire l7e.io/yama v0.0.0\n\nreplace l7e.io/yama => "+repo+"\n")
+		write("go.mod", "module app\n\ngo 1.26.0\n\nrequire l7e.io/yama v0.0.0\n\nreplace l7e.io/yama => "+repo+"\n")
 	}
 
 	// writeOutput puts the named fixture at the wire_gen.go name in dir. A spec
