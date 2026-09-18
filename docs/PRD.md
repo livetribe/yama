@@ -24,11 +24,9 @@ Yama follows the same core philosophy as Google Wire:
 * Preserve strong typing.
 * Generate understandable Go code.
 
-Yama is intentionally not a dependency injection framework.
+Yama does not implement dependency injection. It delegates dependency construction to Google Wire and implements only lifecycle orchestration.
 
-Google Wire remains responsible for dependency construction.
-
-Yama is responsible only for lifecycle orchestration.
+An application that uses Yama gets both: Wire constructs the graph, and Yama orchestrates its lifecycle.
 
 ---
 
@@ -111,9 +109,9 @@ Provide interceptor-based lifecycle customization without expanding lifecycle ma
 
 Yama shall not provide:
 
-## Dependency Injection
+## A Dependency Injection Implementation
 
-Google Wire remains responsible for dependency injection.
+Yama does not implement its own injector. Google Wire remains responsible for dependency injection.
 
 ## Reflection
 

@@ -1,9 +1,9 @@
 # yama
 
-A compile-time lifecycle orchestration framework: it derives application
-startup/quiesce/shutdown ordering from a Google Wire dependency graph and
-generates the orchestration code, rather than building a runtime engine that
-interprets one.
+A compile-time dependency injection and lifecycle framework for Go. Google
+Wire constructs the dependency graph. Yama generates the code that starts,
+quiesces, and stops that graph in dependency order, rather than building a
+runtime engine that interprets one.
 
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/livetribe/yama)](https://goreportcard.com/report/github.com/livetribe/yama)
