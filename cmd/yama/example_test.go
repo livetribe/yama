@@ -190,13 +190,13 @@ func realPath(t *testing.T, path string) string {
 	return resolved
 }
 
-// trackExampleSources reads every Go source file and both module files in the
-// example module. The Go test cache records the reads. A later change to one
-// of those files makes this package's cached test result stale.
+// trackExampleSources reads every Go source file, both module files, and
+// README.md in the example module. The Go test cache records the reads. A later
+// change to one of those files makes this package's cached test result stale.
 func trackExampleSources(t *testing.T) {
 	t.Helper()
 
-	patterns := []string{"*.go", "go.mod", "go.sum", filepath.Join("cmd", "hello", "*.go")}
+	patterns := []string{"*.go", "go.mod", "go.sum", "README.md", filepath.Join("cmd", "hello", "*.go")}
 	for _, pattern := range patterns {
 		matches, err := filepath.Glob(filepath.Join(exampleDir, pattern))
 		require.NoError(t, err)
