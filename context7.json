@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "Yama",
+  "description": "Compile-time lifecycle orchestration for Go. Google Wire builds the dependency graph. Yama generates code that starts, quiesces, and stops the graph in dependency order.",
+  "excludeFolders": [".claude", ".github", "docs/adr", "docs/prompts", "docs/postmortem", "internal", "testdata"],
+  "excludeFiles": ["AGENTS.md", "CLAUDE.md", "SECURITY.md", "implementation_plan_claude.md", "PRD.md", "generator-architecture.md"],
+  "rules": [
+    "Import the module as l7e.io/yama, not github.com/livetribe/yama.",
+    "Pin github.com/google/wire/cmd/wire and l7e.io/yama/cmd/yama in the tool block of go.mod.",
+    "Put the lifecycle stub behind //go:build yamainject. Put //go:generate go tool yama in a file that no build tag excludes.",
+    "Do not edit lifecycle_gen.go. Run go generate to make it again.",
+    "Use yama.RunUntilSignal to run the Lifecycle that the generated constructor returns."
+  ]
+}
