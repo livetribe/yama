@@ -102,6 +102,20 @@ var _ = Describe("Parse", func() {
 			}))
 		})
 
+		It("reads the name that Google Wire gave each parameter, in order", func() {
+			const src = `package p
+
+func InitializeApp(config *Config, log *Log) (*App, func(), error) {
+	app := NewApp(config, log)
+	return app, func() {}, nil
+}
+`
+			injectors, err := graph.Parse([]byte(src), []string{"InitializeApp"})
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(injectors[0].Params).To(Equal([]string{"config", "log"}))
+		})
+
 		It("leaves the capabilities empty, because the output does not state them", func() {
 			for _, c := range componentsOf(wireGen, "InitializeApp") {
 				Expect(c.Capabilities).To(Equal(graph.None))

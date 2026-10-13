@@ -33,31 +33,39 @@ func optionsStub(params ...pkg.Field) pkg.Stub {
 	}
 }
 
-// The lifecycle file shares a block with the package that contains it. Each
-// constructor shares a scope with the parameters that the stub declares. Yama's
-// own two imports take a name that neither the block nor a scope holds.
-var _ = Describe("nameFile", func() {
-	Context("a stub that declares a parameter of Yama's own names", func() {
-		It("gives the runtime import another name", func() {
-			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "rt", Type: "*Registry"})}
+// paramInjector returns a list that holds one injector. The injector has the
+// derived name of the stub that optionsStub returns. The injector gives its
+// parameters the names in params.
+func paramInjector(params ...string) []graph.Injector {
+	return []graph.Injector{{Name: "yama_NewAppLifecycle", Params: params}}
+}
 
-			names := nameFile(nil, nil, nil, stubs)
+// The lifecycle file shares a block with the package that contains it. Each
+// constructor shares a scope with its parameters, under the names that Google
+// Wire gave them. Yama's own two imports take a name that neither the block nor
+// a scope holds.
+var _ = Describe("nameFile", func() {
+	Context("a graph parameter that Google Wire gives one of Yama's own names", func() {
+		It("gives the runtime import another name", func() {
+			stubs := []pkg.Stub{optionsStub()}
+
+			names := nameFile(nil, paramInjector("rt"), nil, stubs)
 
 			Expect(names.rt).NotTo(Equal("rt"))
 		})
 
 		It("gives the public import another name", func() {
-			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "yama", Type: "*Thing"})}
+			stubs := []pkg.Stub{optionsStub()}
 
-			names := nameFile(nil, nil, nil, stubs)
+			names := nameFile(nil, paramInjector("yama"), nil, stubs)
 
 			Expect(names.yama).NotTo(Equal("yama"))
 		})
 
 		It("keeps a parameter that neither import needs", func() {
-			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "ctx", Type: "context.Context"})}
+			stubs := []pkg.Stub{optionsStub()}
 
-			names := nameFile(nil, nil, nil, stubs)
+			names := nameFile(nil, paramInjector("ctx"), nil, stubs)
 
 			Expect(names.rt).To(Equal("rt"))
 			Expect(names.yama).To(Equal("yama"))
@@ -100,7 +108,7 @@ var _ = Describe("signature", func() {
 		stub := optionsStub(pkg.Field{Name: "b", Type: "*runtime.Builder"})
 		names := naming{yama: "yama", rt: "rt", opts: []string{"opts"}}
 
-		rendered := signature(&stub, "opts", &names, "runtime")
+		rendered := signature(&stub, []string{"b"}, "opts", &names, "runtime")
 
 		Expect(rendered).To(ContainSubstring("*rt.Builder"))
 		Expect(rendered).NotTo(ContainSubstring("runtime.Builder"))
@@ -110,8 +118,17 @@ var _ = Describe("signature", func() {
 		stub := optionsStub(pkg.Field{Name: "cfg", Type: "*Config"})
 		names := naming{yama: "yama", rt: "rt", opts: []string{"opts"}}
 
-		rendered := signature(&stub, "opts", &names, "")
+		rendered := signature(&stub, []string{"cfg"}, "opts", &names, "")
 
 		Expect(rendered).To(ContainSubstring("cfg *Config"))
+	})
+
+	It("names each graph parameter as Google Wire named it", func() {
+		stub := optionsStub(pkg.Field{Name: "_", Type: "*Config"}, pkg.Field{Type: "*Log"})
+		names := naming{yama: "yama", rt: "rt", opts: []string{"opts"}}
+
+		rendered := signature(&stub, []string{"config", "log"}, "opts", &names, "")
+
+		Expect(rendered).To(Equal("func NewAppLifecycle(config *Config, log *Log, opts ...yama.Option) (*App, yama.Lifecycle, error)"))
 	})
 })

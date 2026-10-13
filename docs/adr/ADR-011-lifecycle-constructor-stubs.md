@@ -88,6 +88,12 @@ declared none, and the emitted body forwards the options by name. This is the
 same allowance the rename below rests on: a parameter is positional, so naming
 one reaches no caller.
 
+A stub may also leave a graph parameter unnamed, or bind it to the blank
+identifier. Google Wire gives that parameter a name of its own, and the body
+that Wire generates uses that name. The constructor that Yama emits takes each
+graph parameter's name from Wire's output. A parameter is positional, so this
+name also reaches no caller.
+
 ### Yama derives a Wire injector from each stub
 
 Yama writes a `wireinject`-tagged injector for every stub, runs Google Wire over

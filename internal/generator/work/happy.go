@@ -203,7 +203,7 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 
 		file.Constructors = append(file.Constructors, emit.Constructor{
 			Doc:        stub.Doc,
-			Signature:  signature(stub, names.opts[i], &names, rtFrom),
+			Signature:  signature(stub, inj.Params, names.opts[i], &names, rtFrom),
 			Statements: inj.Statements,
 			Result:     inj.Result,
 			Levels:     members(levels),
@@ -253,37 +253,28 @@ func members(levels [][]graph.Member) [][]emit.Member {
 	return out
 }
 
-// signature prints the constructor that the lifecycle file declares. It is the
-// stub's own signature, under the names that the lifecycle file gives Yama's
-// own two packages.
+// signature prints the constructor that the lifecycle file declares. The
+// constructor keeps the stub's name, parameter types, and result types, under
+// the names that the lifecycle file gives Yama's own two packages.
+//
+// params holds the names that Google Wire gave the graph parameters. Each graph
+// parameter takes its name from params. The options parameter follows the graph
+// parameters. It takes the name in opts.
 //
 // rtFrom is the name that the stub's file uses for Yama's runtime package. The
 // lifecycle file drops that import and states an import of its own. Every type
 // that names the runtime package therefore takes the new name.
-func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string {
-	params := make([]string, 0, len(stub.Params))
-	last := len(stub.Params) - 1
+func signature(stub *pkg.Stub, params []string, opts string, names *naming, rtFrom string) string {
+	printed := make([]string, 0, len(stub.Params))
 
 	for i, p := range stub.Params {
-		name := p.Name
-
-		// The constructor forwards its options. The parameter that carries
-		// them takes the same name that the constructor uses to forward
-		// them. A stub can bind that parameter to the blank identifier,
-		// which names nothing.
-		if stub.HasOpts && i == last {
-			name = opts
+		name := opts
+		if i < len(params) {
+			name = params[i]
 		}
 
 		typ := renamePackages(p.Type, stub, names, rtFrom)
-
-		if name == "" {
-			params = append(params, typ)
-
-			continue
-		}
-
-		params = append(params, name+" "+typ)
+		printed = append(printed, name+" "+typ)
 	}
 
 	results := make([]string, 0, len(stub.Results))
@@ -293,7 +284,7 @@ func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string
 		results = append(results, typ)
 	}
 
-	return fmt.Sprintf("func %s(%s) (%s)", stub.Name, strings.Join(params, ", "), strings.Join(results, ", "))
+	return fmt.Sprintf("func %s(%s) (%s)", stub.Name, strings.Join(printed, ", "), strings.Join(results, ", "))
 }
 
 // renamePackages returns one printed type under the names that the lifecycle

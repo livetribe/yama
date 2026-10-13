@@ -29,10 +29,6 @@ const (
 	rtPath   = "l7e.io/yama/rt"
 )
 
-// blankName binds nothing. A parameter that carries it states no name that the
-// constructor body can reach.
-const blankName = "_"
-
 // naming holds the names that one lifecycle file uses for Yama's own two
 // packages. It also holds the name that each constructor uses to forward its
 // options.
@@ -54,10 +50,11 @@ type naming struct {
 // what each constructor calls its options parameter.
 //
 // An options parameter takes a different name if any other name that its
-// constructor reaches already holds it. Those other names are the package
-// block, a component, a cleanup, an import, and the parameters that the stub
-// declares beside the options. Yama's own two imports take a different name
-// for all of those names, and for the options parameters also.
+// constructor reaches already holds it. Those other names are the names in the
+// package block, and the names of a component, a cleanup, an import, and a
+// graph parameter. Google Wire gave each graph parameter its name. Yama's own
+// two imports take a different name for all of those names, and for the
+// options parameters also.
 func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, stubs []pkg.Stub) naming {
 	taken := make(map[string]bool, len(scope))
 	for _, name := range scope {
@@ -65,6 +62,10 @@ func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, 
 	}
 
 	for _, inj := range injectors {
+		for _, name := range inj.Params {
+			taken[name] = true
+		}
+
 		for _, c := range inj.Components {
 			taken[c.Name] = true
 
@@ -85,8 +86,6 @@ func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, 
 		taken[imp.Name] = true
 	}
 
-	takeParams(taken, stubs)
-
 	n := naming{opts: nameOptions(taken, stubs)}
 
 	for _, name := range n.opts {
@@ -101,21 +100,6 @@ func nameFile(imports []pkg.Import, injectors []graph.Injector, scope []string, 
 	n.rt = freeName("rt", taken)
 
 	return n
-}
-
-// takeParams marks every parameter that a stub declares beside its options. A
-// constructor keeps each of those names. Each of those names shares a scope
-// with the constructor body.
-func takeParams(taken map[string]bool, stubs []pkg.Stub) {
-	for i := range stubs {
-		for _, p := range stubs[i].GraphParams() {
-			if p.Name == "" || p.Name == blankName {
-				continue
-			}
-
-			taken[p.Name] = true
-		}
-	}
 }
 
 // nameOptions returns the name that each stub's constructor uses to forward

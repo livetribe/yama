@@ -42,11 +42,18 @@ const cleanupSuffix = "Cleanup"
 // values that it builds, in the order that it builds them. That order is a
 // valid topological order.
 //
+// Params holds the name of each parameter, in order. Google Wire gives a name
+// to a parameter that the stub left unnamed, or that the stub bound to the
+// blank identifier. Google Wire also gives another name to a named parameter
+// when an import, the package block, or the universe block already holds that
+// name. The statements use the names in Params.
+//
 // Statements is the construction that the injector performs, one entry for each
 // line and printed as Google Wire wrote it. Result names the value that the
 // injector returns.
 type Injector struct {
 	Name       string
+	Params     []string
 	Components []Component
 	Statements []string
 	Result     string
@@ -56,9 +63,8 @@ type Injector struct {
 // that want names. Parse returns them in the order that the file declares them.
 // It leaves out a name that the file does not declare.
 //
-// Parse fills Name, Deps, and Cleanup. It leaves Capabilities empty, because a
-// capability is a fact about a type, and Google Wire's output states only what
-// the injector built.
+// Parse fills Params, and the Name, Deps, and Cleanup of each component. It
+// leaves Capabilities empty. Detect returns injectors with Capabilities filled.
 func Parse(src []byte, want []string) ([]Injector, error) {
 	fset := token.NewFileSet()
 
@@ -102,6 +108,7 @@ func Parse(src []byte, want []string) ([]Injector, error) {
 
 		injectors = append(injectors, Injector{
 			Name:       fn.Name.Name,
+			Params:     paramNames(fn),
 			Components: components,
 			Statements: statements,
 			Result:     result,
@@ -109,6 +116,20 @@ func Parse(src []byte, want []string) ([]Injector, error) {
 	}
 
 	return injectors, nil
+}
+
+// paramNames returns the name of each parameter that the function declares, in
+// order.
+func paramNames(fn *ast.FuncDecl) []string {
+	var names []string
+
+	for _, field := range fn.Type.Params.List {
+		for _, name := range field.Names {
+			names = append(names, name.Name)
+		}
+	}
+
+	return names
 }
 
 // checkCleanups reports a cleanup that the injector's return aggregates, and
