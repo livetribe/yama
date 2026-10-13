@@ -277,6 +277,30 @@ var _ = Describe("source", func() {
 			})
 		})
 
+		Context("when a stub calls wire.Build and then returns", func() {
+			BeforeEach(func() {
+				write("lifecycle.go", "//go:build yamainject\n\npackage app\n\n"+
+					"import (\n\t\"github.com/google/wire\"\n\n\t\"l7e.io/yama\"\n)\n\n"+
+					"func NewApp() (*App, yama.Lifecycle, error) {\n\twire.Build(One, Two)\n\treturn nil, nil, nil\n}\n")
+			})
+
+			It("reads the stub out of it", func() {
+				Expect(only().Providers).To(Equal([]string{"One", "Two"}))
+			})
+		})
+
+		Context("when a function returns before it calls wire.Build", func() {
+			BeforeEach(func() {
+				write("lifecycle.go", "//go:build yamainject\n\npackage app\n\n"+
+					"import (\n\t\"github.com/google/wire\"\n\n\t\"l7e.io/yama\"\n)\n\n"+
+					"func NewApp() (*App, yama.Lifecycle, error) {\n\treturn nil, nil, nil\n\twire.Build(One)\n}\n")
+			})
+
+			It("reads no stub out of it", func() {
+				Expect(loaded().Stubs()).To(BeEmpty())
+			})
+		})
+
 		Context("when a guarded file imports Google Wire not at all", func() {
 			BeforeEach(func() {
 				write("helper.go", "//go:build yamainject\n\npackage app\n\n"+

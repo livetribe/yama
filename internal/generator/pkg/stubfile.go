@@ -221,7 +221,7 @@ func afterBlock(s string) (rest string, closed bool) {
 // declares them. It reports a stub if Yama cannot emit a constructor from its
 // signature.
 //
-// A declaration is a stub when its body is one panic around a wire.Build call.
+// A declaration is a stub when its body has a form that buildCall takes.
 // stubsOf does not read every other declaration, and it checks the signature of
 // a stub only.
 func stubsOf(fset *token.FileSet, file *ast.File) ([]Stub, error) {
@@ -347,29 +347,53 @@ func stubOf(fset *token.FileSet, fn *ast.FuncDecl, build *ast.CallExpr, yama, wi
 	return stub
 }
 
-// buildCall returns the wire.Build call of a stub body. A stub declares one
-// statement, and that statement is a panic around the call.
+// buildCall returns the wire.Build call of a stub body. A stub body takes the
+// same forms that Google Wire takes for an injector body:
+//
+//   - one statement that calls wire.Build, or one panic around that call;
+//   - after that statement, zero or more return statements;
+//   - empty statements in any position.
 func buildCall(fn *ast.FuncDecl, wire string) (*ast.CallExpr, bool) {
-	if fn.Body == nil || len(fn.Body.List) != 1 {
+	if fn.Body == nil {
 		return nil, false
 	}
 
-	stmt, ok := fn.Body.List[0].(*ast.ExprStmt)
-	if !ok {
-		return nil, false
+	var build *ast.CallExpr
+
+	for _, stmt := range fn.Body.List {
+		switch stmt := stmt.(type) {
+		case *ast.ExprStmt:
+			call, ok := wireBuild(stmt.X, wire)
+			if !ok || build != nil {
+				return nil, false
+			}
+
+			build = call
+
+		case *ast.ReturnStmt:
+			if build == nil {
+				return nil, false
+			}
+
+		case *ast.EmptyStmt:
+
+		default:
+			return nil, false
+		}
 	}
 
-	panicCall, ok := callTo(stmt.X, "panic")
-	if !ok || len(panicCall.Args) != 1 {
-		return nil, false
+	return build, build != nil
+}
+
+// wireBuild returns the wire.Build call that expr states. expr is the call, or
+// one panic around the call.
+func wireBuild(expr ast.Expr, wire string) (*ast.CallExpr, bool) {
+	if panicCall, ok := callTo(expr, "panic"); ok && len(panicCall.Args) == 1 {
+		expr = panicCall.Args[0]
 	}
 
-	build, ok := callTo(panicCall.Args[0], buildFunc)
-	if !ok {
-		return nil, false
-	}
-
-	if !qualifiedBy(build.Fun, wire) {
+	build, ok := callTo(expr, buildFunc)
+	if !ok || !qualifiedBy(build.Fun, wire) {
 		return nil, false
 	}
 
