@@ -6,12 +6,12 @@ toolchain go1.26.9
 
 require (
 	github.com/google/wire v0.7.0
-	github.com/onsi/ginkgo/v2 v2.32.2
-	github.com/onsi/gomega v1.43.0
+	github.com/onsi/ginkgo/v2 v2.33.1
+	github.com/onsi/gomega v1.44.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0
-	golang.org/x/tools v0.50.0
+	golang.org/x/tools v0.51.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
