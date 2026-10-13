@@ -10,6 +10,7 @@ runtime engine that interprets one.
 [![Documentation](https://pkg.go.dev/badge/l7e.io/yama.svg)](https://pkg.go.dev/l7e.io/yama)
 [![Go Report Card](https://goreportcard.com/badge/l7e.io/yama)](https://goreportcard.com/report/l7e.io/yama)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/livetribe/yama/badge)](https://scorecard.dev/viewer/?uri=github.com/livetribe/yama)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15451/badge)](https://www.bestpractices.dev/projects/15451)
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=master)](https://coveralls.io/github/livetribe/yama?branch=master)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
