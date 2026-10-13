@@ -1,0 +1,24 @@
+name: Refresh Context7 docs
+# This workflow tells Context7 to update its documentation for this
+# repository. It runs on pushes to the default branch. The CONTEXT7_API_KEY
+# secret gives the workflow access to the Context7 account.
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the Context7 refresh
+        env:
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+          LIBRARY_NAME: /${{ github.repository }}
+        run: |
+          curl --silent --show-error --fail-with-body -X POST https://context7.com/api/v1/refresh \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer ${CONTEXT7_API_KEY}" \
+            -d "{\"libraryName\": \"${LIBRARY_NAME}\"}"

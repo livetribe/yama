@@ -2,6 +2,8 @@ module l7e.io/yama
 
 go 1.26.0
 
+toolchain go1.26.9
+
 require (
 	github.com/google/wire v0.7.0
 	github.com/onsi/ginkgo/v2 v2.32.2
