@@ -23,6 +23,10 @@ import (
 	"strings"
 )
 
+// dotName binds no name of its own. An import that carries it puts the
+// package's own names in the file's scope.
+const dotName = "."
+
 // An Import is one entry of an import block. Name is empty when the file gave
 // no alias.
 type Import struct {
@@ -94,6 +98,9 @@ func ImportsIn(src []byte) []Import {
 
 // CheckImports reports one name that two paths use.
 //
+// A blank import and a dot import bind no name of their own. CheckImports
+// does not read them.
+//
 // A package states its imports one file at a time. Every file can bind a name
 // of its own. Each file that Yama writes carries the imports of several such
 // files at one time, and one name in the written file refers to one path. A
@@ -108,6 +115,10 @@ func CheckImports(block []Import, names map[string]string) error {
 	paths := make(map[string]string, len(block))
 
 	for _, imp := range block {
+		if imp.Name == blankName || imp.Name == dotName {
+			continue
+		}
+
 		name := imp.NameIn(names)
 
 		seen, found := paths[name]

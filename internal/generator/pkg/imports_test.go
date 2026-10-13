@@ -137,6 +137,14 @@ func TestCheckImports(t *testing.T) {
 			names: map[string]string{"example.com/a/yaml.v3": "yaml", "example.com/b/yaml.v3": "yamlv3"},
 		},
 		{
+			name:  "two blank imports",
+			block: []pkg.Import{{Name: "_", Path: "example.com/a/driver"}, {Name: "_", Path: "example.com/b/driver"}},
+		},
+		{
+			name:  "two dot imports",
+			block: []pkg.Import{{Name: ".", Path: "example.com/a/lib"}, {Name: ".", Path: "example.com/b/lib"}},
+		},
+		{
 			name: "a package that imports nothing",
 		},
 	}
