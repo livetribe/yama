@@ -34,6 +34,12 @@ type Import struct {
 	Path string
 }
 
+// BindsName reports whether the import binds a name in the file. A blank import
+// and a dot import bind no name of their own.
+func (imp Import) BindsName() bool {
+	return imp.Name != blankName && imp.Name != dotName
+}
+
 // NameIn returns the name that a file uses for the import. The file's own alias
 // has priority. The name that the package declares comes next. resolved holds
 // that name for every path that the Go toolchain could read. If neither is
@@ -102,20 +108,16 @@ func ImportsIn(src []byte) []Import {
 // does not read them.
 //
 // A package states its imports one file at a time. Every file can bind a name
-// of its own. Each file that Yama writes carries the imports of several such
-// files at one time, and one name in the written file refers to one path. A
-// caller passes the whole set that one written file will carry, so a run calls
-// CheckImports one time for each file that it writes.
+// of its own. The derived injector file carries the imports of every stub file
+// at one time, and one name in that file refers to one path. A caller passes
+// the whole set that the derived injector file carries.
 //
-// CheckImports reads every import in that set, whether or not the written file
-// goes on to state each one. A set can hold an import that the written file
-// leaves out. That is the one case that CheckImports rejects and that Google
-// Wire would have accepted. An alias on either import removes the collision.
+// An alias on either import removes the collision.
 func CheckImports(block []Import, names map[string]string) error {
 	paths := make(map[string]string, len(block))
 
 	for _, imp := range block {
-		if imp.Name == blankName || imp.Name == dotName {
+		if !imp.BindsName() {
 			continue
 		}
 

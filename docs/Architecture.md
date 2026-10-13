@@ -318,7 +318,10 @@ Yama's to derive:
 * **Import names**, which the constructor's tail uses to reach the public
   package and the runtime-support package. They share one scope with the
   component locals Wire chose, so a collision between the two is possible, and
-  the import is the name that gives way (ADR-013).
+  the import is the name that gives way (ADR-013). The constructor's signature
+  also names packages, by the names the stub file gives them. Wire chooses its
+  own import names without reading the stub's, so the two can give one name to
+  two packages. The stub's name is the one that gives way (ADR-013).
 
 Yama derives one further identifier that no committed file carries: the name of
 the injector it derives from each stub, which lives only in the transient

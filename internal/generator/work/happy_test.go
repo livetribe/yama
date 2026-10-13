@@ -202,8 +202,8 @@ var _ = Describe("a work item over one target package", func() {
 		return state.Generate()
 	}
 
-	// collided runs Prepare, puts output with an import block that collides
-	// with the stub file's block in the directory, and runs Generate.
+	// collided runs Prepare, puts output that gives a name of the stub file to
+	// another package in the directory, and runs Generate.
 	collided := func() State {
 		state := prepared()
 		writeOutput(collidingFixture)
@@ -395,21 +395,28 @@ var _ = Describe("a work item over one target package", func() {
 				})
 			})
 
-			// The lifecycle file carries the stub file's import block and Google
-			// Wire's own. One name in that file refers to one path.
-			Context("and Google Wire wrote output with an import block that collides", func() {
-				It("settles as a package that failed to generate", func() {
-					Expect(collided()).To(BeAssignableToTypeOf(&GenerateFailed{}))
+			// The construction keeps the names that Google Wire gave its
+			// imports. A stub file's import whose name the output gives to
+			// another package takes a free name.
+			Context("and Google Wire wrote output that gives the stub file's name to another package", func() {
+				It("writes lifecycle_gen.go", func() {
+					collided()
+					Expect(exists(lifecycleName)).To(BeTrue())
 				})
 
-				It("writes no lifecycle_gen.go", func() {
+				It("imports the stub file's package under the lowest free number", func() {
 					collided()
-					Expect(exists(lifecycleName)).To(BeFalse())
+					Expect(read(lifecycleName)).To(ContainSubstring(`context2 "context"`))
+				})
+
+				It("names that package by its new name in the signature", func() {
+					collided()
+					Expect(read(lifecycleName)).To(ContainSubstring("NewAppLifecycle(ctx context2.Context, "))
 				})
 
 				Describe("Complete", func() {
-					It("returns the error that Generate held", func() {
-						Expect(completed(collided())).To(MatchError(ContainSubstring("needs an alias")))
+					It("returns nil", func() {
+						Expect(completed(collided())).To(Succeed())
 					})
 				})
 			})

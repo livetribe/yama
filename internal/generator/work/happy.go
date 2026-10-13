@@ -17,6 +17,7 @@ package work
 import (
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -113,9 +114,7 @@ func (h *Happy) Generate() State {
 		return h.failed(err)
 	}
 
-	if err = h.info.TakeOutputImportsFrom(src); err != nil {
-		return h.failed(err)
-	}
+	h.info.TakeOutputImportsFrom(src)
 
 	body := wire.DropLineDirectives(src)
 	derived := wire.DerivedNames(h.info)
@@ -185,11 +184,15 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 		byName[inj.Name] = inj
 	}
 
-	imports := h.info.LifecycleImports()
-	names := nameFile(imports, injectors, scope, h.info.Stubs())
-	rtFrom := h.info.ImportedAs(rtPath)
+	stubImports := h.named(h.info.Imports())
+	outputImports := h.named(h.info.OutputImports())
+	taken := fileScope(injectors, scope, h.info.Stubs())
+	imports := nameImports(stubImports, outputImports, taken)
 
-	file := emit.Package{Name: h.info.Name(), Imports: imports, Yama: names.yama, Rt: names.rt}
+	names := nameFile(imports.block, taken, h.info.Stubs())
+	renames := qualifiers(stubImports, &names, imports.renamed)
+
+	file := emit.Package{Name: h.info.Name(), Imports: imports.block, Yama: names.yama, Rt: names.rt}
 
 	for i := range h.info.Stubs() {
 		stub := &h.info.Stubs()[i]
@@ -203,7 +206,7 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 
 		file.Constructors = append(file.Constructors, emit.Constructor{
 			Doc:        stub.Doc,
-			Signature:  signature(stub, names.opts[i], &names, rtFrom),
+			Signature:  signature(stub, names.opts[i], renames),
 			Statements: inj.Statements,
 			Result:     inj.Result,
 			Levels:     members(levels),
@@ -212,6 +215,17 @@ func (h *Happy) lifecycleFile(injectors []graph.Injector, scope []string) emit.P
 	}
 
 	return file
+}
+
+// named returns each import under the name that the package's files use for it.
+func (h *Happy) named(block []pkg.Import) []pkg.Import {
+	out := make([]pkg.Import, 0, len(block))
+
+	for _, imp := range block {
+		out = append(out, pkg.Import{Name: h.info.NameOf(imp), Path: imp.Path})
+	}
+
+	return out
 }
 
 // clearTransients takes Google Wire's output and the intermediate files out of
@@ -254,13 +268,8 @@ func members(levels [][]graph.Member) [][]emit.Member {
 }
 
 // signature prints the constructor that the lifecycle file declares. It is the
-// stub's own signature, under the names that the lifecycle file gives Yama's
-// own two packages.
-//
-// rtFrom is the name that the stub's file uses for Yama's runtime package. The
-// lifecycle file drops that import and states an import of its own. Every type
-// that names the runtime package therefore takes the new name.
-func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string {
+// stub's own signature, under the package names that qualifiers maps.
+func signature(stub *pkg.Stub, opts string, qualifiers map[string]string) string {
 	params := make([]string, 0, len(stub.Params))
 	last := len(stub.Params) - 1
 
@@ -275,7 +284,7 @@ func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string
 			name = opts
 		}
 
-		typ := renamePackages(p.Type, stub, names, rtFrom)
+		typ := requalify(p.Type, qualifiers)
 
 		if name == "" {
 			params = append(params, typ)
@@ -289,17 +298,38 @@ func signature(stub *pkg.Stub, opts string, names *naming, rtFrom string) string
 	results := make([]string, 0, len(stub.Results))
 
 	for _, r := range stub.Results {
-		typ := renamePackages(r.Type, stub, names, rtFrom)
+		typ := requalify(r.Type, qualifiers)
 		results = append(results, typ)
 	}
 
 	return fmt.Sprintf("func %s(%s) (%s)", stub.Name, strings.Join(params, ", "), strings.Join(results, ", "))
 }
 
-// renamePackages returns one printed type under the names that the lifecycle
-// file gives Yama's own two packages.
-func renamePackages(typ string, stub *pkg.Stub, names *naming, rtFrom string) string {
-	renamed := requalify(typ, stub.YamaName(), names.yama)
+// qualifiers returns the name that the lifecycle file uses for each package
+// that a stub file names, keyed by the name in the stub file. It holds only the
+// names that change.
+//
+// stubs carries the name that each stub file's entry uses. names holds the
+// names of Yama's own two packages in the lifecycle file. renamed holds the
+// names that nameImports changed.
+func qualifiers(stubs []pkg.Import, names *naming, renamed map[string]string) map[string]string {
+	out := maps.Clone(renamed)
+	if out == nil {
+		out = make(map[string]string)
+	}
 
-	return requalify(renamed, rtFrom, names.rt)
+	for _, imp := range stubs {
+		switch imp.Path {
+		case yamaPath:
+			out[imp.Name] = names.yama
+		case rtPath:
+			out[imp.Name] = names.rt
+		}
+	}
+
+	maps.DeleteFunc(out, func(from, to string) bool {
+		return from == to
+	})
+
+	return out
 }

@@ -24,15 +24,13 @@ import "maps"
 // stub file imports. A provider set states providers of its own, and Google
 // Wire reaches them through its own import block.
 //
-// TakeOutputImportsFrom takes nothing from output that does not parse. It
-// reports one name that two paths use. The lifecycle file carries both import
-// blocks, and one name there refers to one path.
-func (info *Info) TakeOutputImportsFrom(src []byte) error {
+// TakeOutputImportsFrom takes nothing from output that does not parse.
+func (info *Info) TakeOutputImportsFrom(src []byte) {
 	block := ImportsIn(src)
 	fresh := info.unresolvedPaths(block)
 	resolved := Names(info.dir, fresh)
 
-	return info.takeOutputImports(block, resolved)
+	info.takeOutputImports(block, resolved)
 }
 
 // unresolvedPaths returns the path of each import in block that the package
@@ -51,7 +49,7 @@ func (info *Info) unresolvedPaths(block []Import) []string {
 
 // takeOutputImports stores Google Wire's import block with the name that the
 // toolchain resolved for each of its paths.
-func (info *Info) takeOutputImports(block []Import, resolved map[string]string) error {
+func (info *Info) takeOutputImports(block []Import, resolved map[string]string) {
 	info.outputImports = block
 
 	if info.importNames == nil {
@@ -59,8 +57,4 @@ func (info *Info) takeOutputImports(block []Import, resolved map[string]string) 
 	}
 
 	maps.Copy(info.importNames, resolved)
-
-	all := info.AllImports()
-
-	return CheckImports(all, info.importNames)
 }

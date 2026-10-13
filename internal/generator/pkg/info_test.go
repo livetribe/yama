@@ -77,33 +77,12 @@ func TestImportedAsIsEmptyForAPathNoStubFileImports(t *testing.T) {
 	assert.Empty(t, info.ImportedAs("net/http"))
 }
 
-// Google Wire states an import block of its own. The package holds only the
-// stub files' own block until a run reads that block.
-func TestAllImportsHoldsOnlyTheStubFilesOwnBlockAtFirst(t *testing.T) {
+// Google Wire states an import block of its own. The package holds none of it
+// until a run reads that block.
+func TestOutputImportsIsEmptyAtFirst(t *testing.T) {
 	info := loadShapes(t)
 
-	assert.Equal(t, info.Imports(), info.AllImports())
-}
-
-// The lifecycle file calls nothing from Google Wire. A stub imports it for its
-// Build call only. Each stub file of the shapes package imports it under a name
-// of its own.
-func TestLifecycleImportsLeavesGoogleWireOutUnderEveryName(t *testing.T) {
-	info := collectShapes(t)
-
-	for _, imp := range info.LifecycleImports() {
-		assert.NotEqual(t, pkg.WirePackagePath, imp.Path)
-	}
-}
-
-// A signature can name a package by the alias that one stub file gave it. A
-// second signature can name the same package by the name that a second file
-// gave. Both names reach the lifecycle file.
-func TestLifecycleImportsKeepsOnePathUnderTwoNames(t *testing.T) {
-	info := collectShapes(t)
-
-	assert.Contains(t, info.LifecycleImports(), pkg.Import{Name: "y", Path: pkg.PackagePath})
-	assert.Contains(t, info.LifecycleImports(), pkg.Import{Name: "yama", Path: pkg.PackagePath})
+	assert.Empty(t, info.OutputImports())
 }
 
 // The tests below drive Info from values rather than from source. The state

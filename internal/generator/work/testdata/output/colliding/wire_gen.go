@@ -12,16 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// This file binds the name that the stub file binds to another path, so
-// Generate fails at the step that reads the output's import block.
+// This file binds the name that the stub file binds to another package. That
+// package declares a Context type. The output does not import the stub file's
+// package. Generate gives that package a free name in the lifecycle file.
 
 //go:build !wireinject
 
 package app
 
-import context "example.com/other/context"
+import context "go/build"
 
 func yama_NewAppLifecycle(ctx context.Context) (*App, func(), error) {
-	app := NewApp(nil)
-	return app, func() {}, nil
+	logger := NewLogger()
+	db, cleanup := NewDB(logger)
+	app := NewApp(db)
+	return app, func() { cleanup() }, nil
 }

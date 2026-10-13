@@ -41,7 +41,7 @@ var _ = Describe("nameFile", func() {
 		It("gives the runtime import another name", func() {
 			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "rt", Type: "*Registry"})}
 
-			names := nameFile(nil, nil, nil, stubs)
+			names := nameFile(nil, fileScope(nil, nil, stubs), stubs)
 
 			Expect(names.rt).NotTo(Equal("rt"))
 		})
@@ -49,7 +49,7 @@ var _ = Describe("nameFile", func() {
 		It("gives the public import another name", func() {
 			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "yama", Type: "*Thing"})}
 
-			names := nameFile(nil, nil, nil, stubs)
+			names := nameFile(nil, fileScope(nil, nil, stubs), stubs)
 
 			Expect(names.yama).NotTo(Equal("yama"))
 		})
@@ -57,7 +57,7 @@ var _ = Describe("nameFile", func() {
 		It("keeps a parameter that neither import needs", func() {
 			stubs := []pkg.Stub{optionsStub(pkg.Field{Name: "ctx", Type: "context.Context"})}
 
-			names := nameFile(nil, nil, nil, stubs)
+			names := nameFile(nil, fileScope(nil, nil, stubs), stubs)
 
 			Expect(names.rt).To(Equal("rt"))
 			Expect(names.yama).To(Equal("yama"))
@@ -73,7 +73,9 @@ var _ = Describe("nameFile", func() {
 				Components: []graph.Component{{Name: "opts"}},
 			}}
 
-			names := nameFile(nil, injectors, nil, []pkg.Stub{optionsStub()})
+			stubs := []pkg.Stub{optionsStub()}
+
+			names := nameFile(nil, fileScope(injectors, nil, stubs), stubs)
 
 			Expect(names.opts).To(HaveLen(1))
 			Expect(names.opts[0]).NotTo(Equal("opts"))
@@ -86,7 +88,9 @@ var _ = Describe("nameFile", func() {
 		It("gives both the name that each one states", func() {
 			stub := optionsStub()
 
-			names := nameFile(nil, nil, nil, []pkg.Stub{stub, stub})
+			stubs := []pkg.Stub{stub, stub}
+
+			names := nameFile(nil, fileScope(nil, nil, stubs), stubs)
 
 			Expect(names.opts).To(Equal([]string{"opts", "opts"}))
 		})
@@ -98,20 +102,28 @@ var _ = Describe("nameFile", func() {
 var _ = Describe("signature", func() {
 	It("gives the runtime package the name that the lifecycle file states", func() {
 		stub := optionsStub(pkg.Field{Name: "b", Type: "*runtime.Builder"})
-		names := naming{yama: "yama", rt: "rt", opts: []string{"opts"}}
 
-		rendered := signature(&stub, "opts", &names, "runtime")
+		rendered := signature(&stub, "opts", map[string]string{"runtime": "rt"})
 
 		Expect(rendered).To(ContainSubstring("*rt.Builder"))
 		Expect(rendered).NotTo(ContainSubstring("runtime.Builder"))
 	})
 
-	It("leaves a type alone when the stub named no runtime import", func() {
+	It("leaves a type alone when no name changes", func() {
 		stub := optionsStub(pkg.Field{Name: "cfg", Type: "*Config"})
-		names := naming{yama: "yama", rt: "rt", opts: []string{"opts"}}
 
-		rendered := signature(&stub, "opts", &names, "")
+		rendered := signature(&stub, "opts", nil)
 
 		Expect(rendered).To(ContainSubstring("cfg *Config"))
+	})
+
+	// Two names can trade places. Each name in a type takes the name that it
+	// maps to, and no name changes two times.
+	It("replaces every name at one time", func() {
+		stub := optionsStub(pkg.Field{Name: "a", Type: "*text.Template"}, pkg.Field{Name: "b", Type: "*template.Template"})
+
+		rendered := signature(&stub, "opts", map[string]string{"text": "template", "template": "template2"})
+
+		Expect(rendered).To(ContainSubstring("a *template.Template, b *template2.Template"))
 	})
 })

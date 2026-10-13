@@ -27,6 +27,13 @@ local shares one scope with every import name in the file. Yama does not choose
 component locals, so a component local can carry the name Yama wants for an
 import. Nothing so far says which name gives way.
 
+The emitted file also declares the stub's own signature. That signature names
+each package by the name that the stub file gives the package. Google Wire
+chooses the names in its own import block. It does not use the names that the
+stub file gives. Its output can therefore give a name that the stub file uses
+to a different package. An earlier version of Yama rejected such a run. It
+asked for an alias in the stub file.
+
 ## Decision
 
 Yama derives every identifier it owns by the rules below.
@@ -54,6 +61,24 @@ Google Wire's output sometimes imports one of those two paths already, because a
 provider's signature names a type from it. Yama then refers to the package by
 the name that import carries, and adds no second import of one path.
 
+### A stub file's import keeps its name unless Google Wire's output takes it
+
+The emitted file declares the stub's own signature. The signature keeps the
+name that the stub file gives each package. Google Wire's output can give that
+name to a different package. The signature then names the package by one of
+two names:
+
+* the name that Google Wire's output gives the same package, when the output
+  imports that package;
+* the stub file's name with the lowest free number, when the output does not
+  import that package. Yama adds an import of the package under that name.
+
+A stub file's import that the signature does not name does not reach the
+emitted file. Yama changes no name for it.
+
+Yama's own two packages take their names from the rule for `yama` and `rt`
+above, and not from this rule.
+
 ### A taken name is escaped with the lowest free number
 
 When a name this ADR derives is already taken in the scope where it must be
@@ -79,7 +104,7 @@ application. Go permits no identifier in both a file block and the package block
 application that declares `rt` in any file of the package makes that name
 unusable for an import in the emitted file.
 
-### Three kinds of name give way in a fixed order
+### Four kinds of name give way in a fixed order
 
 A collision has more than one name that could move, so this ADR fixes which one
 does.
@@ -87,12 +112,15 @@ does.
 1. **An import the re-emitted body refers to does not move.** The constructor
    reproduces that body unchanged (ADR-008), and the body names the package. A
    rename would have to rewrite the re-emission.
-2. **The options parameter gives way to those imports.** A parameter can
+2. **A stub file's import gives way to those imports.** The signature is the
+   only part of the emitted file that names such an import. Yama prints the
+   signature itself, so a rename changes no line of the re-emission.
+3. **The options parameter gives way to the imports above.** A parameter can
    carry the name of a package that the body refers to. That parameter shadows
    the package inside the body. No import rename frees the name, because the
    parameter and the reference are in one scope. Yama renames the parameter. A
    parameter is positional, so no caller sees the change.
-3. **Yama's own two imports give way to everything else.** They are the last
+4. **Yama's own two imports give way to everything else.** They are the last
    names chosen and the only ones with no other claim on them.
 
 ### A constructor name is reported, not escaped
@@ -134,6 +162,24 @@ a reviewer compares it against. An import name appears only in the constructor's
 tail, where Yama writes every reference itself. The import is therefore the
 cheaper name to change, and changing it leaves the re-emission untouched.
 
+### Google Wire's import names are not under the application's control
+
+Google Wire names the packages in the order that its output first refers to
+them. A provider that the application adds can change that order. A change to
+the order can change the names. An alias that removes a collision in one run
+can collide again after the next change to the provider list. The application
+also cannot read Google Wire's names after a run, because Yama removes Google
+Wire's output at the end of the run. An alias rule therefore asks the
+application to avoid names that it cannot see.
+
+### A free name stays when the output names the same package another way
+
+A stub file can give a package an alias. Google Wire's output can name the same
+package by the package's own name. Neither name collides. The signature keeps
+the stub file's alias. The emitted file imports the package under both names.
+The signature in the emitted file then reads as the stub reads. A signature
+changes only when a name collides.
+
 ### A numeric suffix is the convention already present in the file
 
 Wire disambiguates its own repeated names with a decimal suffix, as in `cleanup`
@@ -152,6 +198,9 @@ A committed `lifecycle_gen.go` changes only when the application's own names
 change, or when Yama's analysis changes. The derivation contributes no churn of
 its own.
 
+A stub file needs no alias to avoid a name in Google Wire's output. A change to
+the provider list does not make a run fail on a name that Google Wire chose.
+
 ### Negative
 
 The reserved prefix constrains the application. An application can declare its
@@ -169,6 +218,10 @@ But that constructor reads worse than one with the plain names.
 An application that declares `yama` in the package block must also alias its
 own import of the public package, in the stub file that it writes by hand.
 Yama escapes the names in the file that it emits. It does not edit the stub.
+
+The signature in the emitted file can differ from the stub's signature. A
+reader can see a package name that the stub file does not state, such as
+`template2`. Only the package names differ.
 
 ### Accepted Trade-Off
 
@@ -202,8 +255,21 @@ a second import of the runtime-support package under another name. This does
 not work. The parameter that shadows `rt` shadows it for every reference in
 that body, so the body's own import is still unreachable.
 
-It also costs the emitted file its byte stability. The import block is ordered
-by path, which is a total order only while one path has one name.
+### Reject the run and ask for an alias in the stub file
+
+This keeps the signature in the emitted file equal to the stub's signature. It
+also asks the application to avoid names that Google Wire chooses later. A
+change to the provider list can then break a run that worked. That check also
+read every import of the stub file. An import that the signature did not name
+never reached the emitted file, but its name still stopped the run.
+
+### Name every package by the name that Google Wire's output gives it
+
+This gives each package one name in the emitted file. It also changes a
+signature that has no collision. The stub file can give an alias to a package
+that Google Wire's output also imports. This alternative then replaces the
+alias in the signature. The decision above changes a signature only when a
+name collides.
 
 ### Prefix the derived injector name with no separator
 
@@ -222,6 +288,11 @@ application publishes.
 
 This ADR does not rename component locals. They keep the names Wire gave them
 (ADR-008).
+
+This ADR does not rename an import in the derived injector file. That file
+carries the imports of every stub file under the names that each stub file
+gives. Two stub files that give one name to two packages therefore still stop
+the run.
 
 This ADR does not cover identifiers inside the runtime-support package. Those
 are that package's own private names (ADR-010).

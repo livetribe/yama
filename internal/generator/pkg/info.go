@@ -98,18 +98,6 @@ func (info *Info) NameOf(imp Import) string {
 	return imp.NameIn(info.importNames)
 }
 
-// AllImports returns the stub files' own import block, followed by the block
-// that Google Wire stated in its output. It holds only the stub files' own
-// block until a run reads that output.
-//
-// The two blocks together are what one lifecycle file carries.
-func (info *Info) AllImports() []Import {
-	all := make([]Import, 0, len(info.imports)+len(info.outputImports))
-	all = append(all, info.imports...)
-
-	return append(all, info.outputImports...)
-}
-
 // ImportedAs returns the name that the package's stub files use for path. It is
 // empty for a path that no stub file imports.
 func (info *Info) ImportedAs(path string) string {

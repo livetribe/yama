@@ -18,37 +18,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"l7e.io/yama/internal/generator/pkg"
 )
 
-// The lifecycle file carries the stub files' import block and Google Wire's
-// own. One name in that file refers to one path. The check that states this
-// rule reads both blocks rather than either one alone.
-func TestTakeOutputImportsFromReportsANameThatTwoPathsAnswerTo(t *testing.T) {
+// Google Wire chooses the names of its own imports. Its output can give a name
+// that a stub file uses to another path. The package takes that block as it
+// stands.
+func TestTakeOutputImportsFromTakesANameThatAStubFileGivesAnotherPath(t *testing.T) {
 	info := pkg.NewInfo(t.TempDir())
 	info.TakeStubFile("app", nil, []pkg.Import{{Name: "cfg", Path: "example.com/a/config"}})
 
-	err := info.TakeOutputImportsFrom([]byte("package app\n\nimport cfg \"example.com/b/config\"\n"))
+	info.TakeOutputImportsFrom([]byte("package app\n\nimport cfg \"example.com/b/config\"\n"))
 
-	require.Error(t, err, "the two blocks bind one name to two paths")
-	assert.ErrorContains(t, err, "needs an alias")
-}
-
-func TestTakeOutputImportsFromTakesOnePathStatedByBothBlocks(t *testing.T) {
-	info := pkg.NewInfo(t.TempDir())
-	info.TakeStubFile("app", nil, []pkg.Import{{Path: "context"}})
-
-	require.NoError(t, info.TakeOutputImportsFrom([]byte("package app\n\nimport \"context\"\n")))
-
-	assert.Len(t, info.AllImports(), 2, "one entry for each block")
-	assert.Len(t, info.LifecycleImports(), 1, "one entry stands for both")
+	assert.Equal(t, []pkg.Import{{Name: "cfg", Path: "example.com/b/config"}}, info.OutputImports())
 }
 
 func TestTakeOutputImportsFromTakesNothingFromOutputThatDoesNotParse(t *testing.T) {
 	info := pkg.NewInfo(t.TempDir())
 
-	require.NoError(t, info.TakeOutputImportsFrom([]byte("this is not go")))
-	assert.Empty(t, info.LifecycleImports())
+	info.TakeOutputImportsFrom([]byte("this is not go"))
+
+	assert.Empty(t, info.OutputImports())
 }
