@@ -301,6 +301,38 @@ var _ = Describe("source", func() {
 			})
 		})
 
+		DescribeTable("reports a guarded file that uses a dot import",
+			func(imports, call string) {
+				write("lifecycle.go", "//go:build yamainject\n\npackage app\n\n"+
+					"import (\n"+imports+"\n\t\"l7e.io/yama\"\n)\n\n"+
+					"func NewApp() (*App, yama.Lifecycle, error) {\n\tpanic("+call+")\n}\n")
+
+				_, err := pkg.Load(dir, nil)
+
+				Expect(err).To(MatchError(And(
+					ContainSubstring("lifecycle.go:6:2: "),
+					ContainSubstring("dot import"),
+				)))
+			},
+			Entry("of Google Wire",
+				"\t. \"github.com/google/wire\"\n", "Build(One)"),
+			Entry("of a package that states providers",
+				"\t. \"example.com/lib\"\n\t\"github.com/google/wire\"\n", "wire.Build(One)"),
+		)
+
+		Context("when a guarded file uses a dot import and imports Google Wire not at all", func() {
+			BeforeEach(func() {
+				write("helper.go", "//go:build yamainject\n\npackage app\n\n"+
+					"import . \"strings\"\n\nfunc Helper() string {\n\treturn ToUpper(\"a\")\n}\n")
+			})
+
+			It("reports no error for it", func() {
+				_, err := pkg.Load(dir, nil)
+
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
 		Context("when a guarded file imports Google Wire not at all", func() {
 			BeforeEach(func() {
 				write("helper.go", "//go:build yamainject\n\npackage app\n\n"+

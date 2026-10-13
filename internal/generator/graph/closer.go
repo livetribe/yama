@@ -464,20 +464,23 @@ func newSetCalls(file *ast.File, info *types.Info) []*ast.CallExpr {
 }
 
 // isWireCall reports whether call is a call to the Google Wire function name.
+// The call names the function through the package name, or through a dot
+// import.
 func isWireCall(call *ast.CallExpr, name string, info *types.Info) bool {
-	sel, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok || sel.Sel.Name != name {
+	var ident *ast.Ident
+
+	switch fun := call.Fun.(type) {
+	case *ast.Ident:
+		ident = fun
+	case *ast.SelectorExpr:
+		ident = fun.Sel
+	default:
 		return false
 	}
 
-	qualifier, ok := sel.X.(*ast.Ident)
-	if !ok {
-		return false
-	}
+	fn, ok := info.Uses[ident].(*types.Func)
 
-	imported, ok := info.Uses[qualifier].(*types.PkgName)
-
-	return ok && imported.Imported().Path() == pkg.WirePackagePath
+	return ok && fn.Name() == name && fn.Pkg() != nil && fn.Pkg().Path() == pkg.WirePackagePath
 }
 
 // structEntryType returns the name of the struct type that a wire.Struct entry

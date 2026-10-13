@@ -237,6 +237,17 @@ var _ = Describe("closer directives", func() {
 			Expect(detected.Warnings).To(BeEmpty())
 		})
 
+		It("marks the entry in a file that imports Google Wire with a dot import", func() {
+			sets := "package app\n\nimport . \"github.com/google/wire\"\n\n" +
+				"var Set = NewSet(\n\t//yama:closer\n\tStruct(new(Conn), \"*\"))\n"
+			Expect(os.WriteFile(filepath.Join(dir, "sets.go"), []byte(sets), 0o600)).To(Succeed())
+
+			detected, err := detect("func Init() *Conn {\n\tconn := &Conn{}\n\treturn conn\n}\n")
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(closerOf(detected, "conn")).To(BeTrue())
+		})
+
 		It("reports two entries for one type that do not carry the same directive", func() {
 			body := "var Other = wire.NewSet(wire.Struct(new(Conn), \"*\"))\n\n" +
 				structGraph("\t//yama:closer\n", "*Conn", "&Conn{}")

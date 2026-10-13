@@ -217,9 +217,25 @@ func afterBlock(s string) (rest string, closed bool) {
 	return strings.TrimSpace(after), true
 }
 
+// checkDotImports reports the first import that the stub file states with a
+// dot import.
+func checkDotImports(fset *token.FileSet, file *ast.File) error {
+	for _, spec := range file.Imports {
+		if spec.Name == nil || spec.Name.Name != dotName {
+			continue
+		}
+
+		at := fset.Position(spec.Pos())
+
+		return fmt.Errorf("%s: a stub file imports %s with a dot import; give the import a name", at, spec.Path.Value)
+	}
+
+	return nil
+}
+
 // stubsOf returns every stub that the file declares, in the order that it
 // declares them. It reports a stub if Yama cannot emit a constructor from its
-// signature.
+// signature. It reports a dot import in a file that imports Google Wire.
 //
 // A declaration is a stub when its body has a form that buildCall takes.
 // stubsOf does not read every other declaration, and it checks the signature of
@@ -228,6 +244,10 @@ func stubsOf(fset *token.FileSet, file *ast.File) ([]Stub, error) {
 	wire, imported := importedAs(file, WirePackagePath)
 	if !imported {
 		return nil, nil
+	}
+
+	if err := checkDotImports(fset, file); err != nil {
+		return nil, err
 	}
 
 	yama, _ := importedAs(file, PackagePath)

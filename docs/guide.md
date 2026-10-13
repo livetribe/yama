@@ -71,6 +71,9 @@ The rules for a stub's signature:
 - A trailing option parameter is allowed and must be the variadic
   `opts ...yama.Option`. A constructor that accepts no options omits it.
 
+A stub file imports every package under a name. Yama reports a dot import
+in a stub file.
+
 A stub body takes the same forms as a Wire injector body. The body is one
 call to `wire.Build`, alone or inside `panic`. A `return` statement can
 follow that call.

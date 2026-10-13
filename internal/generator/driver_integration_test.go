@@ -77,6 +77,13 @@ var (
 	// three.
 	badstub = fixture{"badstub", []string{"components.go", "lifecycle.go"}}
 
+	// dotwire holds a stub file that imports Google Wire with a dot import.
+	dotwire = fixture{"dotwire", []string{"components.go", "lifecycle.go"}}
+
+	// dotlib holds a stub file that imports the package of its provider set
+	// with a dot import.
+	dotlib = fixture{"dotlib", []string{"components.go", "lifecycle.go"}}
+
 	// valuerun holds a stub with a graph that takes a wire.Value provider.
 	valuerun = fixture{"valuerun", []string{"components.go", "lifecycle.go"}}
 
@@ -437,6 +444,28 @@ func TestDriverRejectsAStubItCannotEmitFrom(t *testing.T) {
 	assert.ErrorContains(t, err, "declares 2 results")
 	assert.ErrorContains(t, err, "lifecycle.go:")
 	assert.NoFileExists(t, "lifecycle_gen.go")
+}
+
+// TestDriverRejectsAStubFileWithADotImport runs over stub files that each
+// state one dot import. The run reports the import before Google Wire runs.
+func TestDriverRejectsAStubFileWithADotImport(t *testing.T) {
+	requireGo(t)
+
+	for _, f := range []fixture{dotwire, dotlib} {
+		t.Run(f.name, func(t *testing.T) {
+			dir := copyFixture(t, f)
+			t.Chdir(dir)
+
+			d := quietDriver(".", []string{"."}, wire.Args{})
+
+			err := d.Run(context.Background())
+
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "lifecycle.go:")
+			assert.ErrorContains(t, err, "with a dot import")
+			assert.NoFileExists(t, "lifecycle_gen.go")
+		})
+	}
 }
 
 // TestDriverEmitsAValueProvider drives a run over a graph that takes a

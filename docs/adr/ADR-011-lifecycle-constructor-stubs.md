@@ -125,6 +125,23 @@ Yama owns the derived injector file's name. A run writes over a file already at
 that name, and removes the file at the end. Wire's output is different. Yama
 moves a `wire_gen.go` it did not write aside, and puts the file back (ADR-008).
 
+### A stub file names every import
+
+Yama copies the text of each stub into the files that it writes. The provider
+list goes into the derived injector. The signature goes into the derived
+injector, the placeholder, and `lifecycle_gen.go`. Each written file states only
+the imports that this text names through a package name. A dot import gives no
+package name, so Yama cannot tell which names in the text come from that
+package.
+
+A stub file therefore imports every package under a name. Yama reports a dot
+import in a stub file, at the position of the import. Google Wire accepts a dot
+import in `wire.go`, so this rule is a difference between a stub file and
+`wire.go`.
+
+The rule covers the stub file only. Yama reads every other file of the package
+through the Go type-checker, and a dot import in such a file needs no rule.
+
 ### The emitted file carries one negative tag
 
 Yama emits `lifecycle_gen.go` guarded by `//go:build !yamainject`. That tag
@@ -287,6 +304,7 @@ new tag name, not a new file convention.
 * An application that omits the options parameter cannot pass an interceptor or a
   boundary component. To pass one later, it adds the parameter to the stub and
   generates again.
+* A stub file cannot use a dot import, although `wire.go` can.
 
 ### Accepted Trade-Off
 
@@ -388,6 +406,16 @@ Rejected. It adds an exported symbol to the module's public API surface, and it
 rewrites every stub in every application. It also gives up the rule above, that
 `wire.Build` keeps the meaning Google Wire gives it. A reader then holds two
 meanings for one shape. The placeholder changes nothing an application writes.
+
+### Yama carries a dot import into each file that it writes
+
+Yama could copy a stub file's dot import into the derived injector file and into
+`lifecycle_gen.go`. A stub file could then take every import form that `wire.go`
+takes.
+
+Rejected. Go rejects a file that imports a package and uses no name from it.
+Yama cannot tell from the stub's text whether a written file uses a name from the
+dot-imported package. A wrong guess gives a written file that does not compile.
 
 ## Non-Goals
 
