@@ -93,9 +93,13 @@ jobs:
           cache: true
       - name: Calc coverage
         run: make coverage
+      # Coveralls removes up to three leading segments from each profile path.
+      # The module path has two segments. A GitHub path has three segments.
+      - name: Change module paths to GitHub paths
+        run: sed 's|^l7e\.io/yama/|github.com/livetribe/yama/|' coverage.out > coveralls.out
       - name: Coveralls
         uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: coverage.out
+          file: coveralls.out
           format: golang
