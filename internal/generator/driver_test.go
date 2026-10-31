@@ -97,7 +97,7 @@ func TestDriverHeaderReportsAFileThatNoGoFileCanCarry(t *testing.T) {
 	_, err := d.header()
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "NOTICE")
+	require.ErrorContains(t, err, "NOTICE")
 	assert.ErrorContains(t, err, "not a comment")
 }
 

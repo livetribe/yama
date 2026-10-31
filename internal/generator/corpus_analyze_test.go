@@ -245,6 +245,6 @@ func TestCorpusReportsAPackageThatDoesNotCompile(t *testing.T) {
 	_, err = graph.Detect(dir, nil, injectors)
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "components.go", "the message names the file that does not compile")
+	require.ErrorContains(t, err, "components.go", "the message names the file that does not compile")
 	assert.ErrorContains(t, err, "not an int", "the message carries what the compiler said")
 }

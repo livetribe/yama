@@ -146,7 +146,7 @@ func TestParseArgsRejectsUnknownFlag(t *testing.T) {
 	require.Error(t, err)
 
 	var usage *usageError
-	assert.ErrorAs(t, err, &usage)
+	require.ErrorAs(t, err, &usage)
 	assert.Contains(t, reported.String(), "-no_such_flag")
 	assert.Contains(t, reported.String(), "Usage: yama")
 }

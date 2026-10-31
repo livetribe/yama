@@ -441,8 +441,8 @@ func TestDriverRejectsAStubItCannotEmitFrom(t *testing.T) {
 	err := d.Run(context.Background())
 
 	require.Error(t, err)
-	assert.ErrorContains(t, err, "declares 2 results")
-	assert.ErrorContains(t, err, "lifecycle.go:")
+	require.ErrorContains(t, err, "declares 2 results")
+	require.ErrorContains(t, err, "lifecycle.go:")
 	assert.NoFileExists(t, "lifecycle_gen.go")
 }
 
@@ -461,8 +461,8 @@ func TestDriverRejectsAStubFileWithADotImport(t *testing.T) {
 			err := d.Run(context.Background())
 
 			require.Error(t, err)
-			assert.ErrorContains(t, err, "lifecycle.go:")
-			assert.ErrorContains(t, err, "with a dot import")
+			require.ErrorContains(t, err, "lifecycle.go:")
+			require.ErrorContains(t, err, "with a dot import")
 			assert.NoFileExists(t, "lifecycle_gen.go")
 		})
 	}

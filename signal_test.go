@@ -44,7 +44,7 @@ func TestRunUntilSignalStartFailureShortCircuits(t *testing.T) {
 
 	select {
 	case err := <-done:
-		assert.ErrorIs(t, err, yama.ErrStartFailed)
+		require.ErrorIs(t, err, yama.ErrStartFailed)
 	case <-time.After(2 * time.Second):
 		t.Fatal("RunUntilSignal blocked after Start failed instead of returning")
 	}
@@ -85,7 +85,7 @@ func TestRunUntilSignalStopsOnContextCancellation(t *testing.T) {
 
 	select {
 	case err := <-done:
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
 		t.Fatal("RunUntilSignal did not return after the context was canceled")
 	}
