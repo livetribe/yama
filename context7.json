@@ -5,7 +5,7 @@
   "projectTitle": "Yama",
   "description": "Compile-time lifecycle orchestration for Go. Google Wire builds the dependency graph. Yama generates code that starts, quiesces, and stops the graph in dependency order.",
   "excludeFolders": [".claude", ".github", "docs/adr", "docs/prompts", "docs/postmortem", "internal", "testdata"],
-  "excludeFiles": ["AGENTS.md", "CLAUDE.md", "SECURITY.md", "implementation_plan_claude.md", "PRD.md", "generator-architecture.md"],
+  "excludeFiles": ["AGENTS.md", "CLAUDE.md", "CODING_STANDARDS.md", "SECURITY.md", "implementation_plan_claude.md", "PRD.md", "generator-architecture.md"],
   "rules": [
     "Import the module as l7e.io/yama, not github.com/livetribe/yama.",
     "Pin github.com/google/wire/cmd/wire and l7e.io/yama/cmd/yama in the tool block of go.mod.",

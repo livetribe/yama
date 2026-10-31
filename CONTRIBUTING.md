@@ -39,7 +39,8 @@ The maintainer reviews each pull request. CI must pass before a merge.
 
 ## Requirements for a change
 
-A change must obey the project conventions in [AGENTS.md](AGENTS.md). These
+A change must obey the project conventions in
+[CODING_STANDARDS.md](CODING_STANDARDS.md) and [AGENTS.md](AGENTS.md). These
 conventions apply to all contributors. Their baseline is the
 [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md).
 
@@ -50,8 +51,8 @@ conventions apply to all contributors. Their baseline is the
   [AGENTS.md](AGENTS.md#testing) gives the command.
 - Write or update an ADR in `docs/adr/` when the change makes a design
   decision.
-- Write commit messages that obey the rules in
-  [How to Write a Git Commit Message](https://cbea.ms/git-commit/).
+- Write commit messages that obey the
+  [`git-commit-message` skill](.claude/skills/git-commit-message/SKILL.md).
 
 ## License
 
