@@ -43,6 +43,7 @@ They run a final adversarial review of an ADR.
 - Tests with the race detector: `make test`
 - Coverage: `make coverage`
 - Lint: `make lint`
+- Vulnerability check: `make vuln`
 - Code generation: `make generate`
 - Module tidy: `make tidy`
 - Clean: `make clean`
