@@ -152,8 +152,8 @@ func TestRunUntilSignalIgnoresUnwatchedSignal(t *testing.T) {
 	raise(t, syscall.SIGTERM)
 
 	select {
-	case <-done:
-		t.Fatal("RunUntilSignal returned on a signal outside its watch set")
+	case err := <-done:
+		t.Fatalf("RunUntilSignal returned %v on a signal outside its watch set", err)
 	case <-time.After(200 * time.Millisecond):
 	}
 
