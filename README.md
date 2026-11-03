@@ -8,7 +8,6 @@ runtime engine that interprets one.
 [![Build Status](https://github.com/livetribe/yama/actions/workflows/ci.yml/badge.svg)](https://github.com/livetribe/yama/actions/workflows/ci.yml)
 ![Go Version](https://img.shields.io/badge/Go-%3E%3D%201.26-%23007d9c)
 [![Documentation](https://pkg.go.dev/badge/l7e.io/yama.svg)](https://pkg.go.dev/l7e.io/yama)
-[![Go Report Card](https://goreportcard.com/badge/l7e.io/yama)](https://goreportcard.com/report/l7e.io/yama)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/livetribe/yama/badge)](https://scorecard.dev/viewer/?uri=github.com/livetribe/yama)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15451/badge)](https://www.bestpractices.dev/projects/15451)
 [![Coverage Status](https://coveralls.io/repos/github/livetribe/yama/badge.svg?branch=master)](https://coveralls.io/github/livetribe/yama?branch=master)
